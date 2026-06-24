@@ -1,0 +1,432 @@
+export type QuotaType = 'fish_bottle' | 'throw_bottle' | 'truth' | 'dare' | 'treehole_post'
+
+export type ContentStatus = 'pending' | 'approved' | 'rejected'
+export type BottleTargetGender = 'all' | 'female' | 'male'
+export type BottleTargetScope = 'all' | 'same_city' | 'nearby'
+
+export interface UserProfile {
+  id: string
+  nickname: string
+  avatarText: string
+  avatarUrl?: string
+  platform: 'wechat' | 'ios' | 'android' | 'h5'
+  isVip: boolean
+  vipLevel: 'none' | 'monthly' | 'season' | 'yearly'
+  driftCoins: number
+  gender?: 'female' | 'male' | 'unknown'
+  ageRange?: string
+  city?: string
+  faceVerified?: boolean
+  genderVerified?: boolean
+  charmValue?: number
+}
+
+export interface QuotaItem {
+  type: QuotaType
+  label: string
+  base: number
+  vipBonus: number
+  adBonus: number
+  used: number
+  remaining: number
+}
+
+export interface AdRewardState {
+  canWatch: boolean
+  cooldownSeconds: number
+  cooldownMinutes: number
+  rewardPerQuota: number
+  activeSessionId?: string
+}
+
+export interface CheckinState {
+  checkedToday: boolean
+  streakDays: number
+  weekRewards: number[]
+  currentWeekIndex: number
+  lastReward?: number
+}
+
+export interface MeStatus {
+  user: UserProfile
+  quotas: Record<QuotaType, QuotaItem>
+  adReward: AdRewardState
+  checkin: CheckinState
+}
+
+export interface Bottle {
+  id: string
+  authorId: string
+  authorName: string
+  authorAvatarText?: string
+  authorVip?: boolean
+  authorGender?: 'female' | 'male' | 'unknown'
+  authorAgeRange?: string
+  authorCity?: string
+  authorVerified?: boolean
+  content: string
+  mood: string
+  status: ContentStatus
+  replies: number
+  targetGender?: BottleTargetGender
+  targetScope?: BottleTargetScope
+  isFollowing?: boolean
+  friendRequested?: boolean
+  createdAt: string
+}
+
+export interface TreeholePost {
+  id: string
+  authorId: string
+  authorName: string
+  authorAvatarText: string
+  authorAvatarUrl?: string
+  authorGender: 'female' | 'male' | 'unknown'
+  authorAgeRange: string
+  content: string
+  resonanceCount: number
+  replyCount: number
+  paidPhotoCount?: number
+  status: ContentStatus
+  createdAt: string
+}
+
+export interface TruthQuestion {
+  id: string
+  category: string
+  text: string
+}
+
+export interface DareTask {
+  id: string
+  category: string
+  text: string
+}
+
+export interface MessageItem {
+  id: string
+  title: string
+  body: string
+  createdAt: string
+  unread: boolean
+}
+
+export interface ConversationTurn {
+  id: string
+  senderName: string
+  body: string
+  createdAt: string
+  fromMe: boolean
+}
+
+export interface ConversationThread {
+  id: string
+  bottleId: string
+  participantName: string
+  participantTag: string
+  bottlePreview: string
+  lastMessage: string
+  updatedAt: string
+  unreadCount: number
+  turns: ConversationTurn[]
+}
+
+export interface AdminSummary {
+  users: number
+  activeUsers: number
+  pendingContent: number
+  reports: number
+  adRewardsToday: number
+  ordersToday: number
+  pendingWithdrawals: number
+  riskWallets: number
+}
+
+export interface AdminSession {
+  accountId: string
+  displayName: string
+  role: 'super_admin' | 'content_admin' | 'risk_admin'
+  permissions: string[]
+  signedIn: boolean
+  lastLoginAt: string
+}
+
+export interface AdminRewardConfig {
+  baseQuotas: Record<QuotaType, number>
+  adCooldownMinutes: number
+  adRewardPerQuota: number
+  adReward: string
+  checkinRewards: number[]
+  quotaNames: Record<QuotaType, string>
+}
+
+export interface AdminRewardConfigDraft {
+  baseQuotas: Record<QuotaType, number>
+  adCooldownMinutes: number
+  adRewardPerQuota: number
+  checkinRewards: number[]
+}
+
+export interface AdminUserSummary {
+  id: string
+  nickname: string
+  platform: UserProfile['platform']
+  gender: NonNullable<UserProfile['gender']>
+  isVip: boolean
+  verificationStatus: VerificationState['manualReviewStatus']
+  safetyScore: number
+  walletRisk: 'normal' | 'watch' | 'blocked'
+  driftCoins: number
+  charmValue: number
+  joinedAt: string
+  lastActiveAt: string
+}
+
+export interface AdminContentReviewItem {
+  id: string
+  type: 'bottle' | 'treehole' | 'private_photo' | 'plaza'
+  category: '漂流瓶' | '树洞' | '私密照片' | '广场'
+  authorId: string
+  authorName: string
+  preview: string
+  status: ContentStatus
+  riskLevel: 'low' | 'medium' | 'high'
+  reviewTrigger: 'report' | 'keyword' | 'risk' | 'private_photo' | 'system_sample' | 'new_user'
+  handlingPolicy: string
+  matchedKeywords?: string[]
+  autoAction: 'auto_pass' | 'mask_and_review' | 'reject' | 'manual_review'
+  reason: string
+  createdAt: string
+}
+
+export interface AdminChatReviewItem {
+  id: string
+  threadId: string
+  source: 'bottle' | 'treehole' | 'plaza'
+  reporterName?: string
+  participantUserIds: string[]
+  participants: string[]
+  relatedContent: string
+  lastMessage: string
+  riskLevel: 'low' | 'medium' | 'high'
+  status: 'pending' | 'reviewing' | 'resolved'
+  reviewTrigger: 'report' | 'keyword' | 'risk'
+  handlingPolicy: string
+  matchedKeywords?: string[]
+  autoAction: 'mask_and_review' | 'reject' | 'manual_review'
+  reason: string
+  messages: ConversationTurn[]
+  updatedAt: string
+}
+
+export interface AdminReportItem {
+  id: string
+  reporterName: string
+  targetType: 'user' | 'bottle' | 'treehole' | 'private_photo'
+  targetId: string
+  targetPreview: string
+  reason: string
+  status: 'pending' | 'reviewing' | 'resolved'
+  priority: 'normal' | 'high'
+  createdAt: string
+}
+
+export interface AdminAdRewardRecord {
+  id: string
+  userId: string
+  nickname: string
+  sessionId: string
+  rewardPerQuota: number
+  quotaTypes: QuotaType[]
+  status: 'settled' | 'cooldown' | 'blocked'
+  createdAt: string
+}
+
+export interface AdminOrderRecord {
+  id: string
+  userId: string
+  nickname: string
+  productName: string
+  amountCoins: number
+  payAmount: number
+  channel: 'wechat' | 'apple' | 'android'
+  status: 'paid' | 'refunding' | 'closed'
+  createdAt: string
+}
+
+export interface AdminWalletRiskItem {
+  id: string
+  userId: string
+  nickname: string
+  type: 'withdraw' | 'freeze' | 'charm_review'
+  amountCoins: number
+  charmValue: number
+  status: 'pending' | 'reviewing' | 'approved' | 'rejected'
+  riskReason: string
+  createdAt: string
+}
+
+export interface AdminAuditLogItem {
+  id: string
+  operator: string
+  action: string
+  target: string
+  detail: string
+  createdAt: string
+}
+
+export interface AdminDashboard {
+  adminSession: AdminSession
+  summary: AdminSummary
+  rewardConfig: AdminRewardConfig
+  users: AdminUserSummary[]
+  contentReviews: AdminContentReviewItem[]
+  chatReviews: AdminChatReviewItem[]
+  reports: AdminReportItem[]
+  adRewardRecords: AdminAdRewardRecord[]
+  orders: AdminOrderRecord[]
+  walletRisks: AdminWalletRiskItem[]
+  auditLogs: AdminAuditLogItem[]
+}
+
+export interface WalletState {
+  rechargeCoins: number
+  earnedCoins: number
+  giftCoins: number
+  withdrawableCoins: number
+  frozenCoins: number
+  charmValue: number
+  withdrawThresholdCharm: number
+  charmExchangeRate: number
+}
+
+export interface CoinLedgerItem {
+  id: string
+  title: string
+  amount: number
+  coinBucket: 'recharge' | 'earned' | 'gift'
+  withdrawable: boolean
+  createdAt: string
+}
+
+export interface CreatorProfile {
+  userId: string
+  displayName: string
+  gender: 'female' | 'male' | 'unknown'
+  verified: boolean
+  safetyScore: number
+  followerCount: number
+  albumCount: number
+  earnedCoins: number
+  charmValue: number
+}
+
+export interface PrivatePhoto {
+  id: string
+  ownerId: string
+  ownerName: string
+  title: string
+  coverTone: string
+  priceCoins: number
+  blurred: boolean
+  status: ContentStatus
+  purchased: boolean
+}
+
+export interface GiftProduct {
+  id: string
+  name: string
+  priceCoins: number
+  iconText: string
+}
+
+export interface VerificationState {
+  faceVerified: boolean
+  genderVerified: boolean
+  detectedGender: 'female' | 'male' | 'unknown'
+  livenessPassed: boolean
+  manualReviewStatus: 'not_submitted' | 'pending' | 'approved' | 'rejected'
+}
+
+export interface ReferralState {
+  inviteCode: string
+  invitedCount: number
+  rewardVipDays: number
+  nextRewardNeed: number
+}
+
+export interface BlacklistItem {
+  id: string
+  userId: string
+  nickname: string
+  reason: string
+  blockedAt: string
+}
+
+export interface PlazaPost {
+  id: string
+  authorId: string
+  authorName: string
+  iconText: string
+  topic: string
+  content: string
+  mediaType?: 'text' | 'image' | 'voice' | 'video'
+  mediaCount?: number
+  gender?: 'female' | 'male' | 'unknown'
+  verified?: boolean
+  city?: string
+  ageRange?: string
+  viewCount?: number
+  likeCount: number
+  likedByMe?: boolean
+  commentCount: number
+  commentPreview?: string
+  media?: PlazaMedia[]
+  distanceText?: string
+  createdAt: string
+}
+
+export interface PlazaMedia {
+  id: string
+  postId: string
+  ownerId: string
+  mediaType: 'image' | 'voice' | 'video'
+  url: string
+  storageKey?: string
+  mimeType: string
+  sizeBytes?: number
+  durationSeconds?: number
+  width?: number
+  height?: number
+  createdAt: string
+}
+
+export interface PlazaComment {
+  id: string
+  postId: string
+  authorId: string
+  authorName: string
+  iconText: string
+  authorGender?: 'female' | 'male' | 'unknown'
+  authorAgeRange?: string
+  authorVerified?: boolean
+  authorCity?: string
+  content: string
+  hiddenForOwnerOnly?: boolean
+  visibleToOwnerOnly?: boolean
+  createdAt: string
+}
+
+export interface NearbyUser {
+  id: string
+  nickname: string
+  iconText: string
+  gender: 'female' | 'male' | 'unknown'
+  verified: boolean
+  ageRange?: string
+  distanceKm?: number
+  distanceText: string
+  signature: string
+  isVip: boolean
+  online: boolean
+}

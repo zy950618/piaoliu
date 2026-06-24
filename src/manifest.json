@@ -1,0 +1,23 @@
+{
+  "name": "漂流岛",
+  "appid": "__UNI__DRIFTBOTTLE",
+  "description": "漂流瓶、真心话、大冒险、树洞匿名轻社交",
+  "versionName": "0.1.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "app-plus": {
+    "usingComponents": true,
+    "nvueCompiler": "uni-app",
+    "compilerVersion": 3
+  },
+  "mp-weixin": {
+    "appid": "",
+    "setting": {
+      "urlCheck": false
+    },
+    "usingComponents": true
+  },
+  "h5": {
+    "title": "漂流岛"
+  }
+}

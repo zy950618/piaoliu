@@ -1,0 +1,252 @@
+$page-bg: #eef3f1;
+$surface: #ffffff;
+$surface-strong: #ffffff;
+$ink: #172126;
+$muted: #65757b;
+$brand: #236c72;
+$brand-deep: #12383d;
+$accent: #c27a35;
+$rose: #bf5b73;
+$mint: #4f927f;
+$danger: #b94747;
+$line: rgba(23, 33, 38, 0.1);
+$radius: 8px;
+
+.page {
+  min-height: 100vh;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 28rpx 24rpx 150rpx;
+  background:
+    radial-gradient(circle at 20% -10%, rgba(35, 108, 114, 0.11), transparent 34%),
+    radial-gradient(circle at 92% 4%, rgba(194, 122, 53, 0.1), transparent 28%),
+    linear-gradient(180deg, #fbfcfa 0%, $page-bg 48%, #edf1ee 100%);
+  animation: page-in 180ms ease-out;
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.section {
+  margin-top: 24rpx;
+}
+
+.panel {
+  border: 1px solid $line;
+  border-radius: $radius;
+  background: rgba(255, 255, 255, 0.9);
+  box-sizing: border-box;
+  padding: 24rpx;
+  box-shadow: 0 18rpx 42rpx rgba(31, 54, 58, 0.06);
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.panel:active {
+  transform: scale(0.992);
+  box-shadow: 0 8rpx 22rpx rgba(35, 75, 93, 0.05);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+}
+
+.between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.title {
+  color: $ink;
+  font-size: 40rpx;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.h2 {
+  color: $ink;
+  font-size: 30rpx;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.body {
+  color: $ink;
+  font-size: 28rpx;
+  line-height: 1.6;
+}
+
+.muted {
+  color: $muted;
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6rpx 14rpx;
+  color: $brand-deep;
+  background: rgba(35, 108, 114, 0.1);
+  font-size: 22rpx;
+  line-height: 1.2;
+}
+
+.vip-tag {
+  color: #7a4a10;
+  background: rgba(194, 122, 53, 0.14);
+}
+
+.button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 82rpx;
+  border-radius: $radius;
+  padding: 0 24rpx;
+  color: #fff;
+  background: $brand;
+  font-size: 28rpx;
+  font-weight: 700;
+  transition: transform 140ms ease, background 140ms ease, opacity 140ms ease;
+}
+
+.button:active {
+  transform: scale(0.985);
+}
+
+.button.secondary {
+  color: $brand;
+  background: rgba(35, 108, 114, 0.1);
+}
+
+.button.ghost {
+  color: $ink;
+  background: rgba(29, 29, 31, 0.06);
+}
+
+.button.danger {
+  background: $danger;
+}
+
+.button.disabled {
+  color: #8b949b;
+  background: #e0e8e5;
+  opacity: 0.75;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16rpx;
+}
+
+.grid-5 {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12rpx;
+}
+
+.safe-bottom {
+  padding-bottom: calc(180rpx + env(safe-area-inset-bottom));
+}
+
+.glass {
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.76);
+  backdrop-filter: blur(16px);
+}
+
+.page-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  border: 1px solid rgba(23, 33, 38, 0.08);
+  border-radius: $radius;
+  padding: 30rpx;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(245, 248, 246, 0.82)),
+    radial-gradient(circle at 92% 8%, rgba(194, 122, 53, 0.12), transparent 32%);
+  box-shadow: 0 18rpx 44rpx rgba(31, 54, 58, 0.07);
+}
+
+.page-hero .title,
+.page-hero .muted {
+  display: block;
+}
+
+.page-hero .muted {
+  margin-top: 10rpx;
+}
+
+.surface-strip {
+  border: 1px solid rgba(23, 33, 38, 0.08);
+  border-radius: $radius;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 12rpx 28rpx rgba(31, 54, 58, 0.05);
+}
+
+.soft-divider {
+  height: 1px;
+  margin: 22rpx 0;
+  background: linear-gradient(90deg, transparent, $line, transparent);
+}
+
+@media (min-width: 720px) {
+  body {
+    background:
+      radial-gradient(circle at 20% 0%, rgba(35, 108, 114, 0.13), transparent 30%),
+      linear-gradient(180deg, #e6ece9 0%, #dbe3df 100%);
+  }
+
+  uni-page-body,
+  #app {
+    min-height: 100vh;
+  }
+
+  .page {
+    width: 100%;
+    max-width: 1180px;
+    min-height: 100vh;
+    margin: 0 auto;
+    padding: 32px 40px 112px;
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+    box-shadow: none;
+  }
+
+  .section {
+    margin-top: 20px;
+  }
+
+  .panel {
+    padding: 22px;
+    box-shadow: 0 16px 42px rgba(31, 54, 58, 0.06);
+  }
+
+  .page-hero {
+    padding: 30px;
+  }
+
+  .grid-2 {
+    gap: 16px;
+  }
+
+  .grid-5 {
+    gap: 12px;
+  }
+}

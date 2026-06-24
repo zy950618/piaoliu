@@ -1,0 +1,165 @@
+{
+  "pages": [
+    {
+      "path": "pages/bottle/index",
+      "style": {
+        "navigationBarTitleText": "漂流瓶",
+        "navigationStyle": "custom",
+        "disableScroll": true
+      }
+    },
+    {
+      "path": "pages/plaza/index",
+      "style": {
+        "navigationBarTitleText": "广场"
+      }
+    },
+    {
+      "path": "pages/plaza/comments",
+      "style": {
+        "navigationBarTitleText": "留言"
+      }
+    },
+    {
+      "path": "pages/game/index",
+      "style": {
+        "navigationBarTitleText": "游戏",
+        "navigationBarBackgroundColor": "#07111F",
+        "navigationBarTextStyle": "white",
+        "disableScroll": true
+      }
+    },
+    {
+      "path": "pages/treehole/index",
+      "style": {
+        "navigationBarTitleText": "树洞"
+      }
+    },
+    {
+      "path": "pages/profile/index",
+      "style": {
+        "navigationBarTitleText": "我的"
+      }
+    },
+    {
+      "path": "pages/profile/verification",
+      "style": {
+        "navigationBarTitleText": "人脸认证"
+      }
+    },
+    {
+      "path": "pages/profile/referral",
+      "style": {
+        "navigationBarTitleText": "拉新活动"
+      }
+    },
+    {
+      "path": "pages/profile/blacklist",
+      "style": {
+        "navigationBarTitleText": "黑名单"
+      }
+    },
+    {
+      "path": "pages/profile/records",
+      "style": {
+        "navigationBarTitleText": "我的记录"
+      }
+    },
+    {
+      "path": "pages/profile/settings",
+      "style": {
+        "navigationBarTitleText": "用户设置"
+      }
+    },
+    {
+      "path": "pages/profile/checkin",
+      "style": {
+        "navigationBarTitleText": "签到"
+      }
+    },
+    {
+      "path": "pages/home/index",
+      "style": {
+        "navigationBarTitleText": "漂流岛",
+        "navigationBarBackgroundColor": "#F7F1E8",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/nearby/index",
+      "style": {
+        "navigationBarTitleText": "附近的人"
+      }
+    },
+    {
+      "path": "pages/truth/index",
+      "style": {
+        "navigationBarTitleText": "真心话"
+      }
+    },
+    {
+      "path": "pages/dare/index",
+      "style": {
+        "navigationBarTitleText": "大冒险"
+      }
+    },
+    {
+      "path": "pages/messages/index",
+      "style": {
+        "navigationBarTitleText": "消息"
+      }
+    },
+    {
+      "path": "pages/membership/index",
+      "style": {
+        "navigationBarTitleText": "会员中心"
+      }
+    },
+    {
+      "path": "pages/wallet/index",
+      "style": {
+        "navigationBarTitleText": "钱包"
+      }
+    },
+    {
+      "path": "pages/creator/index",
+      "style": {
+        "navigationBarTitleText": "认证与收益"
+      }
+    },
+  ],
+  "tabBar": {
+    "color": "#66727A",
+    "selectedColor": "#2D6C73",
+    "backgroundColor": "#FFFDF8",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/bottle/index",
+        "text": "瓶子"
+      },
+      {
+        "pagePath": "pages/plaza/index",
+        "text": "广场"
+      },
+      {
+        "pagePath": "pages/game/index",
+        "text": "游戏"
+      },
+      {
+        "pagePath": "pages/treehole/index",
+        "text": "树洞"
+      },
+      {
+        "pagePath": "pages/profile/index",
+        "text": "我的"
+      }
+    ]
+  },
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "漂流岛",
+    "navigationBarBackgroundColor": "#F7F1E8",
+    "backgroundColor": "#F7F1E8"
+  }
+}
