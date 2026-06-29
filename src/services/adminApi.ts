@@ -2,6 +2,7 @@
 
 const API_BASE_URL = 'http://127.0.0.1:8100'
 let token = ''
+let currentAdmin: { username: string; roles: string[] } | undefined
 
 type AdminLoginCredentials = {
   username: string
@@ -129,11 +130,28 @@ function formatTargetTypeLabel(type: ReportDto['target_type']) {
 }
 
 function userDisplayName(item: AdminUserDto) {
-  return item.nickname || `用户 ${item.id}`
+  return item.nickname || `用户 ${businessCode(item.id)}`
 }
 
-function shortId(id: string) {
-  return id ? `${id.slice(0, 6)}...${id.slice(-4)}` : '-'
+function businessCode(id: string) {
+  return id ? id.slice(-8) : '-'
+}
+
+function businessTargetText(id: string) {
+  const map: Record<string, string> = {
+    admin: '系统管理员',
+    backend: '后端服务',
+    global: '全局配置'
+  }
+  return map[id] || `编号 ${businessCode(id)}`
+}
+
+function adminDisplayName(username?: string) {
+  const map: Record<string, string> = {
+    admin: '系统管理员',
+    moderator: '内容管理员'
+  }
+  return username ? map[username] || '运营管理员' : '运营管理员'
 }
 
 function mapAdminActionLabel(action: string) {
@@ -144,9 +162,13 @@ function mapAdminActionLabel(action: string) {
     user_status_active: '用户恢复',
     user_status_limited: '用户限制',
     user_status_blocked: '用户封禁',
-    admin_bootstrap: '系统初始化'
+    moderation_approve: '内容通过',
+    moderation_reject: '内容下线',
+    moderation_manual_review: '人工复核',
+    admin_bootstrap: '系统初始化',
+    mock_bootstrap: '测试数据初始化'
   }
-  return map[action] || action.replace(/_/g, ' ')
+  return map[action] || '后台操作'
 }
 
 function mapAdminTargetTypeLabel(targetType: string) {
@@ -159,12 +181,12 @@ function mapAdminTargetTypeLabel(targetType: string) {
     reward_config: '奖励配置',
     admin_session_action: '管理员会话'
   }
-  return map[targetType] || targetType
+  return map[targetType] || '业务对象'
 }
 
 function mapAdminAuditTarget(item: AdminAuditDto) {
   const readableType = mapAdminTargetTypeLabel(item.target_type)
-  return `${readableType} · ${shortId(item.target_id)}`
+  return `${readableType} · ${businessTargetText(item.target_id)}`
 }
 
 function truncateText(value: string | null | undefined, maxLength: number) {
@@ -174,7 +196,7 @@ function truncateText(value: string | null | undefined, maxLength: number) {
 
 function reportMeta(item: ReportDto) {
   const targetTypeText = item.target_type_text?.trim() || formatTargetTypeLabel(item.target_type)
-  const targetDisplayName = item.target_display_name?.trim() || `${targetTypeText} #${shortId(item.target_id)}`
+  const targetDisplayName = item.target_display_name?.trim() || `${targetTypeText} · 编号 ${businessCode(item.target_id)}`
   const targetAvatarText = item.target_avatar_text || targetDisplayName.slice(0, 1) || '目'
   const preview = truncateText(item.target_preview || item.reason, 120)
 
@@ -198,16 +220,36 @@ async function requestJson<T>(path: string, options: RequestInit = {}): Promise<
   })
   if (!response.ok) {
     const body = await response.text()
-    throw new Error(body || `HTTP_${response.status}`)
+    throw new Error(readableError(body, response.status))
   }
   return response.json() as Promise<T>
 }
 
+function readableError(body: string, status: number) {
+  const statusMap: Record<number, string> = {
+    401: '登录已失效，请重新登录',
+    403: '当前账号没有权限',
+    404: '记录不存在',
+    422: '提交内容不符合要求'
+  }
+  try {
+    const parsed = JSON.parse(body) as { detail?: string | { code?: string; message?: string } }
+    const detail = parsed.detail
+    const code = typeof detail === 'object' ? detail.code : undefined
+    if (code === 'ADMIN_LOGIN_FAILED') return '管理员账号或密码不正确'
+    if (typeof detail === 'string' && detail) return statusMap[status] || detail
+  } catch {
+    // Fall back to status text below.
+  }
+  return statusMap[status] || '请求失败，请稍后重试'
+}
+
 function buildSession(signedIn = true, admin?: { username: string; roles: string[] }): AdminDashboard['adminSession'] {
-  const role = !signedIn ? 'super_admin' : admin?.roles.includes('admin') ? 'super_admin' : admin?.roles.includes('moderator') ? 'content_admin' : 'risk_admin'
+  const activeAdmin = admin || currentAdmin
+  const role = !signedIn ? 'super_admin' : activeAdmin?.roles.includes('admin') ? 'super_admin' : activeAdmin?.roles.includes('moderator') ? 'content_admin' : 'risk_admin'
   return {
-    accountId: admin?.username || 'admin',
-    displayName: signedIn ? admin?.username || 'admin' : '未登录',
+    accountId: activeAdmin?.username || 'admin',
+    displayName: signedIn ? adminDisplayName(activeAdmin?.username || 'admin') : '未登录',
     role,
     permissions: ['content', 'risk', 'config'],
     signedIn,
@@ -222,18 +264,20 @@ export const adminApi = {
       body: JSON.stringify(credentials)
     })
     token = response.access_token
+    currentAdmin = response.admin
     return buildSession(true, response.admin)
   },
 
   async logout() {
     if (token) await requestJson('/admin/auth/logout', { method: 'POST' })
     token = ''
+    currentAdmin = undefined
     return buildSession(false)
   },
 
   async listAdminData(options: { autoLogin?: boolean } = { autoLogin: true }): Promise<AdminDashboard> {
     if (!token) {
-      if (options.autoLogin === false) throw new Error('ADMIN_NOT_SIGNED_IN')
+      if (options.autoLogin === false) throw new Error('管理员未登录')
       await this.login()
     }
 
@@ -314,7 +358,7 @@ export const adminApi = {
         reviewTrigger: 'system_sample',
         handlingPolicy: '系统采样内容监控',
         autoAction: item.status === 'approved' ? 'auto_pass' : 'manual_review',
-        reason: item.status === 'rejected' ? '审核未通过' : '待确认',
+        reason: item.status === 'rejected' ? '审核未通过' : '待人工确认',
         createdAt: item.created_at
       })),
       chatReviews: chats.map((item) => ({
@@ -383,17 +427,17 @@ export const adminApi = {
               amountCoins: wallet.frozen_coins,
               charmValue: 0,
               status: 'pending',
-              riskReason: '异常提现审核',
+              riskReason: '提现金额进入复核队列',
               createdAt: new Date().toISOString()
             }
           ]
         : [],
       auditLogs: audit.map((item) => ({
         id: item.id,
-        operator: item.actor,
+        operator: adminDisplayName(item.actor),
         action: mapAdminActionLabel(item.action),
         target: mapAdminAuditTarget(item),
-        detail: item.target_id ? `关联标识：${shortId(item.target_id)}` : '-',
+        detail: item.target_id ? `关联对象：${businessTargetText(item.target_id)}` : '-',
         createdAt: item.created_at
       }))
     }
@@ -459,7 +503,7 @@ export const adminApi = {
       ids.map((id) =>
         requestJson(`/admin/moderation/${id}`, {
           method: 'POST',
-          body: JSON.stringify({ action: status === 'approved' ? 'approve' : 'reject', reason: 'batch_review' })
+          body: JSON.stringify({ action: status === 'approved' ? 'approve' : 'reject', reason: '批量审核' })
         })
       )
     )
@@ -471,7 +515,7 @@ export const adminApi = {
       ids.map((id) =>
         requestJson(`/admin/moderation/${id}`, {
           method: 'POST',
-          body: JSON.stringify({ action: 'reject', reason: 'offline' })
+          body: JSON.stringify({ action: 'reject', reason: '运营下线' })
         })
       )
     )

@@ -2,7 +2,7 @@
   <main class="admin-shell">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-mark">A</div>
+        <div class="brand-mark">管</div>
         <div>
           <strong>后台监控</strong>
           <small>运营管理中心</small>
@@ -25,21 +25,21 @@
 
       <div class="sidebar-note">
         <small>运行提示</small>
-        <span>默认按用户名和头像展示记录，不直接暴露数据库字段。</span>
+        <span>按业务模块、昵称和头像查看记录；技术字段只在后台请求中使用。</span>
       </div>
     </aside>
 
     <section class="workspace">
       <header class="topbar">
         <div>
-          <p class="eyebrow">后台监控 / 内容治理 / 风险运营</p>
+          <p class="eyebrow">项目运营 / 内容治理 / 会员钱包</p>
           <h1>{{ pageTitle }}</h1>
         </div>
         <div class="session-card">
           <span class="status-dot" :class="{ off: !dashboard.adminSession.signedIn }"></span>
           <div>
             <strong>{{ dashboard.adminSession.displayName }}</strong>
-            <small>{{ sessionRoleText(dashboard.adminSession.role) }} · {{ dashboard.adminSession.lastLoginAt }}</small>
+            <small>{{ sessionRoleText(dashboard.adminSession.role) }} · {{ formatDateTime(dashboard.adminSession.lastLoginAt) }}</small>
           </div>
           <button type="button" class="ghost-button" :disabled="operationBusy" @click="toggleSession">{{ dashboard.adminSession.signedIn ? '退出登录' : '登录' }}</button>
         </div>
@@ -89,8 +89,8 @@
         <section v-if="activeTab === 'users'" class="panel">
           <div class="panel-head users-head">
             <div>
-              <h2>用户监控</h2>
-              <p>支持用户检索、状态更新、封禁期限配置</p>
+              <h2>用户与认证</h2>
+              <p>按昵称、账号编号和实名状态处理用户风险</p>
             </div>
             <div class="action-row">
               <button type="button" class="ghost-button" :disabled="operationBusy" @click="setBatchStatus('active')">批量恢复</button>
@@ -100,7 +100,7 @@
           </div>
 
           <div class="users-toolbar">
-            <input v-model="userKeyword" type="search" placeholder="搜索昵称 / 用户ID" />
+            <input v-model="userKeyword" type="search" placeholder="搜索昵称 / 账号编号" />
             <select v-model="userStatusFilter">
               <option value="">全部状态</option>
               <option value="active">正常</option>
@@ -140,7 +140,7 @@
                 <th>平台</th>
                 <th>性别</th>
                 <th>状态</th>
-                <th>VIP</th>
+                <th>会员</th>
                 <th>封禁到期</th>
                 <th>封禁原因</th>
                 <th>风控</th>
@@ -162,15 +162,15 @@
                     <span v-else class="avatar">{{ userAvatarText(user.nickname, user.avatarText) }}</span>
                     <div>
                       <strong>{{ user.nickname }}</strong>
-                  <small>{{ mapVisibleId(user.id) }}</small>
+                  <small>{{ visibleCode(user.id, '账号编号') }}</small>
                     </div>
                   </div>
                 </td>
                 <td>{{ platformText(user.platform) }}</td>
                 <td>{{ genderText(user.gender) }}</td>
                 <td><span class="pill" :class="user.status">{{ userStatusText(user.status) }}</span></td>
-                <td>{{ user.isVip ? 'VIP' : '-' }}</td>
-                <td>{{ user.blockedUntil || '-' }}</td>
+                <td>{{ user.isVip ? '会员' : '-' }}</td>
+                <td>{{ formatDateTime(user.blockedUntil) || '-' }}</td>
                 <td>{{ user.blockReason || '-' }}</td>
                 <td><span class="pill" :class="user.walletRisk">{{ walletRiskText(user.walletRisk) }}</span></td>
                 <td class="inline-actions">
@@ -186,8 +186,8 @@
         <section v-if="activeTab === 'content'" class="panel">
           <div class="panel-head">
             <div>
-              <h2>内容监控</h2>
-              <p>多类型分类：瓶子、树洞、广场、私密照片</p>
+              <h2>内容池治理</h2>
+              <p>按漂流瓶、树洞、广场、私密照片分区处理</p>
             </div>
             <div class="action-row">
               <button type="button" class="ghost-button" :disabled="operationBusy || !selectedContentIds.length" @click="batchReview('approved')">批量通过</button>
@@ -257,7 +257,7 @@
                     <span v-else class="avatar avatar-small">{{ userAvatarText(item.authorName, item.authorAvatarText) }}</span>
                     <div>
                       <strong>{{ item.authorName }}</strong>
-                    <small>{{ mapVisibleId(item.authorId) }}</small>
+                    <small>{{ visibleCode(item.authorId, '作者编号') }}</small>
                     </div>
                   </div>
                 </td>
@@ -274,8 +274,8 @@
 
         <section v-if="activeTab === 'chats'" class="panel">
           <div class="panel-head">
-            <h2>聊天监控</h2>
-            <p>按会话维度核查高风险沟通内容</p>
+            <h2>聊天与互动安全</h2>
+            <p>覆盖漂流瓶回信、树洞回应和广场互动会话</p>
           </div>
           <div class="toolbar-actions">
             <button
@@ -298,15 +298,7 @@
               :class="{ active: activeChatRiskFilter === filter.value }"
               @click="activeChatRiskFilter = filter.value"
             >
-              {{ filter.label }}（{
-                filter.value === 'all'
-                  ? chatRisksBySource.countAll
-                  : filter.value === 'high'
-                    ? chatRisksBySource.countHigh
-                    : filter.value === 'medium'
-                      ? chatRisksBySource.countMedium
-                      : chatRisksBySource.countLow
-               }}）
+              {{ filter.label }}（{{ chatRiskCount(filter.value) }}）
             </button>
           </div>
           <table>
@@ -328,7 +320,7 @@
                   <div class="user-cell">
                     <span class="pill">会话</span>
                     <div>
-                      <strong>{{ mapVisibleId(chat.threadId) }}</strong>
+                      <strong>{{ visibleCode(chat.threadId, '会话编号') }}</strong>
                       <small>{{ chat.relatedContent || '无关联内容' }}</small>
                     </div>
                   </div>
@@ -360,14 +352,14 @@
                 <td><span class="pill" :class="chat.riskLevel">{{ riskText(chat.riskLevel) }}</span></td>
                 <td><span class="pill" :class="chat.status">{{ chatStatusText(chat.status) }}</span></td>
                 <td>{{ triggerText(chat.reviewTrigger) }}</td>
-                <td>{{ chat.updatedAt }}</td>
+                <td>{{ formatDateTime(chat.updatedAt) }}</td>
               </tr>
             </tbody>
           </table>
         </section>
 
         <section v-if="activeTab === 'reports'" class="panel">
-          <h2>举报记录</h2>
+          <h2>举报处置台</h2>
           <div class="toolbar-actions">
             <button
               v-for="filter in reportStatusFilters"
@@ -377,7 +369,7 @@
               :class="{ active: activeReportStatusFilter === filter.value }"
               @click="activeReportStatusFilter = filter.value"
             >
-              {{ filter.label }}（{{ filter.count }})
+              {{ filter.label }}（{{ filter.count }}）
             </button>
           </div>
           <div class="toolbar-actions">
@@ -389,7 +381,7 @@
               :class="{ active: activeReportTypeFilter === filter.value }"
               @click="activeReportTypeFilter = filter.value"
             >
-              {{ filter.label }}（{{ filter.count }})
+              {{ filter.label }}（{{ filter.count }}）
             </button>
           </div>
           <table>
@@ -405,7 +397,7 @@
             </thead>
             <tbody>
               <tr v-for="item in filteredReports" :key="item.id">
-                <td>{{ item.createdAt }}</td>
+                <td>{{ formatDateTime(item.createdAt) }}</td>
                 <td>{{ item.targetTypeText || formatReportTypeLabel(item.targetType) }}</td>
                 <td>
                   <div class="user-cell">
@@ -418,7 +410,7 @@
                     <span v-else class="avatar avatar-small">{{ userAvatarText(item.targetDisplayName || item.targetType, item.targetAvatarText) }}</span>
                     <div>
                       <strong>{{ item.targetDisplayName || '未命名目标' }}</strong>
-                      <small>{{ mapVisibleId(item.targetId) }}</small>
+                      <small>{{ visibleCode(item.targetId, '对象编号') }}</small>
                     </div>
                   </div>
                 </td>
@@ -428,14 +420,14 @@
                 <td>
                   <span class="pill" :class="item.status">{{ reportStatusLabel(item.status) }}</span>
                 </td>
-                <td>{{ item.priority }}</td>
+                <td>{{ priorityText(item.priority) }}</td>
               </tr>
             </tbody>
           </table>
         </section>
 
         <section v-if="activeTab === 'wallet'" class="panel">
-          <h2>钱包风控</h2>
+          <h2>会员与钱包风控</h2>
           <table>
             <thead>
               <tr>
@@ -448,18 +440,18 @@
             </thead>
             <tbody>
               <tr v-for="item in dashboard.walletRisks" :key="item.id">
-                <td>{{ item.createdAt }}</td>
+                <td>{{ formatDateTime(item.createdAt) }}</td>
                 <td>{{ item.nickname }}</td>
                 <td>{{ walletRiskTypeText(item.type) }}</td>
                 <td>{{ item.riskReason }}</td>
-                <td>{{ item.status }}</td>
+                <td><span class="pill" :class="item.status">{{ walletRiskStatusText(item.status) }}</span></td>
               </tr>
             </tbody>
           </table>
         </section>
 
         <section v-if="activeTab === 'audit'" class="panel">
-          <h2>审计日志</h2>
+          <h2>后台审计</h2>
           <table>
             <thead>
               <tr>
@@ -472,7 +464,7 @@
             </thead>
             <tbody>
               <tr v-for="item in dashboard.auditLogs" :key="item.id">
-                <td>{{ item.createdAt }}</td>
+                <td>{{ formatDateTime(item.createdAt) }}</td>
                 <td>
                   <div class="user-cell">
                     <span class="avatar">{{ userAvatarText(item.operator) }}</span>
@@ -570,13 +562,13 @@ const initialDashboard: AdminDashboard = {
 }
 
 const tabs: DashTab[] = [
-  { key: 'overview', label: '概览' },
-  { key: 'users', label: '用户管理' },
-  { key: 'content', label: '内容管理' },
-  { key: 'chats', label: '会话监控' },
-  { key: 'reports', label: '举报记录' },
-  { key: 'wallet', label: '钱包风险' },
-  { key: 'audit', label: '审计日志' }
+  { key: 'overview', label: '运营总览' },
+  { key: 'users', label: '用户与认证' },
+  { key: 'content', label: '内容池治理' },
+  { key: 'chats', label: '聊天互动' },
+  { key: 'reports', label: '举报处置' },
+  { key: 'wallet', label: '会员钱包' },
+  { key: 'audit', label: '后台审计' }
 ]
 
 const dashboard = ref<AdminDashboard>(initialDashboard)
@@ -843,7 +835,13 @@ const taskBoard = computed(() => {
 })
 
 function platformText(platform: AdminUserSummary['platform']) {
-  return platform === 'h5' ? 'APP' : platform === 'wechat' ? '微信' : platform.toUpperCase()
+  const map: Record<AdminUserSummary['platform'], string> = {
+    h5: '网页端',
+    wechat: '微信小程序',
+    ios: '苹果端',
+    android: '安卓端'
+  }
+  return map[platform]
 }
 
 function categoryLabel(type: ContentCategory) {
@@ -912,6 +910,20 @@ function walletRiskTypeText(type: 'withdraw' | 'freeze' | 'charm_review') {
   return type === 'withdraw' ? '提现' : type === 'freeze' ? '冻结' : '魅力审核'
 }
 
+function walletRiskStatusText(status: 'pending' | 'reviewing' | 'approved' | 'rejected') {
+  const map: Record<typeof status, string> = {
+    pending: '待处理',
+    reviewing: '复核中',
+    approved: '已通过',
+    rejected: '已驳回'
+  }
+  return map[status]
+}
+
+function priorityText(priority: AdminReportItem['priority']) {
+  return priority === 'high' ? '高优先级' : '普通'
+}
+
 function sessionRoleText(role: AdminDashboard['adminSession']['role']) {
   const map: Record<typeof role, string> = {
     super_admin: '超级管理员',
@@ -963,13 +975,27 @@ function clearUserFilters() {
   userVerifyFilter.value = ''
 }
 
-function mapVisibleId(id: string) {
+function visibleCode(id: string, label: string) {
   const shortId = id ? id.slice(-8) : ''
-  return shortId ? `ID: ${shortId}` : 'ID: -'
+  return shortId ? `${label} ${shortId}` : `${label} -`
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  })
 }
 
 function userAvatarText(name: string, avatarText?: string) {
-  return (avatarText || name || '').trim().slice(0, 1) || 'U'
+  return (avatarText || name || '').trim().slice(0, 1) || '用'
 }
 
 function getBlockOptions() {
@@ -981,7 +1007,17 @@ function getBlockOptions() {
 }
 
 function formatOperationError(err: unknown) {
-  return err instanceof Error ? err.message : 'UNKNOWN_ERROR'
+  if (!(err instanceof Error)) return '未知错误'
+  const map: Record<string, string> = {
+    ADMIN_NOT_SIGNED_IN: '管理员未登录',
+    ADMIN_LOGIN_FAILED: '管理员账号或密码不正确',
+    HTTP_401: '登录已失效，请重新登录',
+    HTTP_403: '当前账号没有权限',
+    HTTP_404: '记录不存在',
+    HTTP_422: '提交内容不符合要求',
+    UNKNOWN_ERROR: '未知错误'
+  }
+  return map[err.message] || err.message
 }
 
 async function runAdminOperation(successMessage: string, action: () => Promise<void>) {
@@ -1063,16 +1099,23 @@ onMounted(() => {
 
 const pageTitle = computed(() => {
   const title: Record<TabKey, string> = {
-    overview: '运营监控台',
-    users: '用户监控',
-    content: '内容审查',
-    chats: '会话监控',
-    reports: '举报管理',
-    wallet: '钱包风控',
-    audit: '审计日志'
+    overview: '运营总览',
+    users: '用户与认证',
+    content: '内容池治理',
+    chats: '聊天互动安全',
+    reports: '举报处置',
+    wallet: '会员钱包风控',
+    audit: '后台审计'
   }
   return title[activeTab.value]
 })
+
+function chatRiskCount(value: RiskLevel) {
+  if (value === 'all') return chatRisksBySource.value.countAll
+  if (value === 'high') return chatRisksBySource.value.countHigh
+  if (value === 'medium') return chatRisksBySource.value.countMedium
+  return chatRisksBySource.value.countLow
+}
 
 const tabsForRender = computed(() => {
   return tabsWithCounts.value
