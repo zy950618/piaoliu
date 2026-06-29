@@ -301,6 +301,7 @@ export const adminApi = {
     ])
 
     const reportStatus = (status: ReportDto['status']) => (status === 'queued' ? 'pending' : status)
+    const usersById = new Map(users.map((user) => [user.id, user]))
 
     return {
       adminSession: buildSession(true),
@@ -353,6 +354,7 @@ export const adminApi = {
         category: item.type,
         authorId: item.author_id,
         authorName: item.author_name || (users.find((user) => user.id === item.author_id)?.nickname || item.author_id),
+        authorGender: usersById.get(item.author_id)?.gender || 'unknown',
         authorAvatarText: item.author_avatar_text || undefined,
         authorAvatarUrl: item.author_avatar_url || undefined,
         preview: item.excerpt,

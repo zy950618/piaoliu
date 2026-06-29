@@ -236,6 +236,7 @@ export interface AdminContentReviewItem {
   category: 'bottle' | 'treehole' | 'private_photo' | 'plaza'
   authorId: string
   authorName: string
+  authorGender?: 'female' | 'male' | 'unknown'
   authorAvatarText?: string
   authorAvatarUrl?: string
   preview: string

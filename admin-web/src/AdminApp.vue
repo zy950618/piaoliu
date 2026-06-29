@@ -187,7 +187,7 @@
           <div class="panel-head">
             <div>
               <h2>内容池治理</h2>
-              <p>按漂流瓶、树洞、广场、私密照片分区处理</p>
+              <p>按列表筛选、风险等级和审核状态处理内容</p>
             </div>
             <div class="action-row">
               <button type="button" class="ghost-button" :disabled="operationBusy || !selectedContentIds.length" @click="batchReview('approved')">批量通过</button>
@@ -195,31 +195,32 @@
             </div>
           </div>
 
-          <div class="toolbar-actions">
-            <button
-              v-for="filter in riskFilters"
-              :key="filter.value"
-              type="button"
-              class="ghost-button"
-              :class="{ active: contentRiskFilter === filter.value }"
-              @click="contentRiskFilter = filter.value"
-            >
-              {{ filter.label }}
-            </button>
-          </div>
-
-          <div class="category-bar">
-            <button
-              v-for="category in contentCategories"
-              :key="category.key"
-              type="button"
-              class="category-button"
-              :class="{ active: activeContentCategory === category.key }"
-              @click="activeContentCategory = category.key"
-            >
-              <span>{{ category.label }}</span>
-              <small>{{ category.count }}</small>
-            </button>
+          <div class="list-filterbar">
+            <label>
+              内容类型
+              <select v-model="activeContentCategory">
+                <option v-for="category in contentCategories" :key="category.key" :value="category.key">
+                  {{ category.label }}（{{ category.count }}）
+                </option>
+              </select>
+            </label>
+            <label>
+              风险等级
+              <select v-model="contentRiskFilter">
+                <option v-for="filter in riskFilters" :key="filter.value" :value="filter.value">
+                  {{ filter.label }}
+                </option>
+              </select>
+            </label>
+            <label>
+              审核状态
+              <select v-model="contentStatusFilter">
+                <option v-for="filter in contentStatusFilters" :key="filter.value" :value="filter.value">
+                  {{ filter.label }}（{{ filter.count }}）
+                </option>
+              </select>
+            </label>
+            <span class="filter-summary">当前 {{ filteredContentReviews.length }} 条</span>
           </div>
 
           <table>
@@ -228,6 +229,7 @@
                 <th style="width: 36px"></th>
                 <th>类别</th>
                 <th>作者</th>
+                <th>性别</th>
                 <th>内容</th>
                 <th>状态</th>
                 <th>风险</th>
@@ -257,10 +259,11 @@
                     <span v-else class="avatar avatar-small">{{ userAvatarText(item.authorName, item.authorAvatarText) }}</span>
                     <div>
                       <strong>{{ item.authorName }}</strong>
-                    <small>{{ visibleCode(item.authorId, '作者编号') }}</small>
+                      <small>{{ categoryLabel(item.category) }}作者</small>
                     </div>
                   </div>
                 </td>
+                <td>{{ genderText(contentAuthorGender(item)) }}</td>
                 <td class="preview-cell">{{ item.preview }}</td>
                 <td><span class="pill" :class="item.status">{{ contentStatusText(item.status) }}</span></td>
                 <td><span class="pill" :class="item.riskLevel">{{ riskText(item.riskLevel) }}</span></td>
@@ -276,153 +279,131 @@
           <div class="panel-head">
             <div>
               <h2>聊天与互动安全</h2>
-              <p>覆盖漂流瓶回信、树洞回应、广场互动和游戏房间纪律</p>
+              <p>按会话窗口查看上下文、纪律状态和处理策略</p>
             </div>
           </div>
-          <div class="toolbar-actions">
-            <button
-              v-for="filter in chatSourceFilters"
-              :key="filter.value"
-              type="button"
-              class="ghost-button"
-              :class="{ active: activeChatSourceFilter === filter.value }"
-              @click="activeChatSourceFilter = filter.value"
-            >
-              {{ filter.label }}（{{ filter.count }}）
-            </button>
-          </div>
-          <div class="toolbar-actions">
-            <button
-              v-for="filter in riskFilters"
-              :key="`chat-risk-${filter.value}`"
-              type="button"
-              class="ghost-button"
-              :class="{ active: activeChatRiskFilter === filter.value }"
-              @click="activeChatRiskFilter = filter.value"
-            >
-              {{ filter.label }}（{{ chatRiskCount(filter.value) }}）
-            </button>
-          </div>
-          <table class="chat-table">
-            <thead>
-              <tr>
-                <th>会话信息</th>
-                <th>来源</th>
-                <th>关联对象</th>
-                <th>最后消息</th>
-                <th>消息数</th>
-                <th>纪律</th>
-                <th>风险</th>
-                <th>状态</th>
-                <th>触发</th>
-                <th>最后更新时间</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
+
+          <div class="chat-console">
+            <aside class="chat-session-list">
+              <div class="list-filterbar compact">
+                <label>
+                  来源
+                  <select v-model="activeChatSourceFilter">
+                    <option v-for="filter in chatSourceFilters" :key="filter.value" :value="filter.value">
+                      {{ filter.label }}（{{ filter.count }}）
+                    </option>
+                  </select>
+                </label>
+                <label>
+                  风险
+                  <select v-model="activeChatRiskFilter">
+                    <option v-for="filter in riskFilters" :key="`chat-risk-${filter.value}`" :value="filter.value">
+                      {{ filter.label }}（{{ chatRiskCount(filter.value) }}）
+                    </option>
+                  </select>
+                </label>
+              </div>
+
+              <button
                 v-for="chat in filteredChats"
                 :key="chat.id"
+                type="button"
+                class="chat-session-item"
                 :class="{ selected: selectedChat?.id === chat.id }"
                 @click="selectedChatId = chat.id"
               >
-                <td>
-                  <div class="user-cell">
-                    <span class="pill">会话</span>
-                    <div>
-                      <strong>{{ visibleCode(chat.threadId, '会话编号') }}</strong>
-                      <small>{{ chat.relatedContent || '无关联内容' }}</small>
-                    </div>
-                  </div>
-                </td>
-                <td>
-                  <span>{{ contentTypeLabel(chat.source) }}</span>
-                </td>
-                <td>
-                  <div class="chips">
-                    <span
-                      class="chip profile-chip"
-                      v-for="(participant, index) in chat.participants"
-                      :key="`${chat.id}-${participant}-${index}`"
-                    >
-                      <img
-                        v-if="chat.participantAvatarUrls?.[index]"
-                        class="avatar avatar-small"
-                        :src="chat.participantAvatarUrls[index] || ''"
-                        :alt="participant"
-                      />
-                      <span v-else class="avatar avatar-small">
-                        {{ userAvatarText(participant, chat.participantAvatarTexts?.[index] || undefined) }}
-                      </span>
-                      {{ participant }}
-                    </span>
-                  </div>
-                </td>
-                <td class="preview-cell">{{ chat.lastMessage }}</td>
-                <td>{{ chat.messages.length }} 条</td>
-                <td>
+                <span class="chat-session-main">
+                  <strong>{{ chat.participants.join(' / ') }}</strong>
                   <span class="pill" :class="chat.disciplineStatus">{{ disciplineStatusText(chat.disciplineStatus) }}</span>
-                  <small>{{ sourceTreatmentText(chat.source) }}</small>
-                </td>
-                <td><span class="pill" :class="chat.riskLevel">{{ riskText(chat.riskLevel) }}</span></td>
-                <td><span class="pill" :class="chat.status">{{ chatStatusText(chat.status) }}</span></td>
-                <td>{{ triggerText(chat.reviewTrigger) }}</td>
-                <td>{{ formatDateTime(chat.updatedAt) }}</td>
-              </tr>
-            </tbody>
-          </table>
+                </span>
+                <span class="chat-session-meta">
+                  {{ contentTypeLabel(chat.source) }} · {{ chat.messages.length }} 条 · {{ formatDateTime(chat.updatedAt) }}
+                </span>
+                <span class="chat-session-last">{{ chat.lastMessage }}</span>
+              </button>
+            </aside>
 
-          <section v-if="selectedChat" class="chat-detail-panel">
-            <div class="panel-head nested">
-              <div>
-                <h3>完整聊天内容</h3>
-                <p>{{ contentTypeLabel(selectedChat.source) }} · {{ selectedChat.participants.join(' / ') }}</p>
+            <section v-if="selectedChat" class="chat-window">
+              <header class="chat-window-head">
+                <div class="chips">
+                  <span
+                    class="chip profile-chip"
+                    v-for="(participant, index) in selectedChat.participants"
+                    :key="`${selectedChat.id}-${participant}-${index}`"
+                  >
+                    <img
+                      v-if="selectedChat.participantAvatarUrls?.[index]"
+                      class="avatar avatar-small"
+                      :src="selectedChat.participantAvatarUrls[index] || ''"
+                      :alt="participant"
+                    />
+                    <span v-else class="avatar avatar-small">
+                      {{ userAvatarText(participant, selectedChat.participantAvatarTexts?.[index] || undefined) }}
+                    </span>
+                    {{ participant }}
+                  </span>
+                </div>
+                <div class="chat-window-meta">
+                  <span>{{ contentTypeLabel(selectedChat.source) }}</span>
+                  <span>{{ chatStatusText(selectedChat.status) }}</span>
+                  <span>{{ riskText(selectedChat.riskLevel) }}风险</span>
+                </div>
+              </header>
+
+              <div class="chat-message-list">
+                <article
+                  v-for="message in selectedChat.messages"
+                  :key="message.id"
+                  class="chat-message"
+                  :class="{ mine: message.fromMe, room: message.type === 'game_room' }"
+                >
+                  <small>{{ message.senderName }} · {{ turnTypeText(message.type) }} · {{ formatDateTime(message.createdAt) }}</small>
+                  <p>{{ message.body }}</p>
+                  <small v-for="line in messageExtraLines(message)" :key="`${message.id}-${line}`">{{ line }}</small>
+                </article>
               </div>
-              <span class="pill" :class="selectedChat.disciplineStatus">{{ disciplineStatusText(selectedChat.disciplineStatus) }}</span>
-            </div>
+            </section>
 
-            <dl class="chat-review-meta">
-              <dt>处理分区</dt>
-              <dd>{{ sourceTreatmentText(selectedChat.source) }}</dd>
-              <dt>纪律摘要</dt>
-              <dd>{{ selectedChat.disciplineSummary }}</dd>
-              <dt>处理策略</dt>
-              <dd>{{ selectedChat.handlingPolicy }}</dd>
-              <dt>关联内容</dt>
-              <dd>{{ selectedChat.relatedContent || '无关联内容' }}</dd>
-              <dt v-if="selectedChat.roomMode">房间模式</dt>
-              <dd v-if="selectedChat.roomMode">{{ gameRoomModeText(selectedChat.roomMode) }}</dd>
-            </dl>
-
-            <div v-if="selectedChat.matchedKeywords?.length" class="chips chat-keywords">
-              <span v-for="word in selectedChat.matchedKeywords" :key="word" class="chip">{{ word }}</span>
-            </div>
-
-            <div class="related-users">
-              <h3>关联用户</h3>
-              <div
-                v-for="(participant, index) in selectedChat.participants"
-                :key="`${selectedChat.id}-detail-${participant}-${index}`"
-                class="related-user"
-              >
-                <strong>{{ participant }}</strong>
-                <span>{{ visibleCode(selectedChat.participantUserIds[index] || '', '账号编号') }}</span>
+            <aside v-if="selectedChat" class="discipline-window">
+              <div class="discipline-head">
+                <span>聊天纪律</span>
+                <strong>{{ disciplineStatusText(selectedChat.disciplineStatus) }}</strong>
               </div>
-            </div>
+              <dl class="chat-review-meta">
+                <dt>处理分区</dt>
+                <dd>{{ sourceTreatmentText(selectedChat.source) }}</dd>
+                <dt>纪律摘要</dt>
+                <dd>{{ selectedChat.disciplineSummary }}</dd>
+                <dt>处理策略</dt>
+                <dd>{{ selectedChat.handlingPolicy }}</dd>
+                <dt>关联内容</dt>
+                <dd>{{ selectedChat.relatedContent || '无关联内容' }}</dd>
+                <dt v-if="selectedChat.roomMode">房间模式</dt>
+                <dd v-if="selectedChat.roomMode">{{ gameRoomModeText(selectedChat.roomMode) }}</dd>
+              </dl>
 
-            <div class="chat-transcript">
-              <h3>消息明细（{{ selectedChat.messages.length }} 条）</h3>
-              <article
-                v-for="message in selectedChat.messages"
-                :key="message.id"
-                class="chat-bubble"
-                :class="{ mine: message.fromMe, room: message.type === 'game_room' }"
-              >
-                <small>{{ message.senderName }} · {{ turnTypeText(message.type) }} · {{ formatDateTime(message.createdAt) }}</small>
-                <p>{{ message.body }}</p>
-                <small v-for="line in messageExtraLines(message)" :key="`${message.id}-${line}`">{{ line }}</small>
-              </article>
-            </div>
-          </section>
+              <div v-if="selectedChat.matchedKeywords?.length" class="discipline-keywords">
+                <span>命中关键词</span>
+                <div class="chips">
+                  <span v-for="word in selectedChat.matchedKeywords" :key="word" class="chip">{{ word }}</span>
+                </div>
+              </div>
+
+              <div class="discipline-users">
+                <span>关联用户</span>
+                <strong
+                  v-for="participant in selectedChat.participants"
+                  :key="`${selectedChat.id}-user-${participant}`"
+                >
+                  {{ participant }}
+                </strong>
+              </div>
+            </aside>
+
+            <section v-else class="chat-empty">
+              <span>没有符合筛选条件的会话</span>
+            </section>
+          </div>
         </section>
 
         <section v-if="activeTab === 'reports'" class="panel">
@@ -573,6 +554,7 @@ type UserStatus = AdminUserSummary['status']
 type WalletRisk = AdminUserSummary['walletRisk']
 type ContentCategory = 'all' | ContentReviewItemAlias['category']
 type RiskLevel = 'all' | 'low' | 'medium' | 'high'
+type ContentStatusFilter = 'all' | ContentStatus
 type UserStatusFilter = '' | UserStatus
 type ReportCategory = 'all' | AdminReportItem['targetType']
 type ReportStatusFilter = 'all' | AdminReportItem['status']
@@ -657,6 +639,7 @@ const selectedChatId = ref('')
 
 const activeContentCategory = ref<ContentCategory>('all')
 const contentRiskFilter = ref<RiskLevel>('all')
+const contentStatusFilter = ref<ContentStatusFilter>('all')
 const activeChatSourceFilter = ref<ChatSourceFilter>('all')
 const activeChatRiskFilter = ref<RiskLevel>('all')
 const activeReportTypeFilter = ref<ReportCategory>('all')
@@ -802,6 +785,17 @@ const reportStatusFilters = computed(() => {
   ]
 })
 
+const contentStatusFilters = computed(() => {
+  const rows = dashboard.value.contentReviews
+  const countStatus = (status: ContentStatus) => rows.filter((item) => item.status === status).length
+  return [
+    { value: 'all' as const, label: '全部状态', count: rows.length },
+    { value: 'pending' as const, label: '待审', count: countStatus('pending') },
+    { value: 'approved' as const, label: '已通过', count: countStatus('approved') },
+    { value: 'rejected' as const, label: '已下线', count: countStatus('rejected') }
+  ]
+})
+
 const filteredUsers = computed(() =>
   dashboard.value.users.filter((user) => {
     const key = userKeyword.value.trim().toLowerCase()
@@ -819,6 +813,9 @@ const filteredContentReviews = computed(() => {
   }
   if (activeContentCategory.value !== 'all') {
     rows = rows.filter((item) => item.category === activeContentCategory.value)
+  }
+  if (contentStatusFilter.value !== 'all') {
+    rows = rows.filter((item) => item.status === contentStatusFilter.value)
   }
   return rows
 })
@@ -1000,6 +997,10 @@ function reportStatusLabel(status: AdminReportItem['status']) {
 
 function genderText(gender: AdminUserSummary['gender']) {
   return gender === 'male' ? '男' : gender === 'female' ? '女' : '未知'
+}
+
+function contentAuthorGender(item: AdminContentReviewItem) {
+  return item.authorGender || dashboard.value.users.find((user) => user.id === item.authorId)?.gender || 'unknown'
 }
 
 function userStatusText(status: UserStatus) {
