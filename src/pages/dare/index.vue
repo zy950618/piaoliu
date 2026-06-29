@@ -18,7 +18,7 @@
         <view class="button secondary" @tap="finish">标记完成</view>
         <view class="button ghost" @tap="skip">换一个想法</view>
       </view>
-      <text class="muted note">上传凭证、审核展示会在后端接入后开放。</text>
+      <text class="muted note">完成后会写入我的记录，可在个人页查看。</text>
     </view>
   </view>
 </template>
@@ -44,7 +44,19 @@ async function draw() {
   showToast('已抽到大冒险，大冒险次数 -1')
 }
 
-function finish() {
+async function finish() {
+  if (!content.currentDare) {
+    showToast('先抽一个任务')
+    return
+  }
+  await content.saveUserActivityRecord({
+    recordType: 'dare',
+    title: content.currentDare.category,
+    content: content.currentDare.text,
+    visibility: 'private',
+    sourceType: 'dare',
+    sourceId: content.currentDare.id
+  })
   showToast('完成记录已保存')
 }
 

@@ -1,17 +1,18 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import mock_store
+from app import db_business
+from app.db import get_db_session
 from app.schemas import RelationRequest
 
 router = APIRouter(prefix="/relations", tags=["relations"])
 
 
 @router.post("/follow")
-def follow_user(payload: RelationRequest) -> dict[str, str]:
-    mock_store.following_user_ids.add(payload.target_user_id)
-    return {"status": "followed", "target_user_id": payload.target_user_id}
+async def follow_user(payload: RelationRequest, session: AsyncSession = Depends(get_db_session)) -> dict[str, str]:
+    return await db_business.follow_user(session, payload.target_user_id)
 
 
 @router.post("/friend-request")
-def request_friend(payload: RelationRequest) -> dict[str, str]:
-    return {"status": "requested", "target_user_id": payload.target_user_id}
+async def request_friend(payload: RelationRequest, session: AsyncSession = Depends(get_db_session)) -> dict[str, str]:
+    return await db_business.request_friend(session, payload.target_user_id)

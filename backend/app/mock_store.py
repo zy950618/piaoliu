@@ -82,6 +82,7 @@ user = UserProfile(
     platform="wechat",
     is_vip=True,
     vip_level="monthly",
+    vip_expires_at="2026-07-25T23:59:59+08:00",
     drift_coins=260,
     gender="female",
     city="杭州",

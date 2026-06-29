@@ -57,6 +57,8 @@
         <text class="action-badge">+{{ fishLeft }}</text>
       </view>
       <view class="action-button throw" @tap="openThrowModal">
+        <view class="throw-ripple ripple-a" />
+        <view class="throw-ripple ripple-b" />
         <text class="action-main">扔</text>
         <text class="action-badge red">+{{ throwLeft }}</text>
       </view>
@@ -71,6 +73,8 @@
             maxlength="240"
             placeholder="写一句秘密、愿望、吐槽，或今晚不想对熟人说的话。"
             @input="clearThrowError"
+            @tap.stop
+            @click.stop
           />
           <view class="random-tip-button" @tap.stop="fillRandomPrompt" @click.stop="fillRandomPrompt">
             {{ randomPromptLoading ? '生成中' : '随机' }}
@@ -117,11 +121,14 @@
     <view v-if="caughtOpen && content.currentBottle" class="modal-mask center-mask">
       <view class="modal-card caught-card" @tap.stop @click.stop>
         <view class="caught-author">
-          <view class="author-avatar">{{ content.currentBottle.authorAvatarText || content.currentBottle.authorName.slice(0, 1) }}</view>
+          <view class="author-avatar">
+            <image v-if="content.currentBottle.authorAvatarUrl" class="avatar-image" :src="content.currentBottle.authorAvatarUrl" mode="aspectFill" />
+            <text v-else>{{ content.currentBottle.authorAvatarText || content.currentBottle.authorName.slice(0, 1) }}</text>
+          </view>
           <view class="author-main">
             <view class="author-line">
               <text class="author-name">{{ content.currentBottle.authorName }}</text>
-              <text v-if="content.currentBottle.authorVip" class="mini-tag vip">VIP</text>
+              <VipBadge v-if="content.currentBottle.authorVip" variant="mini" />
             </view>
             <view class="meta-tags">
               <text v-if="content.currentBottle.authorVerified" class="mini-tag verified">已认证</text>
@@ -135,8 +142,11 @@
             <text>{{ content.currentBottle.isFollowing ? '已关注' : '关注' }}</text>
           </view>
         </view>
-        <text class="caught-message">{{ content.currentBottle.content }}</text>
-        <input v-model="reply" class="input" placeholder="写一句温柔回应" @input="clearReplyError" />
+        <view class="caught-origin-card">
+          <text class="origin-kicker">原漂流瓶</text>
+          <text class="caught-message">{{ content.currentBottle.content }}</text>
+        </view>
+        <input v-model="reply" class="input" placeholder="写一句温柔回应" @input="clearReplyError" @tap.stop @click.stop />
         <text v-if="replyError" class="reply-error">{{ replyError }}</text>
         <view class="reply-actions">
           <view class="button ghost return-button" @tap.stop="releaseBottle" @click.stop="releaseBottle">扔回海里</view>
@@ -150,7 +160,7 @@
       <view class="modal-card report-card" @tap.stop="handleReportAction" @click.stop="handleReportAction">
         <text class="modal-kicker">安全处理</text>
         <text class="modal-title">举报或拉黑 {{ content.currentBottle.authorName }}</text>
-        <text class="report-desc">举报会进入后台审核队列；拉黑后，后续不会再推荐这个用户的瓶子。</text>
+        <text class="report-desc">举报会进入后台审核队列；拉黑后不会再推荐这个用户的瓶子。</text>
         <view class="choice-row report-reasons">
           <view
             v-for="reason in reportReasons"
@@ -168,6 +178,8 @@
             v-model="reportDescription"
             class="report-textarea"
             maxlength="120"
+            @tap.stop
+            @click.stop
             placeholder="补充举报说明"
           />
         </view>
@@ -201,6 +213,7 @@
 import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import ExploreFilters, { type ExploreFilterValue } from '@/components/ExploreFilters.vue'
+import VipBadge from '@/components/VipBadge.vue'
 import { useQuotaGuard } from '@/composables/useQuotaGuard'
 import { showToast } from '@/services/feedback'
 import { useAppStore } from '@/stores/app'
@@ -458,8 +471,9 @@ function genderLabel(gender?: Bottle['authorGender']) {
   position: relative;
   overflow: hidden;
   min-height: calc(100vh - var(--window-bottom));
+  min-height: calc(100dvh - var(--window-bottom));
   width: 100vw;
-  background: linear-gradient(180deg, #dbeaf3 0%, #b8d8e5 36%, #8cc7d4 37%, #4f9aaf 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 34%, #e0f2fe 35%, #bae6fd 100%);
   color: #fff;
 }
 
@@ -469,7 +483,7 @@ function genderLabel(gender?: Bottle['authorGender']) {
   height: 48vh;
   background:
     radial-gradient(circle at 50% 100%, rgba(255, 255, 255, 0.44), transparent 5%),
-    linear-gradient(180deg, #dceaf3, #a9ccdc);
+    linear-gradient(180deg, #ffffff, #e0f2fe);
 }
 
 .horizon-mist {
@@ -480,7 +494,7 @@ function genderLabel(gender?: Bottle['authorGender']) {
   height: 240rpx;
   background:
     radial-gradient(ellipse at 50% 44%, rgba(255, 255, 255, 0.32), transparent 58%),
-    linear-gradient(180deg, rgba(169, 204, 220, 0), rgba(139, 208, 219, 0.52));
+    linear-gradient(180deg, rgba(245, 217, 167, 0), rgba(134, 200, 189, 0.48));
   filter: blur(10rpx);
   animation: mist-drift 8s ease-in-out infinite;
 }
@@ -867,13 +881,14 @@ function genderLabel(gender?: Bottle['authorGender']) {
 
 .bottom-actions {
   position: absolute;
-  left: 58rpx;
-  right: 58rpx;
+  left: 34rpx;
+  right: 34rpx;
   bottom: calc(32rpx + var(--window-bottom) + env(safe-area-inset-bottom));
   z-index: 10;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) 148rpx;
   gap: 16rpx;
+  align-items: center;
 }
 
 .action-button {
@@ -886,23 +901,50 @@ function genderLabel(gender?: Bottle['authorGender']) {
   color: #fff;
   box-shadow: 0 18rpx 34rpx rgba(0, 0, 0, 0.22);
   backdrop-filter: blur(18px);
+  overflow: hidden;
 }
 
 .catch {
-  background: rgba(53, 139, 169, 0.94);
+  order: 2;
+  height: 78rpx;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(53, 139, 169, 0.42);
 }
 
 .throw {
-  background: rgba(39, 64, 79, 0.9);
+  order: 1;
+  height: 112rpx;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 12%, rgba(255, 255, 255, 0.34), transparent 28%),
+    linear-gradient(180deg, #43c59e, #237a70 64%, #173d4c);
+  box-shadow:
+    0 0 0 10rpx rgba(67, 197, 158, 0.12),
+    0 20rpx 48rpx rgba(28, 101, 96, 0.42);
+}
+
+.throw-ripple {
+  position: absolute;
+  inset: 10rpx;
+  border: 2rpx solid rgba(255, 255, 255, 0.32);
+  border-radius: inherit;
+  animation: throw-ripple 1.8s ease-out infinite;
+}
+
+.ripple-b {
+  animation-delay: 0.72s;
 }
 
 .action-main {
+  position: relative;
+  z-index: 1;
   font-size: 34rpx;
   font-weight: 900;
 }
 
 .action-badge {
   position: absolute;
+  z-index: 1;
   top: 12rpx;
   right: 14rpx;
   min-width: 34rpx;
@@ -917,7 +959,7 @@ function genderLabel(gender?: Bottle['authorGender']) {
 }
 
 .action-badge.red {
-  background: #ff3b30;
+  background: #f15a5a;
 }
 
 .modal-mask {
@@ -939,7 +981,7 @@ function genderLabel(gender?: Bottle['authorGender']) {
   max-width: 520px;
   max-height: 86vh;
   overflow-y: auto;
-  border-radius: 30px;
+  border-radius: 16px;
   padding: 34rpx;
   background: rgba(255, 255, 255, 0.96);
   color: #1d1d1f;
@@ -1032,7 +1074,7 @@ function genderLabel(gender?: Bottle['authorGender']) {
   min-height: 230rpx;
   margin: 26rpx 0 20rpx;
   border: 1px solid rgba(29, 29, 31, 0.08);
-  border-radius: 20px;
+  border-radius: 16px;
   background: #f5f5f7;
   padding: 24rpx;
   color: #1d1d1f;
@@ -1115,6 +1157,7 @@ function genderLabel(gender?: Bottle['authorGender']) {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
   flex: 0 0 76rpx;
   width: 76rpx;
   height: 76rpx;
@@ -1123,6 +1166,13 @@ function genderLabel(gender?: Bottle['authorGender']) {
   background: linear-gradient(135deg, #5f9f8f, #0071e3);
   font-size: 30rpx;
   font-weight: 900;
+}
+
+.avatar-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
 }
 
 .author-main {
@@ -1190,21 +1240,36 @@ function genderLabel(gender?: Bottle['authorGender']) {
   font-weight: 800;
 }
 
-.mini-tag.vip {
-  color: #7a4b00;
-  background: #fff0bd;
-}
-
 .mini-tag.verified {
   color: #0f6b5e;
   background: rgba(95, 159, 143, 0.14);
 }
 
+.caught-origin-card {
+  margin: 28rpx 0;
+  border: 1px solid rgba(0, 113, 227, 0.1);
+  border-radius: 16px;
+  padding: 18rpx 20rpx;
+  background:
+    linear-gradient(180deg, rgba(245, 245, 247, 0.98), rgba(255, 255, 255, 0.92)),
+    radial-gradient(circle at 100% 0%, rgba(0, 113, 227, 0.06), transparent 34%);
+}
+
+.origin-kicker,
 .caught-message {
   display: block;
-  margin: 28rpx 0;
+}
+
+.origin-kicker {
+  margin-bottom: 8rpx;
+  color: #6e6e73;
+  font-size: 22rpx;
+  font-weight: 900;
+}
+
+.caught-message {
   color: #1d1d1f;
-  font-size: 34rpx;
+  font-size: 30rpx;
   font-weight: 800;
   line-height: 1.5;
 }
@@ -1213,7 +1278,7 @@ function genderLabel(gender?: Bottle['authorGender']) {
   height: 78rpx;
   margin-bottom: 10rpx;
   border: 1px solid rgba(29, 29, 31, 0.08);
-  border-radius: 18px;
+  border-radius: 16px;
   background: #f5f5f7;
   padding: 0 20rpx;
   color: #1d1d1f;
@@ -1268,7 +1333,7 @@ function genderLabel(gender?: Bottle['authorGender']) {
   min-height: 132rpx;
   margin-top: 12rpx;
   border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 18px;
+  border-radius: 16px;
   padding: 18rpx;
   background: #fff;
   color: #1d1d1f;
@@ -1278,7 +1343,7 @@ function genderLabel(gender?: Bottle['authorGender']) {
 
 .report-preview {
   margin: 22rpx 0;
-  border-radius: 18px;
+  border-radius: 16px;
   padding: 20rpx;
   color: #3a3a3c;
   background: #f5f5f7;
@@ -1385,6 +1450,18 @@ function genderLabel(gender?: Bottle['authorGender']) {
   50% {
     opacity: 1;
     transform: scale(1.2);
+  }
+}
+
+@keyframes throw-ripple {
+  0% {
+    opacity: 0.7;
+    transform: scale(0.84);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.16);
   }
 }
 

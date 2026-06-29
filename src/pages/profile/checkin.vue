@@ -3,7 +3,7 @@
     <view class="page-hero">
       <view>
         <text class="title">签到</text>
-        <text class="muted">连续签到 {{ app.checkin?.streakDays || 0 }} 天</text>
+        <text class="muted">连续签到 {{ app.checkin?.streakDays || 0 }} 天，签到奖励玩法次数</text>
       </view>
     </view>
 
@@ -11,7 +11,7 @@
       <view class="checkin-head">
         <view>
           <text class="h2">一周签到</text>
-          <text class="muted">下一次奖励 {{ app.nextCheckinReward }} 漂流币</text>
+          <text class="muted">下一次奖励所有玩法次数 +{{ app.nextCheckinReward }}</text>
         </view>
         <view class="button secondary sign-button" :class="{ disabled: app.checkin?.checkedToday }" @tap="checkin">
           {{ app.checkin?.checkedToday ? '已签到' : '立即签到' }}
@@ -28,7 +28,7 @@
     <view class="section panel video-panel">
       <view class="video-copy">
         <text class="h2">看视频领取次数</text>
-        <text class="muted">完整看完一次，所有玩法次数各 +{{ app.adReward?.rewardPerQuota || 1 }}</text>
+        <text class="muted">完整看完一次，金币 +1，所有玩法次数各 +{{ app.adReward?.rewardPerQuota || 10 }}</text>
       </view>
       <view class="reward-status">{{ app.adCountdownText }}</view>
       <view class="button video-button" :class="{ disabled: !app.adReward?.canWatch || adWatching }" @tap="watchVideoAd">
@@ -53,7 +53,7 @@ onLoad(() => app.hydrate())
 async function checkin() {
   if (app.checkin?.checkedToday) return
   const result = await app.runCheckin()
-  showToast(`连续签到第 ${result.streakDays} 天，获得 ${result.lastReward} 漂流币`)
+  showToast(`连续签到第 ${result.streakDays} 天，所有玩法次数 +${result.lastReward}`)
 }
 
 async function watchVideoAd() {
@@ -65,7 +65,7 @@ async function watchVideoAd() {
   adWatching.value = true
   try {
     await app.watchRewardAd(true)
-    showToast(`领取成功，所有玩法次数 +${app.adReward?.rewardPerQuota || 1}`)
+    showToast(`领取成功，金币 +1，所有玩法次数 +${app.adReward?.rewardPerQuota || 10}`)
   } catch {
     showToast('视频未看完，暂未发放奖励')
   } finally {

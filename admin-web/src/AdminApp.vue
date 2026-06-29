@@ -1,17 +1,17 @@
-<template>
+﻿<template>
   <main class="admin-shell">
     <aside class="sidebar">
       <div class="brand">
-        <span class="brand-mark">D</span>
+        <div class="brand-mark">A</div>
         <div>
-          <strong>漂流岛管理后台</strong>
-          <small>Web Admin</small>
+          <strong>后台监控</strong>
+          <small>运营管理中心</small>
         </div>
       </div>
 
       <nav class="nav-list">
         <button
-          v-for="tab in tabs"
+          v-for="tab in tabsForRender"
           :key="tab.key"
           class="nav-item"
           :class="{ active: activeTab === tab.key }"
@@ -24,32 +24,33 @@
       </nav>
 
       <div class="sidebar-note">
-        <small>独立 Web 后台</small>
-        <span>不进入小程序、iOS、Android 用户端路由。</span>
+        <small>运行提示</small>
+        <span>默认按用户名和头像展示记录，不直接暴露数据库字段。</span>
       </div>
     </aside>
 
     <section class="workspace">
       <header class="topbar">
         <div>
-          <p class="eyebrow">运营 / 审核 / 风控</p>
-          <h1>{{ currentTabLabel }}</h1>
+          <p class="eyebrow">后台监控 / 内容治理 / 风险运营</p>
+          <h1>{{ pageTitle }}</h1>
         </div>
         <div class="session-card">
-          <span class="status-dot" :class="{ off: !dashboard?.adminSession.signedIn }"></span>
+          <span class="status-dot" :class="{ off: !dashboard.adminSession.signedIn }"></span>
           <div>
-            <strong>{{ dashboard?.adminSession.displayName || '未登录' }}</strong>
-            <small>{{ dashboard?.adminSession.role || 'no_session' }}</small>
+            <strong>{{ dashboard.adminSession.displayName }}</strong>
+            <small>{{ sessionRoleText(dashboard.adminSession.role) }} · {{ dashboard.adminSession.lastLoginAt }}</small>
           </div>
-          <button type="button" class="ghost-button" @click="toggleSession">
-            {{ dashboard?.adminSession.signedIn ? '退出' : '模拟登录' }}
-          </button>
+          <button type="button" class="ghost-button" :disabled="operationBusy" @click="toggleSession">{{ dashboard.adminSession.signedIn ? '退出登录' : '登录' }}</button>
         </div>
       </header>
 
-      <section v-if="loading" class="panel loading-panel">加载管理数据中...</section>
+        <section v-if="loading" class="panel loading-panel">加载中...</section>
+        <section v-else-if="loadingError" class="panel loading-panel text-error">{{ loadingError }}</section>
 
-      <template v-else-if="dashboard">
+      <template v-else>
+        <section v-if="operationMessage" class="panel operation-panel" :class="{ 'text-error': operationMessage.includes('失败') }">{{ operationMessage }}</section>
+
         <section class="metric-grid">
           <article v-for="metric in metrics" :key="metric.label" class="metric-card">
             <span>{{ metric.label }}</span>
@@ -57,104 +58,126 @@
           </article>
         </section>
 
-        <section v-if="activeTab === 'overview'" class="content-grid">
-          <article class="panel span-2">
-            <div class="panel-head">
-              <div>
-                <h2>待办队列</h2>
-                <p>内容、举报、提现和广告奖励的当前风险面。</p>
-              </div>
-            </div>
-            <div class="queue-grid">
-              <button class="queue-card" type="button" @click="setActiveTab('content')">
-                <strong>{{ dashboard.summary.pendingContent }}</strong>
-                <span>待审内容</span>
-              </button>
-              <button class="queue-card" type="button" @click="setActiveTab('reports')">
-                <strong>{{ dashboard.summary.reports }}</strong>
-                <span>举报待处理</span>
-              </button>
-              <button class="queue-card" type="button" @click="setActiveTab('wallet')">
-                <strong>{{ dashboard.summary.pendingWithdrawals }}</strong>
-                <span>提现复核</span>
-              </button>
-              <button class="queue-card" type="button" @click="setActiveTab('audit')">
-                <strong>{{ dashboard.auditLogs.length }}</strong>
-                <span>审计记录</span>
-              </button>
-            </div>
-          </article>
-
-          <article class="panel">
-            <h2>平台边界</h2>
-            <ul class="rule-list">
-              <li>后台是独立 Web 管理端。</li>
-              <li>用户端只保留瓶子、广场、游戏、树洞、我的。</li>
-              <li>真实鉴权和落库后续接 PostgreSQL/Redis。</li>
-            </ul>
-          </article>
-        </section>
-
-        <section v-if="activeTab === 'config'" class="panel">
+        <section class="panel" v-if="activeTab === 'overview'">
           <div class="panel-head">
             <div>
-              <h2>奖励与次数配置</h2>
-              <p>首版仍走 Mock，后续对接 `/admin/reward-config`。</p>
+              <h2>任务面板</h2>
+              <p>按优先级和类型快速确认待处理项</p>
             </div>
-            <button type="button" class="primary-button" @click="saveConfig">保存配置</button>
+            <button type="button" class="text-button" @click="openTab('content')">进入内容中心</button>
           </div>
-
-          <div class="form-grid">
-            <label>
-              <span>广告冷却分钟</span>
-              <input v-model.number="configDraft.adCooldownMinutes" type="number" min="1" />
-            </label>
-            <label>
-              <span>广告每类次数奖励</span>
-              <input v-model.number="configDraft.adRewardPerQuota" type="number" min="1" />
-            </label>
-            <label class="wide">
-              <span>一周签到奖励</span>
-              <input v-model="checkinRewardsText" type="text" />
-            </label>
-          </div>
-
-          <div class="quota-grid">
-            <label v-for="quota in quotaEntries" :key="quota.type">
-              <span>{{ quota.label }}</span>
-              <input v-model.number="configDraft.baseQuotas[quota.type]" type="number" min="0" />
-            </label>
+          <div class="content-grid">
+            <article
+              v-for="item in taskBoard"
+              :key="item.label"
+              class="task-card"
+              :class="item.theme"
+              @click="openTask(item.tab, item.risk, item.category)"
+            >
+              <strong>{{ item.count }}</strong>
+              <span>{{ item.label }}</span>
+              <small>{{ item.remark }}</small>
+            </article>
+            <article class="task-card">
+              <strong>{{ dashboard.summary.pendingContent }}</strong>
+              <span>待审核内容总量</span>
+              <small>含瓶子 / 树洞 / 广场 / 私密照</small>
+            </article>
           </div>
         </section>
 
         <section v-if="activeTab === 'users'" class="panel">
-          <TableHeader title="用户管理" subtitle="统一查看跨端账号、认证状态、会员、风控和收益。" />
+          <div class="panel-head users-head">
+            <div>
+              <h2>用户监控</h2>
+              <p>支持用户检索、状态更新、封禁期限配置</p>
+            </div>
+            <div class="action-row">
+              <button type="button" class="ghost-button" :disabled="operationBusy" @click="setBatchStatus('active')">批量恢复</button>
+              <button type="button" class="ghost-button" :disabled="operationBusy" @click="setBatchStatus('limited')">批量限制</button>
+              <button type="button" class="danger-button" :disabled="operationBusy" @click="setBatchStatus('blocked')">批量封禁</button>
+            </div>
+          </div>
+
+          <div class="users-toolbar">
+            <input v-model="userKeyword" type="search" placeholder="搜索昵称 / 用户ID" />
+            <select v-model="userStatusFilter">
+              <option value="">全部状态</option>
+              <option value="active">正常</option>
+              <option value="limited">受限</option>
+              <option value="blocked">封禁</option>
+            </select>
+            <select v-model="userVerifyFilter">
+              <option value="">全部认证</option>
+              <option value="approved">已认证</option>
+              <option value="pending">待审核</option>
+              <option value="rejected">不通过</option>
+              <option value="not_submitted">未提交</option>
+            </select>
+            <input
+              v-model.number="userBatchDays"
+              type="number"
+              class="ban-days"
+              min="1"
+              max="365"
+              placeholder="封禁天数"
+            />
+            <input v-model="userBatchReason" type="text" class="ban-reason" placeholder="封禁原因（可选）" />
+            <button type="button" class="ghost-button" @click="clearUserFilters">重置</button>
+          </div>
+
           <table>
             <thead>
               <tr>
+                <th style="width: 40px">
+                  <input
+                    type="checkbox"
+                    :checked="allUsersChecked"
+                    @change="toggleAllUsers"
+                  />
+                </th>
                 <th>用户</th>
                 <th>平台</th>
                 <th>性别</th>
+                <th>状态</th>
                 <th>VIP</th>
-                <th>认证</th>
-                <th>安全分</th>
-                <th>钱包风险</th>
-                <th></th>
+                <th>封禁到期</th>
+                <th>封禁原因</th>
+                <th>风控</th>
+                <th>操作</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="user in dashboard.users" :key="user.id">
+              <tr v-for="user in filteredUsers" :key="user.id">
                 <td>
-                  <strong>{{ user.nickname }}</strong>
-                  <small>{{ user.id }}</small>
+                  <input
+                    type="checkbox"
+                    :checked="selectedUserIds.includes(user.id)"
+                    @change="toggleUser(user.id)"
+                  />
                 </td>
-                <td>{{ user.platform }}</td>
+                <td>
+                  <div class="user-cell">
+                    <img v-if="user.avatarUrl" class="avatar-img" :src="user.avatarUrl" :alt="user.nickname" />
+                    <span v-else class="avatar">{{ userAvatarText(user.nickname, user.avatarText) }}</span>
+                    <div>
+                      <strong>{{ user.nickname }}</strong>
+                  <small>{{ mapVisibleId(user.id) }}</small>
+                    </div>
+                  </div>
+                </td>
+                <td>{{ platformText(user.platform) }}</td>
                 <td>{{ genderText(user.gender) }}</td>
+                <td><span class="pill" :class="user.status">{{ userStatusText(user.status) }}</span></td>
                 <td>{{ user.isVip ? 'VIP' : '-' }}</td>
-                <td>{{ user.verificationStatus }}</td>
-                <td>{{ user.safetyScore }}</td>
-                <td><span class="pill" :class="user.walletRisk">{{ user.walletRisk }}</span></td>
-                <td><button type="button" class="text-button" @click="selectDetail('用户详情', user)">查看</button></td>
+                <td>{{ user.blockedUntil || '-' }}</td>
+                <td>{{ user.blockReason || '-' }}</td>
+                <td><span class="pill" :class="user.walletRisk">{{ walletRiskText(user.walletRisk) }}</span></td>
+                <td class="inline-actions">
+                  <button type="button" class="text-button" :disabled="operationBusy" @click="setUserStatus(user.id, 'active')">恢复</button>
+                  <button type="button" class="text-button" :disabled="operationBusy" @click="setUserStatus(user.id, 'limited')">限制</button>
+                  <button type="button" class="danger-button" :disabled="operationBusy" @click="setUserStatus(user.id, 'blocked', userBatchReason, userBatchDays)">封禁</button>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -163,17 +186,26 @@
         <section v-if="activeTab === 'content'" class="panel">
           <div class="panel-head">
             <div>
-              <h2>内容审核</h2>
-              <p>按分类处理漂流瓶、树洞、广场、私密照片和聊天记录。</p>
+              <h2>内容监控</h2>
+              <p>多类型分类：瓶子、树洞、广场、私密照片</p>
             </div>
             <div class="action-row">
-              <button type="button" class="ghost-button" :disabled="!selectedContentIds.length" @click="batchApprove">
-                批量通过
-              </button>
-              <button type="button" class="danger-button" :disabled="!selectedContentIds.length" @click="batchOffline">
-                批量下架
-              </button>
+              <button type="button" class="ghost-button" :disabled="operationBusy || !selectedContentIds.length" @click="batchReview('approved')">批量通过</button>
+              <button type="button" class="danger-button" :disabled="operationBusy || !selectedContentIds.length" @click="batchReview('rejected')">批量下线</button>
             </div>
+          </div>
+
+          <div class="toolbar-actions">
+            <button
+              v-for="filter in riskFilters"
+              :key="filter.value"
+              type="button"
+              class="ghost-button"
+              :class="{ active: contentRiskFilter === filter.value }"
+              @click="contentRiskFilter = filter.value"
+            >
+              {{ filter.label }}
+            </button>
           </div>
 
           <div class="category-bar">
@@ -183,31 +215,25 @@
               type="button"
               class="category-button"
               :class="{ active: activeContentCategory === category.key }"
-              @click="setContentCategory(category.key)"
+              @click="activeContentCategory = category.key"
             >
               <span>{{ category.label }}</span>
               <small>{{ category.count }}</small>
             </button>
           </div>
 
-          <div class="review-policy">
-            <strong>审核策略</strong>
-            <span>正常内容自动通过，不进入人工；举报、命中违规词、风控异常、私密照片才进入审核。命中违规词时发送侧先自动屏蔽，后台保留命中证据。</span>
-          </div>
-
           <table>
             <thead>
               <tr>
-                <th></th>
-                <th>内容</th>
-                <th>分类</th>
+                <th style="width: 36px"></th>
+                <th>类别</th>
                 <th>作者</th>
-                <th>触发</th>
-                <th>风险</th>
+                <th>内容</th>
                 <th>状态</th>
+                <th>风险</th>
+                <th>触发</th>
                 <th>动作</th>
                 <th>原因</th>
-                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -219,277 +245,702 @@
                     @change="toggleContent(item.id)"
                   />
                 </td>
-                <td class="preview-cell">{{ item.preview }}</td>
-                <td>{{ item.category }}</td>
+                <td>{{ categoryLabel(item.category) }}</td>
                 <td>
-                  <strong>{{ item.authorName }}</strong>
-                  <small>{{ item.authorId }}</small>
-                  <button type="button" class="inline-link" @click="selectUserById(item.authorId)">用户</button>
+                  <div class="user-cell">
+                    <img
+                      v-if="item.authorAvatarUrl"
+                      class="avatar-img avatar-small"
+                      :src="item.authorAvatarUrl"
+                      :alt="item.authorName"
+                    />
+                    <span v-else class="avatar avatar-small">{{ userAvatarText(item.authorName, item.authorAvatarText) }}</span>
+                    <div>
+                      <strong>{{ item.authorName }}</strong>
+                    <small>{{ mapVisibleId(item.authorId) }}</small>
+                    </div>
+                  </div>
                 </td>
+                <td class="preview-cell">{{ item.preview }}</td>
+                <td><span class="pill" :class="item.status">{{ contentStatusText(item.status) }}</span></td>
+                <td><span class="pill" :class="item.riskLevel">{{ riskText(item.riskLevel) }}</span></td>
                 <td>{{ triggerText(item.reviewTrigger) }}</td>
-                <td><span class="pill" :class="item.riskLevel">{{ item.riskLevel }}</span></td>
-                <td>{{ item.status }}</td>
                 <td>{{ actionText(item.autoAction) }}</td>
                 <td>{{ item.reason }}</td>
-                <td><button type="button" class="text-button" @click="selectDetail('内容详情', item)">详情</button></td>
               </tr>
             </tbody>
           </table>
+        </section>
 
-          <div v-if="showChatReviews" class="chat-review-section">
-            <div class="panel-head nested">
-              <div>
-                <h2>聊天记录审核</h2>
-                <p>用于举报、骚扰、导流、诱导充值等场景的上下文复核。</p>
-              </div>
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  <th>会话双方</th>
-                  <th>来源</th>
-                  <th>最近消息</th>
-                  <th>触发</th>
-                  <th>风险</th>
-                  <th>状态</th>
-                  <th>动作</th>
-                  <th>原因</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="chat in dashboard.chatReviews" :key="chat.id">
-                  <td>
-                    <strong>{{ chat.participants.join(' / ') }}</strong>
-                    <small>{{ chat.threadId }}</small>
-                  </td>
-                  <td>{{ sourceText(chat.source) }}</td>
-                  <td class="preview-cell">{{ chat.lastMessage }}</td>
-                  <td>{{ triggerText(chat.reviewTrigger) }}</td>
-                  <td><span class="pill" :class="chat.riskLevel">{{ chat.riskLevel }}</span></td>
-                  <td>{{ chat.status }}</td>
-                  <td>{{ actionText(chat.autoAction) }}</td>
-                  <td>{{ chat.reason }}</td>
-                  <td><button type="button" class="text-button" @click="selectDetail('聊天记录详情', chat)">查看对话</button></td>
-                </tr>
-              </tbody>
-            </table>
+        <section v-if="activeTab === 'chats'" class="panel">
+          <div class="panel-head">
+            <h2>聊天监控</h2>
+            <p>按会话维度核查高风险沟通内容</p>
           </div>
+          <div class="toolbar-actions">
+            <button
+              v-for="filter in chatSourceFilters"
+              :key="filter.value"
+              type="button"
+              class="ghost-button"
+              :class="{ active: activeChatSourceFilter === filter.value }"
+              @click="activeChatSourceFilter = filter.value"
+            >
+              {{ filter.label }}（{{ filter.count }}）
+            </button>
+          </div>
+          <div class="toolbar-actions">
+            <button
+              v-for="filter in riskFilters"
+              :key="`chat-risk-${filter.value}`"
+              type="button"
+              class="ghost-button"
+              :class="{ active: activeChatRiskFilter === filter.value }"
+              @click="activeChatRiskFilter = filter.value"
+            >
+              {{ filter.label }}（{
+                filter.value === 'all'
+                  ? chatRisksBySource.countAll
+                  : filter.value === 'high'
+                    ? chatRisksBySource.countHigh
+                    : filter.value === 'medium'
+                      ? chatRisksBySource.countMedium
+                      : chatRisksBySource.countLow
+               }}）
+            </button>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>会话信息</th>
+                <th>来源</th>
+                <th>关联对象</th>
+                <th>最后消息</th>
+                <th>风险</th>
+                <th>状态</th>
+                <th>触发</th>
+                <th>最后更新时间</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="chat in filteredChats" :key="chat.id">
+                <td>
+                  <div class="user-cell">
+                    <span class="pill">会话</span>
+                    <div>
+                      <strong>{{ mapVisibleId(chat.threadId) }}</strong>
+                      <small>{{ chat.relatedContent || '无关联内容' }}</small>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <span>{{ contentTypeLabel(chat.source) }}</span>
+                </td>
+                <td>
+                  <div class="chips">
+                    <span
+                      class="chip profile-chip"
+                      v-for="(participant, index) in chat.participants"
+                      :key="`${chat.id}-${participant}-${index}`"
+                    >
+                      <img
+                        v-if="chat.participantAvatarUrls?.[index]"
+                        class="avatar avatar-small"
+                        :src="chat.participantAvatarUrls[index] || ''"
+                        :alt="participant"
+                      />
+                      <span v-else class="avatar avatar-small">
+                        {{ userAvatarText(participant, chat.participantAvatarTexts?.[index] || undefined) }}
+                      </span>
+                      {{ participant }}
+                    </span>
+                  </div>
+                </td>
+                <td class="preview-cell">{{ chat.lastMessage }}</td>
+                <td><span class="pill" :class="chat.riskLevel">{{ riskText(chat.riskLevel) }}</span></td>
+                <td><span class="pill" :class="chat.status">{{ chatStatusText(chat.status) }}</span></td>
+                <td>{{ triggerText(chat.reviewTrigger) }}</td>
+                <td>{{ chat.updatedAt }}</td>
+              </tr>
+            </tbody>
+          </table>
         </section>
 
         <section v-if="activeTab === 'reports'" class="panel">
-          <TableHeader title="举报队列" subtitle="举报、拉黑和人工复核入口。" />
-          <DataCards :items="dashboard.reports" title-key="targetPreview" @select="selectDetail('举报详情', $event)" />
-        </section>
-
-        <section v-if="activeTab === 'orders'" class="panel">
-          <TableHeader title="订单记录" subtitle="会员、金币包、平台支付和退款状态。" />
-          <DataCards :items="dashboard.orders" title-key="productName" @select="selectDetail('订单详情', $event)" />
-        </section>
-
-        <section v-if="activeTab === 'wallet'" class="panel">
-          <TableHeader title="钱包与提现风控" subtitle="区分充值金币、收益金币、魅力值和冻结金额。" />
-          <DataCards :items="dashboard.walletRisks" title-key="riskReason" @select="selectDetail('钱包详情', $event)" />
-        </section>
-
-        <section v-if="activeTab === 'audit'" class="panel">
-          <TableHeader title="审计日志" subtitle="管理员操作、配置变更和审核动作记录。" />
+          <h2>举报记录</h2>
+          <div class="toolbar-actions">
+            <button
+              v-for="filter in reportStatusFilters"
+              :key="`report-status-${filter.value}`"
+              type="button"
+              class="ghost-button"
+              :class="{ active: activeReportStatusFilter === filter.value }"
+              @click="activeReportStatusFilter = filter.value"
+            >
+              {{ filter.label }}（{{ filter.count }})
+            </button>
+          </div>
+          <div class="toolbar-actions">
+            <button
+              v-for="filter in reportCategoryFilters"
+              :key="`report-type-${filter.value}`"
+              type="button"
+              class="ghost-button"
+              :class="{ active: activeReportTypeFilter === filter.value }"
+              @click="activeReportTypeFilter = filter.value"
+            >
+              {{ filter.label }}（{{ filter.count }})
+            </button>
+          </div>
           <table>
             <thead>
               <tr>
                 <th>时间</th>
-                <th>操作人</th>
-                <th>动作</th>
-                <th>对象</th>
-                <th>详情</th>
+                <th>目标类型</th>
+                <th>目标对象</th>
+                <th>原因</th>
+                <th>状态</th>
+                <th>等级</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="log in dashboard.auditLogs" :key="log.id" @click="selectDetail('审计详情', log)">
-                <td>{{ log.createdAt }}</td>
-                <td>{{ log.operator }}</td>
-                <td>{{ log.action }}</td>
-                <td>{{ log.target }}</td>
-                <td>{{ log.detail }}</td>
+              <tr v-for="item in filteredReports" :key="item.id">
+                <td>{{ item.createdAt }}</td>
+                <td>{{ item.targetTypeText || formatReportTypeLabel(item.targetType) }}</td>
+                <td>
+                  <div class="user-cell">
+                    <img
+                      v-if="item.targetAvatarUrl"
+                      class="avatar-img avatar-small"
+                      :src="item.targetAvatarUrl"
+                      :alt="item.targetDisplayName || '目标'"
+                    />
+                    <span v-else class="avatar avatar-small">{{ userAvatarText(item.targetDisplayName || item.targetType, item.targetAvatarText) }}</span>
+                    <div>
+                      <strong>{{ item.targetDisplayName || '未命名目标' }}</strong>
+                      <small>{{ mapVisibleId(item.targetId) }}</small>
+                    </div>
+                  </div>
+                </td>
+                <td class="preview-cell">
+                  <p>{{ item.targetPreview || item.reason }}</p>
+                </td>
+                <td>
+                  <span class="pill" :class="item.status">{{ reportStatusLabel(item.status) }}</span>
+                </td>
+                <td>{{ item.priority }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section v-if="activeTab === 'wallet'" class="panel">
+          <h2>钱包风控</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>用户</th>
+                <th>类型</th>
+                <th>说明</th>
+                <th>状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in dashboard.walletRisks" :key="item.id">
+                <td>{{ item.createdAt }}</td>
+                <td>{{ item.nickname }}</td>
+                <td>{{ walletRiskTypeText(item.type) }}</td>
+                <td>{{ item.riskReason }}</td>
+                <td>{{ item.status }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section v-if="activeTab === 'audit'" class="panel">
+          <h2>审计日志</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>操作者</th>
+                <th>动作</th>
+                <th>目标</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in dashboard.auditLogs" :key="item.id">
+                <td>{{ item.createdAt }}</td>
+                <td>
+                  <div class="user-cell">
+                    <span class="avatar">{{ userAvatarText(item.operator) }}</span>
+                    <div>
+                      <strong>{{ item.operator }}</strong>
+                      <small>管理员</small>
+                    </div>
+                  </div>
+                </td>
+                <td>{{ item.action }}</td>
+                <td>{{ item.target }}</td>
+                <td>{{ item.detail }}</td>
               </tr>
             </tbody>
           </table>
         </section>
       </template>
     </section>
-
-    <aside v-if="detail" class="detail-drawer">
-      <div class="panel-head">
-        <div>
-          <p class="eyebrow">详情</p>
-          <h2>{{ detail.title }}</h2>
-        </div>
-        <button type="button" class="ghost-button" @click="detail = null">关闭</button>
-      </div>
-      <dl>
-        <template v-for="[key, value] in detailRows" :key="key">
-          <dt>{{ key }}</dt>
-          <dd>{{ value }}</dd>
-        </template>
-      </dl>
-      <div v-if="detailRelatedUsers.length" class="related-users">
-        <h3>对应用户</h3>
-        <button v-for="user in detailRelatedUsers" :key="user.id" type="button" class="related-user" @click="selectDetail('用户详情', user)">
-          <strong>{{ user.nickname }}</strong>
-          <span>{{ user.id }} · {{ genderText(user.gender) }} · {{ user.isVip ? 'VIP' : '非会员' }} · 安全分 {{ user.safetyScore }}</span>
-        </button>
-      </div>
-      <div v-if="detailChatMessages.length" class="chat-transcript">
-        <h3>对话内容</h3>
-        <article v-for="message in detailChatMessages" :key="message.id" class="chat-bubble">
-          <strong>{{ message.senderName }}</strong>
-          <p>{{ message.body }}</p>
-          <small>{{ message.createdAt }}</small>
-        </article>
-      </div>
-    </aside>
   </main>
 </template>
 
-<script setup lang="ts">
-import { computed, defineComponent, h, onMounted, ref, type PropType } from 'vue'
-import { mockApi } from '@/services/mockApi'
-import type { AdminDashboard, AdminRewardConfigDraft, ContentStatus, ConversationTurn } from '@/types/domain'
+<script lang="ts" setup>
+import { computed, onMounted, ref } from 'vue'
+import { adminApi } from '@/services/adminApi'
+import type {
+  AdminDashboard,
+  AdminSummary,
+  AdminUserSummary,
+  AdminContentReviewItem,
+  AdminChatReviewItem,
+  AdminReportItem,
+  ContentStatus,
+  AdminContentReviewItem as ContentReviewItemAlias
+} from '@/types/domain'
 
-type TabKey = 'overview' | 'config' | 'users' | 'content' | 'reports' | 'orders' | 'wallet' | 'audit'
-type ContentCategoryKey = 'all' | 'bottle' | 'treehole' | 'private_photo' | 'plaza' | 'chat'
+type TabKey = 'overview' | 'users' | 'content' | 'chats' | 'reports' | 'wallet' | 'audit'
+type UserStatus = AdminUserSummary['status']
+type WalletRisk = AdminUserSummary['walletRisk']
+type ContentCategory = 'all' | ContentReviewItemAlias['category']
+type RiskLevel = 'all' | 'low' | 'medium' | 'high'
+type UserStatusFilter = '' | UserStatus
+type ReportCategory = 'all' | AdminReportItem['targetType']
+type ReportStatusFilter = 'all' | AdminReportItem['status']
+type ChatSourceFilter = 'all' | AdminChatReviewItem['source']
 
-const tabs: { key: TabKey; label: string; badge?: string }[] = [
-  { key: 'overview', label: '总览' },
-  { key: 'config', label: '奖励配置' },
-  { key: 'users', label: '用户' },
-  { key: 'content', label: '内容审核', badge: 'P0' },
-  { key: 'reports', label: '举报' },
-  { key: 'orders', label: '订单' },
-  { key: 'wallet', label: '钱包提现' },
-  { key: 'audit', label: '审计' }
+type DashTab = { key: TabKey; label: string; badge?: number }
+
+const initialDashboard: AdminDashboard = {
+  adminSession: {
+    accountId: 'admin',
+    displayName: 'admin',
+    role: 'super_admin',
+    permissions: ['content', 'risk', 'config'],
+    signedIn: true,
+    lastLoginAt: new Date().toISOString()
+  },
+  summary: {
+    users: 0,
+    activeUsers: 0,
+    pendingContent: 0,
+    reports: 0,
+    adRewardsToday: 0,
+    ordersToday: 0,
+    pendingWithdrawals: 0,
+    riskWallets: 0
+  },
+  rewardConfig: {
+    baseQuotas: {
+      fish_bottle: 0,
+      throw_bottle: 0,
+      truth: 0,
+      dare: 0,
+      treehole_post: 0
+    },
+    adCooldownMinutes: 15,
+    adRewardPerQuota: 10,
+    adReward: '每次+10金币',
+    checkinRewards: [],
+    quotaNames: {
+      fish_bottle: '捞瓶',
+      throw_bottle: '扔瓶',
+      truth: '真心话',
+      dare: '大冒险',
+      treehole_post: '树洞投稿'
+    }
+  },
+  users: [],
+  contentReviews: [],
+  chatReviews: [],
+  reports: [],
+  adRewardRecords: [],
+  orders: [],
+  walletRisks: [],
+  auditLogs: []
+}
+
+const tabs: DashTab[] = [
+  { key: 'overview', label: '概览' },
+  { key: 'users', label: '用户管理' },
+  { key: 'content', label: '内容管理' },
+  { key: 'chats', label: '会话监控' },
+  { key: 'reports', label: '举报记录' },
+  { key: 'wallet', label: '钱包风险' },
+  { key: 'audit', label: '审计日志' }
 ]
 
+const dashboard = ref<AdminDashboard>(initialDashboard)
 const loading = ref(true)
-const dashboard = ref<AdminDashboard>()
+const operationBusy = ref(false)
+const operationMessage = ref('')
 const activeTab = ref<TabKey>('overview')
-const activeContentCategory = ref<ContentCategoryKey>('all')
-const selectedContentIds = ref<string[]>([])
-const detail = ref<{ title: string; value: Record<string, unknown> } | null>(null)
-const configDraft = ref<AdminRewardConfigDraft>({
-  baseQuotas: {
-    fish_bottle: 0,
-    throw_bottle: 0,
-    truth: 0,
-    dare: 0,
-    treehole_post: 0
-  },
-  adCooldownMinutes: 30,
-  adRewardPerQuota: 1,
-  checkinRewards: []
-})
-const checkinRewardsText = ref('')
 
-const currentTabLabel = computed(() => tabs.find((tab) => tab.key === activeTab.value)?.label || '后台')
+const userKeyword = ref('')
+const userStatusFilter = ref<UserStatusFilter>('')
+const userVerifyFilter = ref<'' | 'approved' | 'pending' | 'rejected' | 'not_submitted'>('')
+const userBatchDays = ref(7)
+const userBatchReason = ref('')
+
+const selectedUserIds = ref<string[]>([])
+const selectedContentIds = ref<string[]>([])
+
+const activeContentCategory = ref<ContentCategory>('all')
+const contentRiskFilter = ref<RiskLevel>('all')
+const activeChatSourceFilter = ref<ChatSourceFilter>('all')
+const activeChatRiskFilter = ref<RiskLevel>('all')
+const activeReportTypeFilter = ref<ReportCategory>('all')
+const activeReportStatusFilter = ref<ReportStatusFilter>('all')
+
+const loadingError = ref('')
+
+const tabsWithCounts = computed(() =>
+  tabs.map((tab) => {
+    if (tab.key === 'users') {
+      return { ...tab, badge: dashboard.value.users.length }
+    }
+    if (tab.key === 'content') {
+      return { ...tab, badge: dashboard.value.contentReviews.length }
+    }
+    if (tab.key === 'reports') {
+      return { ...tab, badge: dashboard.value.reports.length }
+    }
+    return tab
+  })
+)
+
 const metrics = computed(() => {
-  const summary = dashboard.value?.summary
-  if (!summary) return []
+  const summary = dashboard.value.summary
   return [
     { label: '总用户', value: summary.users },
-    { label: '今日活跃', value: summary.activeUsers },
+    { label: '活跃用户', value: summary.activeUsers },
     { label: '待审内容', value: summary.pendingContent },
-    { label: '举报待处理', value: summary.reports },
-    { label: '广告奖励', value: summary.adRewardsToday },
+    { label: '待处理举报', value: summary.reports },
+    { label: '今日奖励发放', value: summary.adRewardsToday },
     { label: '今日订单', value: summary.ordersToday },
-    { label: '待提现', value: summary.pendingWithdrawals },
+    { label: '待处理提现', value: summary.pendingWithdrawals },
     { label: '钱包风险', value: summary.riskWallets }
   ]
 })
-const quotaEntries = computed(() => {
-  const config = dashboard.value?.rewardConfig
-  if (!config) return []
-  return Object.entries(config.quotaNames).map(([type, label]) => ({ type: type as keyof AdminRewardConfigDraft['baseQuotas'], label }))
-})
-const detailRows = computed(() => {
-  if (!detail.value) return []
-  return Object.entries(detail.value.value)
-    .filter(([key]) => key !== 'messages')
-    .map(([key, value]) => [key, Array.isArray(value) ? value.join(' / ') : String(value ?? '')])
-})
-const filteredContentReviews = computed(() => {
-  const items = dashboard.value?.contentReviews ?? []
-  if (activeContentCategory.value === 'all' || activeContentCategory.value === 'chat') {
-    return items
-  }
-  return items.filter((item) => item.type === activeContentCategory.value)
-})
-const showChatReviews = computed(() => activeContentCategory.value === 'all' || activeContentCategory.value === 'chat')
+
+const riskFilters = [
+  { label: '全部', value: 'all' as const },
+  { label: '高风险', value: 'high' as const },
+  { label: '中风险', value: 'medium' as const },
+  { label: '低风险', value: 'low' as const }
+]
+
+const riskMap: Record<NonNullable<AdminContentReviewItem['riskLevel']>, string> = {
+  high: '高',
+  medium: '中',
+  low: '低'
+}
+
+const reportTypeMap: Record<AdminReportItem['targetType'], string> = {
+  user: '用户',
+  bottle: '漂流瓶',
+  treehole: '树洞',
+  reply: '回应',
+  chat: '私信聊天',
+  plaza: '广场',
+  private_photo: '私密照片'
+}
+
+const userStatusTextMap: Record<UserStatus, string> = {
+  active: '正常',
+  limited: '受限',
+  blocked: '封禁'
+}
+
+const walletRiskTextMap: Record<WalletRisk, string> = {
+  normal: '正常',
+  watch: '观察',
+  blocked: '封禁'
+}
+
+const categoryLabelMap: Record<ContentCategory, string> = {
+  all: '全部',
+  bottle: '漂流瓶',
+  treehole: '树洞',
+  plaza: '广场',
+  private_photo: '私密照片'
+}
+
+const contentTypeLabelMap: Record<AdminChatReviewItem['source'], string> = {
+  bottle: '漂流瓶',
+  treehole: '树洞',
+  plaza: '广场'
+}
+
+const reportStatusLabelMap: Record<AdminReportItem['status'], string> = {
+  pending: '待处理',
+  reviewing: '审核中',
+  resolved: '已处理'
+}
+
 const contentCategories = computed(() => {
-  const content = dashboard.value?.contentReviews ?? []
-  const chats = dashboard.value?.chatReviews ?? []
-  const countType = (type: Exclude<ContentCategoryKey, 'all' | 'chat'>) => content.filter((item) => item.type === type).length
+  const content = dashboard.value.contentReviews
+  const countType = (type: Exclude<ContentCategory, 'all'>) => content.filter((item) => item.type === type).length
   return [
-    { key: 'all' as const, label: '全部', count: content.length + chats.length },
+    { key: 'all' as const, label: '全部', count: content.length },
     { key: 'bottle' as const, label: '漂流瓶', count: countType('bottle') },
     { key: 'treehole' as const, label: '树洞', count: countType('treehole') },
     { key: 'private_photo' as const, label: '私密照片', count: countType('private_photo') },
-    { key: 'plaza' as const, label: '广场', count: countType('plaza') },
-    { key: 'chat' as const, label: '聊天记录', count: chats.length }
+    { key: 'plaza' as const, label: '广场', count: countType('plaza') }
   ]
 })
-const detailChatMessages = computed<ConversationTurn[]>(() => {
-  const messages = detail.value?.value.messages
-  return Array.isArray(messages) ? (messages as ConversationTurn[]) : []
-})
-const detailRelatedUsers = computed(() => {
-  if (!detail.value || !dashboard.value) return []
-  const value = detail.value.value
-  const ids = new Set<string>()
-  if (typeof value.authorId === 'string') ids.add(value.authorId)
-  if (Array.isArray(value.participantUserIds)) {
-    value.participantUserIds.forEach((id) => {
-      if (typeof id === 'string') ids.add(id)
-    })
-  }
-  return dashboard.value.users.filter((user) => ids.has(user.id))
+
+const chatSourceFilters = computed(() => {
+  const rows = dashboard.value.chatReviews
+  const countSource = (source: Exclude<ChatSourceFilter, 'all'>) => rows.filter((item) => item.source === source).length
+  return [
+    { value: 'all' as const, label: '全部会话', count: rows.length },
+    { value: 'bottle' as const, label: '漂流瓶', count: countSource('bottle') },
+    { value: 'treehole' as const, label: '树洞', count: countSource('treehole') },
+    { value: 'plaza' as const, label: '广场', count: countSource('plaza') }
+  ]
 })
 
-async function loadDashboard() {
-  loading.value = true
-  dashboard.value = await mockApi.listAdminData()
-  syncConfigDraft()
-  openDetailFromHash()
-  loading.value = false
-}
+const reportCategoryFilters = computed(() => {
+  const rows = dashboard.value.reports
+  const countType = (type: Exclude<ReportCategory, 'all'>) => rows.filter((item) => item.targetType === type).length
+  return [
+    { value: 'all' as const, label: '全部类型', count: rows.length },
+    { value: 'user' as const, label: '用户', count: countType('user') },
+    { value: 'bottle' as const, label: '漂流瓶', count: countType('bottle') },
+    { value: 'treehole' as const, label: '树洞', count: countType('treehole') },
+    { value: 'reply' as const, label: '回应', count: countType('reply') },
+    { value: 'chat' as const, label: '私信', count: countType('chat') },
+    { value: 'plaza' as const, label: '广场', count: countType('plaza') },
+    { value: 'private_photo' as const, label: '私密照', count: countType('private_photo') }
+  ]
+})
 
-function syncConfigDraft() {
-  if (!dashboard.value) return
-  configDraft.value = {
-    baseQuotas: { ...dashboard.value.rewardConfig.baseQuotas },
-    adCooldownMinutes: dashboard.value.rewardConfig.adCooldownMinutes,
-    adRewardPerQuota: dashboard.value.rewardConfig.adRewardPerQuota,
-    checkinRewards: [...dashboard.value.rewardConfig.checkinRewards]
+const reportStatusFilters = computed(() => {
+  const rows = dashboard.value.reports
+  const countStatus = (status: Exclude<ReportStatusFilter, 'all'>) => rows.filter((item) => item.status === status).length
+  return [
+    { value: 'all' as const, label: '全部状态', count: rows.length },
+    { value: 'pending' as const, label: '待处理', count: countStatus('pending') },
+    { value: 'reviewing' as const, label: '审核中', count: countStatus('reviewing') },
+    { value: 'resolved' as const, label: '已处理', count: countStatus('resolved') }
+  ]
+})
+
+const filteredUsers = computed(() =>
+  dashboard.value.users.filter((user) => {
+    const key = userKeyword.value.trim().toLowerCase()
+    const byKeyword = !key || user.nickname.toLowerCase().includes(key) || user.id.includes(key)
+    const byStatus = !userStatusFilter.value || user.status === userStatusFilter.value
+    const byVerify = !userVerifyFilter.value || user.verificationStatus === userVerifyFilter.value
+    return byKeyword && byStatus && byVerify
+  })
+)
+
+const filteredContentReviews = computed(() => {
+  let rows = dashboard.value.contentReviews
+  if (contentRiskFilter.value !== 'all') {
+    rows = rows.filter((item) => item.riskLevel === contentRiskFilter.value)
   }
-  checkinRewardsText.value = dashboard.value.rewardConfig.checkinRewards.join(' / ')
-}
-
-async function toggleSession() {
-  if (dashboard.value?.adminSession.signedIn) {
-    const session = await mockApi.adminLogout()
-    dashboard.value.adminSession = session
-    return
+  if (activeContentCategory.value !== 'all') {
+    rows = rows.filter((item) => item.category === activeContentCategory.value)
   }
-  const session = await mockApi.adminLogin('admin_demo')
-  if (dashboard.value) dashboard.value.adminSession = session
+  return rows
+})
+
+const filteredChats = computed(() => {
+  let rows = dashboard.value.chatReviews
+  if (activeChatSourceFilter.value !== 'all') {
+    rows = rows.filter((item) => item.source === activeChatSourceFilter.value)
+  }
+  if (activeChatRiskFilter.value !== 'all') {
+    rows = rows.filter((item) => item.riskLevel === activeChatRiskFilter.value)
+  }
+  return rows
+})
+
+const chatRisksBySource = computed(() => {
+  let rows = dashboard.value.chatReviews
+  if (activeChatSourceFilter.value !== 'all') {
+    rows = rows.filter((item) => item.source === activeChatSourceFilter.value)
+  }
+  return {
+    countAll: rows.length,
+    countHigh: rows.filter((item) => item.riskLevel === 'high').length,
+    countMedium: rows.filter((item) => item.riskLevel === 'medium').length,
+    countLow: rows.filter((item) => item.riskLevel === 'low').length
+  }
+})
+
+const filteredReports = computed(() => {
+  let rows = dashboard.value.reports
+  if (activeReportTypeFilter.value !== 'all') {
+    rows = rows.filter((item) => item.targetType === activeReportTypeFilter.value)
+  }
+  if (activeReportStatusFilter.value !== 'all') {
+    rows = rows.filter((item) => item.status === activeReportStatusFilter.value)
+  }
+  return rows
+})
+
+const allUsersChecked = computed(
+  () => filteredUsers.value.length > 0 && filteredUsers.value.every((item) => selectedUserIds.value.includes(item.id))
+)
+
+const taskBoard = computed(() => {
+  const content = dashboard.value.contentReviews
+  const chats = dashboard.value.chatReviews
+  const high = [...content, ...chats].filter((item) => item.riskLevel === 'high' && ('status' in item ? item.status !== 'resolved' : true))
+  const medium = [...content, ...chats].filter((item) => item.riskLevel === 'medium' && ('status' in item ? item.status !== 'resolved' : true))
+  const low = [...content, ...chats].filter((item) => item.riskLevel === 'low' && ('status' in item ? item.status !== 'resolved' : true))
+  return [
+    {
+      label: '高风险',
+      remark: '建议优先处理',
+      count: high.length,
+      risk: 'high' as const,
+      tab: 'content' as const,
+      category: 'all' as const,
+      theme: 'risk-high'
+    },
+    {
+      label: '中风险',
+      remark: '建议核验来源',
+      count: medium.length,
+      risk: 'medium' as const,
+      tab: 'content' as const,
+      category: 'all' as const,
+      theme: 'risk-mid'
+    },
+    {
+      label: '低风险',
+      remark: '自动流转',
+      count: low.length,
+      risk: 'low' as const,
+      tab: 'content' as const,
+      category: 'all' as const,
+      theme: 'risk-low'
+    },
+    {
+      label: '待处理',
+      remark: `共 ${dashboard.value.summary.pendingContent} 条`,
+      count: dashboard.value.summary.pendingContent,
+      risk: 'all' as const,
+      tab: 'content' as const,
+      category: 'all' as const,
+      theme: 'risk-all'
+    }
+  ]
+})
+
+function platformText(platform: AdminUserSummary['platform']) {
+  return platform === 'h5' ? 'APP' : platform === 'wechat' ? '微信' : platform.toUpperCase()
 }
 
-async function saveConfig() {
-  configDraft.value.checkinRewards = checkinRewardsText.value
-    .split(/[\/,，\s]+/)
-    .map((item) => Number(item))
-    .filter((item) => Number.isFinite(item))
-  dashboard.value = await mockApi.saveAdminRewardConfig(configDraft.value)
-  syncConfigDraft()
+function categoryLabel(type: ContentCategory) {
+  return categoryLabelMap[type]
+}
+
+function formatReportTypeLabel(type: AdminReportItem['targetType']) {
+  return reportTypeMap[type]
+}
+
+function contentTypeLabel(type: AdminChatReviewItem['source']) {
+  return contentTypeLabelMap[type]
+}
+
+function reportStatusLabel(status: AdminReportItem['status']) {
+  return reportStatusLabelMap[status]
+}
+
+function genderText(gender: AdminUserSummary['gender']) {
+  return gender === 'male' ? '男' : gender === 'female' ? '女' : '未知'
+}
+
+function userStatusText(status: UserStatus) {
+  return userStatusTextMap[status]
+}
+
+function walletRiskText(risk: WalletRisk) {
+  return walletRiskTextMap[risk]
+}
+
+function riskText(level: 'low' | 'medium' | 'high') {
+  return riskMap[level]
+}
+
+function contentStatusText(status: ContentStatus) {
+  return status === 'approved' ? '已通过' : status === 'rejected' ? '已下线' : '待审'
+}
+
+function chatStatusText(status: 'pending' | 'reviewing' | 'resolved') {
+  return status === 'resolved' ? '完成' : status === 'reviewing' ? '处理中' : '待处理'
+}
+
+function triggerText(trigger: string) {
+  const map: Record<string, string> = {
+    report: '举报',
+    keyword: '关键词',
+    risk: '风险',
+    private_photo: '私密照',
+    system_sample: '系统抽检',
+    new_user: '新人'
+  }
+  return map[trigger] || trigger
+}
+
+function actionText(action: string) {
+  const map: Record<string, string> = {
+    auto_pass: '自动通过',
+    mask_and_review: '遮蔽复核',
+    reject: '拦截',
+    manual_review: '手工复审'
+  }
+  return map[action] || action
+}
+
+function walletRiskTypeText(type: 'withdraw' | 'freeze' | 'charm_review') {
+  return type === 'withdraw' ? '提现' : type === 'freeze' ? '冻结' : '魅力审核'
+}
+
+function sessionRoleText(role: AdminDashboard['adminSession']['role']) {
+  const map: Record<typeof role, string> = {
+    super_admin: '超级管理员',
+    content_admin: '内容管理员',
+    risk_admin: '风控管理员'
+  }
+  return map[role]
+}
+
+function setActiveTab(tab: TabKey) {
+  activeTab.value = tab
+}
+
+function openTab(tab: Exclude<TabKey, 'overview'>) {
+  activeTab.value = tab
+}
+
+function openTask(tab: 'content', risk: RiskLevel, category: ContentCategory) {
+  activeTab.value = tab
+  if (risk !== 'all') {
+    contentRiskFilter.value = risk
+  }
+  activeContentCategory.value = category
+}
+
+function toggleUser(id: string) {
+  selectedUserIds.value = selectedUserIds.value.includes(id)
+    ? selectedUserIds.value.filter((item) => item !== id)
+    : [...selectedUserIds.value, id]
 }
 
 function toggleContent(id: string) {
@@ -498,153 +949,133 @@ function toggleContent(id: string) {
     : [...selectedContentIds.value, id]
 }
 
-function setContentCategory(category: ContentCategoryKey) {
-  activeContentCategory.value = category
-  selectedContentIds.value = []
-  if (activeTab.value === 'content') {
-    window.location.hash = category === 'all' ? 'content' : `content:${category}`
+function toggleAllUsers() {
+  if (allUsersChecked.value) {
+    selectedUserIds.value = []
+    return
+  }
+  selectedUserIds.value = filteredUsers.value.map((item) => item.id)
+}
+
+function clearUserFilters() {
+  userKeyword.value = ''
+  userStatusFilter.value = ''
+  userVerifyFilter.value = ''
+}
+
+function mapVisibleId(id: string) {
+  const shortId = id ? id.slice(-8) : ''
+  return shortId ? `ID: ${shortId}` : 'ID: -'
+}
+
+function userAvatarText(name: string, avatarText?: string) {
+  return (avatarText || name || '').trim().slice(0, 1) || 'U'
+}
+
+function getBlockOptions() {
+  return {
+    reason: userBatchReason.value.trim() || undefined,
+    blockDays: userBatchDays.value || undefined,
+    blockedUntil: undefined
   }
 }
 
-function setActiveTab(tab: TabKey) {
-  activeTab.value = tab
-  window.location.hash = tab === 'content' && activeContentCategory.value !== 'all' ? `content:${activeContentCategory.value}` : tab
+function formatOperationError(err: unknown) {
+  return err instanceof Error ? err.message : 'UNKNOWN_ERROR'
 }
 
-async function batchApprove() {
-  await batchReview('approved')
+async function runAdminOperation(successMessage: string, action: () => Promise<void>) {
+  if (operationBusy.value) return
+  operationBusy.value = true
+  operationMessage.value = ''
+  try {
+    await action()
+    operationMessage.value = successMessage
+  } catch (err) {
+    operationMessage.value = `操作失败：${formatOperationError(err)}`
+  } finally {
+    operationBusy.value = false
+  }
 }
 
-async function batchOffline() {
-  if (!selectedContentIds.value.length) return
-  dashboard.value = await mockApi.batchOfflineContent(selectedContentIds.value)
-  selectedContentIds.value = []
+async function setUserStatus(userId: string, status: UserStatus, reason?: string, blockDays?: number) {
+  await runAdminOperation('用户状态已更新', async () => {
+    const options = status === 'blocked' ? { reason, blockDays, blockedUntil: undefined } : undefined
+    dashboard.value = await adminApi.setUserStatus(userId, status, {
+      reason: options?.reason,
+      blockDays: options?.blockDays,
+      blockedUntil: options?.blockedUntil
+    })
+  })
+}
+
+async function setBatchStatus(status: UserStatus) {
+  if (!selectedUserIds.value.length) return
+  await runAdminOperation('批量用户状态已更新', async () => {
+    const options = status === 'blocked'
+      ? {
+          reason: userBatchReason.value.trim() || undefined,
+          blockDays: userBatchDays.value || undefined,
+          blockedUntil: undefined
+        }
+      : undefined
+    dashboard.value = await adminApi.setUserStatuses(selectedUserIds.value, status, options)
+    selectedUserIds.value = []
+  })
 }
 
 async function batchReview(status: ContentStatus) {
   if (!selectedContentIds.value.length) return
-  dashboard.value = await mockApi.batchReviewContent(selectedContentIds.value, status)
-  selectedContentIds.value = []
+  await runAdminOperation(status === 'approved' ? '内容已批量通过' : '内容已批量下线', async () => {
+    dashboard.value = await adminApi.batchReviewContent(selectedContentIds.value, status)
+    selectedContentIds.value = []
+  })
 }
 
-function selectDetail(title: string, value: unknown) {
-  detail.value = { title, value: value as Record<string, unknown> }
-  const item = value as { id?: string }
-  if (title === '聊天记录详情' && item.id) {
-    window.location.hash = `content:chat:${item.id}`
-  }
-}
-
-function selectUserById(userId: string) {
-  const user = dashboard.value?.users.find((item) => item.id === userId)
-  if (user) {
-    selectDetail('用户详情', user)
-  }
-}
-
-function genderText(gender: string) {
-  const map: Record<string, string> = { female: '女', male: '男', unknown: '未知' }
-  return map[gender] || gender
-}
-
-function sourceText(source: string) {
-  const map: Record<string, string> = { bottle: '漂流瓶', treehole: '树洞', plaza: '广场' }
-  return map[source] || source
-}
-
-function triggerText(trigger: string) {
-  const map: Record<string, string> = {
-    report: '举报',
-    keyword: '违规词',
-    risk: '风控',
-    private_photo: '私密照片',
-    system_sample: '抽检',
-    new_user: '新用户'
-  }
-  return map[trigger] || trigger
-}
-
-function actionText(action: string) {
-  const map: Record<string, string> = {
-    auto_pass: '自动通过',
-    mask_and_review: '屏蔽待审',
-    reject: '拒绝',
-    manual_review: '人工复核'
-  }
-  return map[action] || action
-}
-
-const TableHeader = defineComponent({
-  props: {
-    title: { type: String, required: true },
-    subtitle: { type: String, required: true }
-  },
-  setup(props) {
-    return () =>
-      h('div', { class: 'panel-head' }, [
-        h('div', [h('h2', props.title), h('p', props.subtitle)])
-      ])
-  }
-})
-
-const DataCards = defineComponent({
-  props: {
-    items: { type: Array as PropType<unknown[]>, required: true },
-    titleKey: { type: String, required: true }
-  },
-  emits: ['select'],
-  setup(props, { emit }) {
-    return () =>
-      h(
-        'div',
-        { class: 'card-list' },
-        props.items.map((rawItem) => {
-          const item = rawItem as Record<string, unknown>
-          return h(
-            'button',
-            {
-              type: 'button',
-              class: 'data-card',
-              onClick: () => emit('select', item)
-            },
-            [
-              h('strong', String(item[props.titleKey] ?? item.id ?? '详情')),
-              h(
-                'span',
-                Object.entries(item)
-                  .slice(0, 4)
-                  .map(([key, value]) => `${key}: ${String(value)}`)
-                  .join(' · ')
-              )
-            ]
-          )
-        })
-      )
-  }
-})
-
-function restoreViewFromHash() {
-  const hash = window.location.hash.replace(/^#/, '')
-  const [tab, category] = hash.split(':')
-  if (tabs.some((item) => item.key === tab)) {
-    activeTab.value = tab as TabKey
-  }
-  if (category && activeTab.value === 'content' && ['all', 'bottle', 'treehole', 'private_photo', 'plaza', 'chat'].includes(category)) {
-    activeContentCategory.value = category as ContentCategoryKey
+async function refresh(options: { autoLogin?: boolean } = { autoLogin: true }) {
+  loading.value = true
+  loadingError.value = ''
+  try {
+    dashboard.value = await adminApi.listAdminData(options)
+  } catch (err) {
+    loadingError.value = (err as Error).message
+  } finally {
+    loading.value = false
   }
 }
 
-function openDetailFromHash() {
-  const [, category, itemId] = window.location.hash.replace(/^#/, '').split(':')
-  if (activeTab.value !== 'content' || category !== 'chat' || !itemId || !dashboard.value) return
-  const chat = dashboard.value.chatReviews.find((item) => item.id === itemId)
-  if (chat) {
-    detail.value = { title: '聊天记录详情', value: chat as unknown as Record<string, unknown> }
-  }
+async function toggleSession() {
+  await runAdminOperation(dashboard.value.adminSession.signedIn ? '已退出登录' : '登录成功', async () => {
+    if (dashboard.value.adminSession.signedIn) {
+      dashboard.value.adminSession = await adminApi.logout()
+      selectedUserIds.value = []
+      selectedContentIds.value = []
+      return
+    }
+    dashboard.value.adminSession = await adminApi.login()
+    await refresh({ autoLogin: false })
+  })
 }
 
 onMounted(() => {
-  restoreViewFromHash()
-  void loadDashboard()
+  void refresh()
 })
+
+const pageTitle = computed(() => {
+  const title: Record<TabKey, string> = {
+    overview: '运营监控台',
+    users: '用户监控',
+    content: '内容审查',
+    chats: '会话监控',
+    reports: '举报管理',
+    wallet: '钱包风控',
+    audit: '审计日志'
+  }
+  return title[activeTab.value]
+})
+
+const tabsForRender = computed(() => {
+  return tabsWithCounts.value
+})
+
 </script>

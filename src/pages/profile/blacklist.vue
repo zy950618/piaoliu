@@ -7,8 +7,8 @@
       </view>
     </view>
 
-    <view class="section panel">
-      <view v-for="item in visibleBlacklist" :key="item.id" class="record-row">
+    <view v-if="content.blacklist.length" class="section panel">
+      <view v-for="item in content.blacklist" :key="item.id" class="record-row">
         <view>
           <text class="body">{{ item.nickname }}</text>
           <text class="muted">{{ item.reason }}</text>
@@ -16,23 +16,19 @@
         <text class="tag">已屏蔽</text>
       </view>
     </view>
+
+    <EmptyState v-else title="暂无黑名单" body="被你屏蔽的用户会显示在这里。" />
   </view>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
+import EmptyState from '@/components/EmptyState.vue'
 import { useContentStore } from '@/stores/content'
 
 const content = useContentStore()
-const fallbackBlacklist = [
-  { id: 'fake_black_1', nickname: '海岸来信', reason: '频繁广告引流' },
-  { id: 'fake_black_2', nickname: '晚风', reason: '不友善互动' }
-]
 
 onLoad(() => content.loadBlacklist())
-
-const visibleBlacklist = computed(() => (content.blacklist.length ? content.blacklist : fallbackBlacklist))
 </script>
 
 <style scoped lang="scss">

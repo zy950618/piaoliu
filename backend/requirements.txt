@@ -3,6 +3,7 @@ uvicorn[standard]>=0.38.0
 pydantic>=2.12.0
 sqlalchemy>=2.0.45
 asyncpg>=0.31.0
+aiosqlite>=0.22.0
 alembic>=1.17.0
 redis>=7.1.0
 pytest>=9.0.0

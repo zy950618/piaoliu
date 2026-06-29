@@ -15,3 +15,15 @@ export function switchTab(url: string): void {
     uni.switchTab({ url })
   }
 }
+
+export function setTabBadge(index: number, text: string): void {
+  if (typeof uni !== 'undefined' && uni.setTabBarBadge) {
+    uni.setTabBarBadge({ index, text })
+  }
+}
+
+export function removeTabBadge(index: number): void {
+  if (typeof uni !== 'undefined' && uni.removeTabBarBadge) {
+    uni.removeTabBarBadge({ index })
+  }
+}

@@ -81,7 +81,7 @@
       "path": "pages/home/index",
       "style": {
         "navigationBarTitleText": "漂流岛",
-        "navigationBarBackgroundColor": "#F7F1E8",
+        "navigationBarBackgroundColor": "#FFFFFF",
         "navigationBarTextStyle": "black"
       }
     },
@@ -110,6 +110,12 @@
       }
     },
     {
+      "path": "pages/messages/chat",
+      "style": {
+        "navigationBarTitleText": "聊天"
+      }
+    },
+    {
       "path": "pages/membership/index",
       "style": {
         "navigationBarTitleText": "会员中心"
@@ -126,12 +132,12 @@
       "style": {
         "navigationBarTitleText": "认证与收益"
       }
-    },
+    }
   ],
   "tabBar": {
-    "color": "#66727A",
-    "selectedColor": "#2D6C73",
-    "backgroundColor": "#FFFDF8",
+    "color": "#64748B",
+    "selectedColor": "#2563EB",
+    "backgroundColor": "#FFFFFF",
     "borderStyle": "white",
     "list": [
       {
@@ -147,8 +153,8 @@
         "text": "游戏"
       },
       {
-        "pagePath": "pages/treehole/index",
-        "text": "树洞"
+        "pagePath": "pages/messages/index",
+        "text": "消息"
       },
       {
         "pagePath": "pages/profile/index",
@@ -159,7 +165,7 @@
   "globalStyle": {
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "漂流岛",
-    "navigationBarBackgroundColor": "#F7F1E8",
-    "backgroundColor": "#F7F1E8"
+    "navigationBarBackgroundColor": "#FFFFFF",
+    "backgroundColor": "#F8FAFC"
   }
 }

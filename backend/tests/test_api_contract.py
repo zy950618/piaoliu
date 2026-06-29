@@ -4,9 +4,13 @@ import sqlite3
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app import db_business
 
 
 client = TestClient(app)
+DEFAULT_USER_ID = "100000000001"
+CREATOR_001_ID = "200000000001"
+CREATOR_004_ID = "200000000004"
 
 
 def admin_headers() -> dict[str, str]:
@@ -19,9 +23,168 @@ def test_me_status_contains_quota_and_reward_state():
     response = client.get("/me/status")
     assert response.status_code == 200
     data = response.json()
+    assert data["user"]["id"].isdigit()
     assert "fish_bottle" in data["quotas"]
-    assert data["ad_reward"]["reward_per_quota"] == 1
+    assert data["ad_reward"]["reward_per_quota"] == 10
     assert data["checkin"]["week_rewards"] == [10, 10, 30, 10, 10, 30, 100]
+
+
+def test_profile_update_persists_avatar_and_nickname():
+    bottle = client.post(
+        "/bottles",
+        json={"content": "资料更新前发布的瓶子也要显示最新头像。"},
+    )
+    plaza = client.post(
+        "/plaza/posts",
+        json={"content": "资料更新前发布的广场动态也要显示最新头像。", "media_type": "text", "media_count": 0},
+    )
+    response = client.patch(
+        "/me/profile",
+        json={"nickname": "profile_contract_user", "avatar_text": "图", "avatar_url": "file://avatar_contract.png"},
+    )
+    status = client.get("/me/status")
+    bottles = client.get("/bottles")
+    plaza_detail = client.get(f"/plaza/posts/{plaza.json()['id']}")
+
+    assert bottle.status_code == 200
+    assert plaza.status_code == 200
+    assert response.status_code == 200
+    assert response.json()["nickname"] == "profile_contract_user"
+    assert response.json()["avatar_text"] == "图"
+    assert response.json()["avatar_url"] == "file://avatar_contract.png"
+    assert status.json()["user"]["nickname"] == "profile_contract_user"
+    assert status.json()["user"]["avatar_url"] == "file://avatar_contract.png"
+    updated_bottle = next(item for item in bottles.json() if item["id"] == bottle.json()["id"])
+    assert updated_bottle["author_name"] == "profile_contract_user"
+    assert updated_bottle["author_avatar_text"] == "图"
+    assert updated_bottle["author_avatar_url"] == "file://avatar_contract.png"
+    assert plaza_detail.json()["author_name"] == "profile_contract_user"
+    assert plaza_detail.json()["icon_text"] == "图"
+    assert plaza_detail.json()["icon_url"] == "file://avatar_contract.png"
+
+
+def test_profile_update_syncs_business_snapshots_and_game_turns():
+    bottle = client.post("/bottles", json={"content": "profile sync bottle"})
+    plaza = client.post("/plaza/posts", json={"content": "profile sync plaza", "media_type": "text", "media_count": 0})
+    treehole = client.post("/treehole/posts", json={"content": "profile sync treehole"})
+    comment = client.post(f"/plaza/posts/{plaza.json()['id']}/comments", json={"content": "profile sync comment"})
+    thread_id = client.get("/conversations").json()[0]["id"]
+    turn = client.post(f"/conversations/{thread_id}/turns", json={"body": "profile sync turn", "type": "text"})
+
+    response = client.patch(
+        "/me/profile",
+        json={"nickname": "profile_sync_user", "avatar_text": "S", "avatar_url": "file://profile_sync.png"},
+    )
+    room = client.post(f"/conversations/{thread_id}/rooms", json={"mode": "truth"})
+    gift = client.post(f"/conversations/{thread_id}/gifts", json={"gift_id": "gift_shell"})
+
+    assert bottle.status_code == 200
+    assert plaza.status_code == 200
+    assert treehole.status_code == 200
+    assert comment.status_code == 200
+    assert turn.status_code == 200
+    assert response.status_code == 200
+    assert room.status_code == 200
+    assert gift.status_code == 200
+    assert room.json()["thread"]["turns"][-1]["sender_name"] == "profile_sync_user"
+    assert gift.json()["thread"]["turns"][-1]["sender_name"] == "profile_sync_user"
+
+    with sqlite3.connect(os.environ["PLAZA_SQLITE_PATH"]) as conn:
+        assert conn.execute("select author_name from bottles where id = ?", (bottle.json()["id"],)).fetchone()[0] == "profile_sync_user"
+        assert conn.execute("select author_name from plaza_posts where id = ?", (plaza.json()["id"],)).fetchone()[0] == "profile_sync_user"
+        assert conn.execute("select author_name from treehole_posts where id = ?", (treehole.json()["id"],)).fetchone()[0] == "profile_sync_user"
+        assert conn.execute(
+            "select author_name from plaza_comments where post_id = ? and content = ?",
+            (plaza.json()["id"], "profile sync comment"),
+        ).fetchone()[0] == "profile_sync_user"
+        assert conn.execute("select sender_name from conversation_turns where id = ?", (turn.json()["turns"][-1]["id"],)).fetchone()[0] == "profile_sync_user"
+
+
+def test_client_id_creates_distinct_user_accounts():
+    user_a_headers = {"X-Client-Id": "user_contract_alpha"}
+    user_b_headers = {"X-Client-Id": "user_contract_beta"}
+
+    user_a = client.get("/me/status", headers=user_a_headers)
+    user_b = client.get("/me/status", headers=user_b_headers)
+    renamed_a = client.patch(
+        "/me/profile",
+        json={"nickname": "alpha_user", "avatar_text": "甲", "avatar_url": "file://alpha.png"},
+        headers=user_a_headers,
+    )
+    user_a_after = client.get("/me/status", headers=user_a_headers)
+    user_b_after = client.get("/me/status", headers=user_b_headers)
+
+    assert user_a.status_code == 200
+    assert user_b.status_code == 200
+    assert user_a.json()["user"]["id"].isdigit()
+    assert user_b.json()["user"]["id"].isdigit()
+    assert user_a.json()["user"]["id"] != user_b.json()["user"]["id"]
+    assert user_a.json()["user"]["id"] == user_a_after.json()["user"]["id"]
+    assert renamed_a.status_code == 200
+    assert user_a_after.json()["user"]["nickname"] == "alpha_user"
+    assert user_a_after.json()["user"]["avatar_url"] == "file://alpha.png"
+    assert user_b_after.json()["user"]["nickname"] != "alpha_user"
+    assert user_b_after.json()["user"]["avatar_url"] != "file://alpha.png"
+
+
+def test_user_records_are_database_backed():
+    before = client.get("/me/records")
+    truth_before = next(item for item in before.json() if item["type"] == "truth")["count"]
+    game_before = next(item for item in before.json() if item["type"] == "game")["count"]
+
+    saved_truth = client.post(
+        "/me/records",
+        json={
+            "record_type": "truth",
+            "title": "私密真心话",
+            "content": "记录接口契约测试",
+            "visibility": "private",
+            "source_type": "truth",
+            "source_id": "truth_contract_001",
+        },
+    )
+    saved_game = client.post(
+        "/me/records",
+        json={
+            "record_type": "game",
+            "title": "常规真心话",
+            "content": "游戏记录接口契约测试",
+            "visibility": "private",
+            "source_type": "truth_public",
+        },
+    )
+    after = client.get("/me/records")
+    truth_after = next(item for item in after.json() if item["type"] == "truth")["count"]
+    game_after = next(item for item in after.json() if item["type"] == "game")["count"]
+
+    assert before.status_code == 200
+    assert saved_truth.status_code == 200
+    assert saved_truth.json()["record_type"] == "truth"
+    assert saved_game.status_code == 200
+    assert after.status_code == 200
+    assert truth_after == truth_before + 1
+    assert game_after == game_before + 1
+
+
+def test_prompt_and_membership_configs_are_database_backed():
+    truth = client.get("/truth/questions")
+    dare = client.get("/dare/tasks")
+    game_prompt = client.get("/game/prompts/random", params={"mode": "truth_public"})
+    products = client.get("/membership/products")
+
+    assert truth.status_code == 200
+    assert dare.status_code == 200
+    assert game_prompt.status_code == 200
+    assert products.status_code == 200
+    assert game_prompt.json()["mode"] == "truth_public"
+    assert products.json()[0]["price_label"].startswith("¥")
+
+    with sqlite3.connect(os.environ["PLAZA_SQLITE_PATH"]) as conn:
+        prompt_count = conn.execute("select count(*) from prompt_templates").fetchone()[0]
+        product_count = conn.execute("select count(*) from membership_product_configs").fetchone()[0]
+
+    assert prompt_count >= 18
+    assert product_count >= 3
 
 
 def test_ad_reward_commit_is_idempotent():
@@ -73,15 +236,78 @@ def test_verification_and_nearby_contracts_exist():
     assert verification.json()["verification"]["gender_verified"] is True
     assert nearby.status_code == 200
     assert plaza.status_code == 200
-    assert "view_count" in plaza.json()[0]
-    assert "media_type" in plaza.json()[0]
-    assert "media" in plaza.json()[0]
-    assert plaza.json()[0]["media"][0]["owner_id"] == plaza.json()[0]["author_id"]
-    assert plaza.json()[0]["media"][0]["url"].startswith("https://")
+    media_post = next(item for item in plaza.json() if item["media"])
+    assert "view_count" in media_post
+    assert "media_type" in media_post
+    assert "media" in media_post
+    assert media_post["media"][0]["owner_id"] == media_post["author_id"]
+    assert media_post["media"][0]["url"].startswith("https://")
     assert {item["media_type"] for post in plaza.json() for item in post["media"]} >= {"image", "voice", "video"}
 
 
+def test_seed_referral_invite_code_collision_does_not_break_new_user():
+    target_user_id = "900000000009"
+    conflicting_user_id = "900000000010"
+    invite_code = db_business.invite_code_for_user(target_user_id)
+    created_at = "2026-01-01T00:00:00+00:00"
+
+    with sqlite3.connect(os.environ["PLAZA_SQLITE_PATH"]) as conn:
+        conn.execute("delete from referral_accounts where user_id in (?, ?) or invite_code = ?", (target_user_id, conflicting_user_id, invite_code))
+        conn.execute(
+            """
+            insert or ignore into users (
+              id, nickname, role, avatar_text, platform, gender, is_vip, vip_level,
+              drift_coins, face_verified, gender_verified, charm_value, status, created_at
+            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (conflicting_user_id, "invite_collision_owner", "user", "I", "h5", "unknown", 0, "none", 0, 0, 0, 0, "active", created_at),
+        )
+        conn.execute(
+            "insert into referral_accounts (user_id, invite_code, invited_count, reward_vip_days, next_reward_need) values (?, ?, ?, ?, ?)",
+            (conflicting_user_id, invite_code, 0, 0, 5),
+        )
+        conn.commit()
+
+    response = client.get("/verification", headers={"X-Client-Id": target_user_id})
+    assert response.status_code == 200
+    assert response.json()["referral"]["invite_code"].startswith("SEA")
+    assert response.json()["referral"]["invite_code"] != invite_code
+
+
+def test_verification_submission_is_review_gated():
+    headers = admin_headers()
+    rejected = client.post(
+        f"/admin/verification/{DEFAULT_USER_ID}/review",
+        json={"action": "reject", "reason": "contract_reset"},
+        headers=headers,
+    )
+    submitted = client.post("/verification/face")
+    pending_status = client.get("/me/status")
+    approved = client.post(
+        f"/admin/verification/{DEFAULT_USER_ID}/review",
+        json={"action": "approve", "reason": "contract_restore"},
+        headers=headers,
+    )
+
+    assert rejected.status_code == 200
+    assert submitted.status_code == 200
+    assert submitted.json()["manual_review_status"] == "pending"
+    assert pending_status.json()["user"]["face_verified"] is False
+    assert approved.status_code == 200
+    assert approved.json()["manual_review_status"] == "approved"
+    assert client.get("/me/status").json()["user"]["face_verified"] is True
+
+
 def test_plaza_publish_contract():
+    plain = client.post(
+        "/plaza/posts",
+        json={"content": "今天只发布一条纯文字动态。"},
+    )
+    assert plain.status_code == 200
+    assert plain.json()["media_type"] == "text"
+    assert plain.json()["media_count"] == 0
+    assert plain.json()["media"] == []
+
     response = client.post(
         "/plaza/posts",
         json={"content": "今天在广场发一条图文动态。", "media_type": "image", "media_count": 2},
@@ -150,7 +376,7 @@ def test_plaza_interactions_are_persisted_to_local_db():
             "select count(*) from plaza_comments where post_id = ? and content = ?",
             (post_id, "数据库持久化留言"),
         ).fetchone()[0]
-        view_count = conn.execute("select count(*) from plaza_view_events where post_id = ?", (post_id,)).fetchone()[0]
+        view_count = conn.execute("select view_count from plaza_posts where id = ?", (post_id,)).fetchone()[0]
 
     assert like_count >= 1
     assert comment_count == 1
@@ -174,7 +400,7 @@ def test_plaza_like_toggles_for_current_user():
     with sqlite3.connect(os.environ["PLAZA_SQLITE_PATH"]) as conn:
         like_rows = conn.execute(
             "select count(*) from plaza_likes where post_id = ? and user_id = ?",
-            (post_id, "user_mock_001"),
+            (post_id, DEFAULT_USER_ID),
         ).fetchone()[0]
     assert like_rows == 0
 
@@ -183,17 +409,17 @@ def test_plaza_hidden_comments_visibility_contract():
     post_id = "plaza_001"
     post_detail = client.get(f"/plaza/posts/{post_id}")
     default_comments = client.get(f"/plaza/posts/{post_id}/comments")
-    owner_comments = client.get(f"/plaza/posts/{post_id}/comments", params={"viewer_id": "creator_001"})
+    owner_comments = client.get(f"/plaza/posts/{post_id}/comments", params={"viewer_id": CREATOR_001_ID})
     hidden = client.post(
         f"/plaza/posts/{post_id}/comments",
         json={"content": "这条留言只给发布者看。", "hidden_for_owner_only": True},
     )
-    commenter_comments = client.get(f"/plaza/posts/{post_id}/comments", params={"viewer_id": "user_mock_001"})
-    owner_comments_after = client.get(f"/plaza/posts/{post_id}/comments", params={"viewer_id": "creator_001"})
+    commenter_comments = client.get(f"/plaza/posts/{post_id}/comments", params={"viewer_id": DEFAULT_USER_ID})
+    owner_comments_after = client.get(f"/plaza/posts/{post_id}/comments", params={"viewer_id": CREATOR_001_ID})
 
     assert post_detail.status_code == 200
     assert post_detail.json()["id"] == post_id
-    assert post_detail.json()["author_id"] == "creator_001"
+    assert post_detail.json()["author_id"] == CREATOR_001_ID
     assert default_comments.status_code == 200
     assert all(item["content"] != "这条只想给发布者看到。" for item in default_comments.json())
     assert owner_comments.status_code == 200
@@ -263,6 +489,48 @@ def test_reports_and_blocks_are_idempotent():
     assert first_block.json()["id"] == second_block.json()["id"]
 
 
+def test_chat_moderation_and_flash_view_are_backend_controlled():
+    thread_id = client.get("/conversations").json()[0]["id"]
+    risky = client.post(
+        f"/conversations/{thread_id}/turns",
+        json={"body": "hello wx telegram", "type": "text"},
+    )
+    flash = client.post(
+        f"/conversations/{thread_id}/turns",
+        json={"body": "flash image contract", "type": "flash_image", "media_url": "file://flash.png"},
+    )
+    turn_id = flash.json()["turns"][-1]["id"]
+    viewed = client.post(f"/conversations/{thread_id}/turns/{turn_id}/view")
+    reports = client.get("/reports")
+
+    assert risky.status_code == 200
+    assert risky.json()["last_message"] == "hello ** ********"
+    assert reports.status_code == 200
+    assert any(item["target_type"] == "chat" and item["target_id"] == thread_id and item["status"] == "reviewing" for item in reports.json())
+    assert flash.status_code == 200
+    assert flash.json()["turns"][-1]["flash_viewed"] is False
+    assert viewed.status_code == 200
+    assert viewed.json()["turns"][-1]["flash_viewed"] is True
+
+
+def test_conversations_are_user_scoped_and_admin_chats_are_monitored():
+    headers = admin_headers()
+    conversations = client.get("/conversations")
+    chats = client.get("/admin/chats", headers=headers)
+
+    assert conversations.status_code == 200
+    thread = conversations.json()[0]
+    assert thread["participant_user_id"]
+    assert "participant_avatar_text" in thread
+    assert "turns" in thread
+
+    assert chats.status_code == 200
+    chat = next(item for item in chats.json() if item["thread_id"] == thread["id"])
+    assert thread["participant_user_id"] in chat["participant_user_ids"]
+    assert chat["participants"]
+    assert chat["messages"]
+
+
 def test_treehole_react_is_idempotent_for_same_post():
     post_id = client.get("/treehole/feed").json()[0]["id"]
     first = client.post(f"/treehole/{post_id}/react")
@@ -327,7 +595,7 @@ def test_bottle_pool_has_seeded_author_details_and_random_rotation():
 
 
 def test_follow_state_is_reflected_in_backend_bottle_data():
-    target_user_id = "creator_004"
+    target_user_id = CREATOR_004_ID
     follow = client.post("/relations/follow", json={"target_user_id": target_user_id})
     bottles = client.get("/bottles")
 
@@ -416,6 +684,21 @@ def test_admin_write_requires_mock_token_with_unified_error():
     }
 
 
+def test_blocked_user_is_rejected_from_user_scope():
+    headers = admin_headers()
+    try:
+        blocked = client.post(f"/admin/users/{DEFAULT_USER_ID}/status", json={"status": "blocked"}, headers=headers)
+        denied = client.get("/me/status")
+
+        assert blocked.status_code == 200
+        assert blocked.json()["status"] == "blocked"
+        assert denied.status_code == 403
+        assert denied.json()["error"]["code"] == "USER_BLOCKED"
+    finally:
+        recover = client.post(f"/admin/users/{DEFAULT_USER_ID}/status", json={"status": "active"}, headers=headers)
+        assert recover.status_code == 200
+
+
 def test_backend_infrastructure_placeholders_import_without_connections():
     from app import db
     from app.models import AdminAuditLog, Base, Bottle, BottleReply, Follow, PlazaComment, PlazaLike, PlazaMedia, PlazaPost, User
@@ -425,8 +708,8 @@ def test_backend_infrastructure_placeholders_import_without_connections():
     settings = get_settings()
     redis_client = get_redis_client()
 
-    assert settings.database_url.startswith("postgresql+asyncpg://")
-    assert db.engine.url.drivername == "postgresql+asyncpg"
+    assert settings.database_url.startswith(("postgresql+asyncpg://", "sqlite+aiosqlite:///"))
+    assert db.engine.url.drivername in {"postgresql+asyncpg", "sqlite+aiosqlite"}
     assert User.__tablename__ in Base.metadata.tables
     assert AdminAuditLog.__tablename__ in Base.metadata.tables
     assert Bottle.__tablename__ in Base.metadata.tables

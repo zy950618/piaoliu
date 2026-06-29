@@ -2,7 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { AdRewardState, CheckinState, QuotaItem, QuotaType, UserProfile } from '@/types/domain'
 import { quotaOrder } from '@/constants/product'
-import { mockApi } from '@/services/mockApi'
+import { meApi } from '@/services/meApi'
 import { playRewardVideoAd } from '@/services/rewardVideoAd'
 import { formatCountdown } from '@/utils/time'
 
@@ -36,7 +36,7 @@ export const useAppStore = defineStore('app', () => {
     if (hydrateTask) return hydrateTask
     loading.value = true
     hydrateTask = (async () => {
-      const status = await mockApi.getMeStatus()
+      const status = await loadStatus()
       user.value = status.user
       quotas.value = status.quotas
       adReward.value = status.adReward
@@ -50,7 +50,7 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function runCheckin() {
-    const result = await mockApi.checkin()
+    const result = await meApi.checkin()
     checkin.value = {
       checkedToday: result.checkedToday,
       streakDays: result.streakDays,
@@ -64,9 +64,9 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function watchRewardAd(completed = true) {
-    const prepared = await mockApi.prepareAdReward()
+    const prepared = await meApi.prepareAdReward()
     const watched = completed ? await playRewardVideoAd() : false
-    const status = await mockApi.commitAdReward(prepared.sessionId, watched)
+    const status = await meApi.commitAdReward(prepared.sessionId, watched)
     user.value = status.user
     quotas.value = status.quotas
     adReward.value = status.adReward
@@ -76,11 +76,12 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function tickAdCooldown(seconds = 1) {
-    adReward.value = await mockApi.tickAdCooldown(seconds)
+    void seconds
+    adReward.value = (await meApi.getStatus()).adReward
   }
 
   async function refreshStatus() {
-    const status = await mockApi.getMeStatus()
+    const status = await loadStatus()
     user.value = status.user
     quotas.value = status.quotas
     adReward.value = status.adReward
@@ -88,12 +89,27 @@ export const useAppStore = defineStore('app', () => {
     hydrated.value = true
   }
 
-  function updateUserProfile(patch: Partial<Pick<UserProfile, 'avatarText' | 'nickname'>>) {
+  function updateUserProfile(patch: Partial<Pick<UserProfile, 'avatarText' | 'avatarUrl' | 'nickname'>>) {
     if (!user.value) return
     user.value = {
       ...user.value,
       ...patch
     }
+  }
+
+  function applyUserProfile(profile: UserProfile) {
+    user.value = profile
+    hydrated.value = true
+  }
+
+  async function saveUserProfile(patch: Partial<Omit<Pick<UserProfile, 'avatarText' | 'avatarUrl' | 'nickname' | 'gender' | 'city' | 'ageRange'>, 'avatarUrl'>> & { avatarUrl?: string | null }) {
+    user.value = await meApi.updateProfile(patch)
+    hydrated.value = true
+    return user.value
+  }
+
+  async function loadStatus() {
+    return meApi.getStatus()
   }
 
   return {
@@ -108,6 +124,8 @@ export const useAppStore = defineStore('app', () => {
     hydrate,
     refreshStatus,
     updateUserProfile,
+    applyUserProfile,
+    saveUserProfile,
     runCheckin,
     watchRewardAd,
     tickAdCooldown

@@ -26,29 +26,34 @@
 
     <view class="section">
       <view v-for="post in filteredPosts" :key="post.id" class="panel plaza-card">
-        <view class="between">
+        <view class="between" @tap="openCommentPage(post.id)">
           <view class="row author-row">
-            <view class="author-icon">{{ post.iconText }}</view>
+            <view class="author-icon">
+              <image v-if="post.iconUrl" class="avatar-image" :src="post.iconUrl" mode="aspectFill" />
+              <text v-else>{{ post.iconText }}</text>
+            </view>
             <view>
               <text class="h2">{{ post.authorName }}</text>
               <text class="muted">{{ post.topic }} · {{ post.city }} · {{ post.ageRange }} · {{ post.distanceText }}</text>
             </view>
           </view>
           <view class="row tag-row">
-            <text class="tag vip-tag">{{ post.gender === 'female' ? '女' : post.gender === 'male' ? '男' : '未知' }}</text>
+            <text class="tag emotion-tag">{{ emotionTag(post) }}</text>
+            <text class="tag gender-tag">{{ post.gender === 'female' ? '女' : post.gender === 'male' ? '男' : '未知' }}</text>
           </view>
         </view>
-        <text class="body post-content">{{ post.content }}</text>
-        <view v-if="post.media?.length" class="media-preview" :class="`media-${post.mediaType || 'text'}`">
+        <text class="body post-content" @tap="openCommentPage(post.id)">{{ post.content }}</text>
+        <view v-if="post.media?.length" class="media-preview" :class="`media-${post.mediaType || 'text'}`" @tap.stop @click.stop>
           <template v-if="post.mediaType === 'image'">
             <view class="media-grid" :class="imageGridClass(post.media?.length || 0)">
-              <image
+              <view
                 v-for="media in post.media.slice(0, 9)"
                 :key="media.id"
-                class="media-image"
-                :src="media.url"
-                mode="aspectFill"
-              />
+                class="media-image-cell"
+                @tap.stop="previewPostImage(post.media, media.url)"
+              >
+                <image class="media-image" :src="media.url" mode="aspectFill" />
+              </view>
             </view>
           </template>
           <template v-else-if="post.mediaType === 'video'">
@@ -73,7 +78,7 @@
               <view
                 class="voice-player"
                 :class="{ playing: playingVoiceUrl === media.url }"
-                @tap="toggleVoice(media.url)"
+                @tap.stop="toggleVoice(media.url)"
               >
                 <view class="voice-play-icon" />
                 <view class="voice-stop-icon" />
@@ -91,22 +96,22 @@
               <text class="stat-number">{{ post.likeCount }}</text>
               <text class="stat-label">点赞</text>
             </view>
-            <view class="stat-item comment-stat" @tap="openCommentPage(post.id)">
+            <view class="stat-item comment-stat" @tap.stop="openCommentPage(post.id)" @click.stop="openCommentPage(post.id)">
               <text class="stat-number">{{ post.commentCount }}</text>
               <text class="stat-label">留言</text>
             </view>
           </view>
-          <view class="row action-row">
+          <view class="row action-row" @tap.stop @click.stop>
             <view
               class="button secondary mini-button like-button"
               :class="{ liked: post.likedByMe, bump: likeEffects[post.id] }"
-              @tap="likePost(post)"
+              @tap.stop="likePost(post)"
             >
               <text class="thumb-icon">👍</text>
               <text>{{ post.likedByMe ? '已赞' : '点赞' }}</text>
               <text v-if="likeEffects[post.id]" class="like-float">{{ likeEffects[post.id] }}</text>
             </view>
-            <view class="button ghost mini-button" @tap="openComment(post.id)">留言</view>
+            <view class="button ghost mini-button" @tap.stop="openCommentPage(post.id)" @click.stop="openCommentPage(post.id)">留言</view>
           </view>
         </view>
         <view v-if="post.commentPreview" class="comment-footer">
@@ -117,14 +122,17 @@
 
     <view class="publish-fab" @tap="openComposer">+</view>
 
-    <view v-if="composerOpen" class="modal-mask center-mask" @tap="closeComposer">
+    <view v-if="composerOpen" class="modal-mask center-mask">
       <view class="modal-card composer-card" @tap.stop @click.stop>
         <view class="composer-top">
           <view>
             <text class="h2">发布动态</text>
             <text class="muted">广场内容公开展示，可发布图文、声音或视频。</text>
           </view>
-          <view class="composer-avatar">{{ app.user?.avatarText || '海' }}</view>
+          <view class="composer-avatar">
+            <image v-if="app.user?.avatarUrl" class="avatar-image" :src="app.user.avatarUrl" mode="aspectFill" />
+            <text v-else>{{ app.user?.avatarText || '海' }}</text>
+          </view>
         </view>
         <textarea
           v-model="draftPost"
@@ -132,6 +140,8 @@
           maxlength="180"
           placeholder="写一句今天想公开分享的话。"
           @input="clearPostError"
+          @tap.stop
+          @click.stop
         />
         <text v-if="postError" class="post-error">{{ postError }}</text>
         <view class="media-row">
@@ -140,42 +150,22 @@
             :key="type.value"
             class="media-option"
             :class="{ active: mediaType === type.value }"
-            @tap="mediaType = type.value"
-            @click="mediaType = type.value"
+            @tap="selectMediaType(type.value)"
+            @click="selectMediaType(type.value)"
           >
             {{ type.label }}
+          </view>
+        </view>
+        <view v-if="selectedImages.length" class="composer-media-grid" :class="imageGridClass(selectedImages.length)">
+          <view v-for="image in selectedImages" :key="image.id" class="composer-image-cell">
+            <image class="composer-image" :src="image.url" mode="aspectFill" />
+            <view class="remove-image" @tap.stop="removeSelectedImage(image.id)" @click.stop="removeSelectedImage(image.id)">×</view>
           </view>
         </view>
         <view class="modal-actions">
           <view class="button ghost" @tap="closeComposer">取消</view>
           <view class="button publish-button" :class="{ disabled: content.submitting || !draftPost.trim() }" @tap="publishPost">
             发布
-          </view>
-        </view>
-      </view>
-    </view>
-
-    <view v-if="commentOpen" class="modal-mask center-mask">
-      <view class="modal-card comment-modal-card" @tap.stop @click.stop>
-        <textarea
-          v-model="commentDraft"
-          class="composer-input comment-input"
-          maxlength="120"
-          placeholder="写一句友善留言。"
-          @input="clearCommentError"
-        />
-        <view class="private-comment-toggle" @tap.stop="togglePrivateComment">
-          <view class="check-box" :class="{ checked: privateComment }">{{ privateComment ? '✓' : '' }}</view>
-          <view>
-            <text class="private-title">隐藏，仅主人查看</text>
-            <text class="private-desc">勾选后，只有你和动态发布者能看到这条留言。</text>
-          </view>
-        </view>
-        <text v-if="commentError" class="post-error">{{ commentError }}</text>
-        <view class="modal-actions">
-          <view class="button ghost" @tap="closeComment">取消</view>
-          <view class="button publish-button" :class="{ disabled: commentSubmitting || !commentDraft.trim() }" @tap="submitComment">
-            发送
           </view>
         </view>
       </view>
@@ -191,31 +181,30 @@ import ExploreFilters, { type ExploreFilterValue } from '@/components/ExploreFil
 import { navigateTo, showToast, switchTab } from '@/services/feedback'
 import { useAppStore } from '@/stores/app'
 import { useContentStore } from '@/stores/content'
-import type { PlazaPost } from '@/types/domain'
+import type { PlazaMedia, PlazaPost } from '@/types/domain'
 
 const app = useAppStore()
 const content = useContentStore()
 const filters = ref<ExploreFilterValue>({ city: '全国', gender: '全部', ageRange: '全部' })
 const composerOpen = ref(false)
-const commentOpen = ref(false)
-const activeCommentPostId = ref('')
 const draftPost = ref('')
-const commentDraft = ref('')
-const privateComment = ref(false)
 const postError = ref('')
-const commentError = ref('')
 const lastLikeAction = ref<{ postId: string; at: number }>({ postId: '', at: 0 })
 const likeEffects = ref<Record<string, string>>({})
-const commentSubmitting = ref(false)
+type SelectedImage = {
+  id: string
+  url: string
+  sizeBytes?: number
+}
+const selectedImages = ref<SelectedImage[]>([])
 let filterReloadTimer: ReturnType<typeof setTimeout> | undefined
 let voicePlayer: ReturnType<typeof uni.createInnerAudioContext> | undefined
-let lastPrivateToggleAt = 0
 const likeEffectTimers: Record<string, ReturnType<typeof setTimeout>> = {}
 const playingVoiceUrl = ref('')
 type PlazaMediaType = NonNullable<PlazaPost['mediaType']>
 type FeedTab = 'nearby' | 'gift' | 'newcomer'
 
-const mediaType = ref<PlazaMediaType>('image')
+const mediaType = ref<PlazaMediaType>('text')
 const cityOptions = ['全国', '北京', '上海', '广州', '深圳', '杭州', '成都', '厦门']
 const activeFeed = ref<FeedTab>('nearby')
 const feedTabs: Array<{ label: string; value: FeedTab }> = [
@@ -224,9 +213,8 @@ const feedTabs: Array<{ label: string; value: FeedTab }> = [
   { label: '新人推荐榜', value: 'newcomer' }
 ]
 const mediaTypes: Array<{ label: string; value: PlazaMediaType }> = [
-  { label: '图文', value: 'image' },
-  { label: '声音', value: 'voice' },
-  { label: '视频', value: 'video' }
+  { label: '文字', value: 'text' },
+  { label: '图片', value: 'image' }
 ]
 
 const filteredPosts = computed(() => {
@@ -245,6 +233,15 @@ const filteredPosts = computed(() => {
   }
   return filtered
 })
+function emotionTag(post: PlazaPost) {
+  const text = `${post.topic || ''} ${post.content || ''}`
+  if (/夜|安静|难过|心|想/.test(text)) return '倾诉'
+  if (/勇气|重新|开始|明天/.test(text)) return '治愈'
+  if (/海|风|雨|城市/.test(text)) return '氛围'
+  if ((post.likeCount || 0) >= 20) return '高共鸣'
+  return '轻松'
+}
+
 onLoad(() => {
   app.hydrate()
   loadPlazaPostsWithFilters()
@@ -268,7 +265,7 @@ function loadPlazaPostsWithFilters() {
 }
 
 function go(url: string) {
-  if (url === '/pages/plaza/index' || url === '/pages/bottle/index' || url === '/pages/treehole/index') {
+  if (url === '/pages/plaza/index' || url === '/pages/bottle/index' || url === '/pages/game/index' || url === '/pages/messages/index') {
     switchTab(url)
     return
   }
@@ -281,13 +278,21 @@ async function publishPost() {
     showToast('先写一点内容，才能发布')
     return
   }
+  const media = selectedImages.value.map((item) => ({
+    mediaType: 'image' as const,
+    url: item.url,
+    mimeType: inferImageMime(item.url),
+    sizeBytes: item.sizeBytes
+  }))
   await content.publishPlazaPost(draftPost.value.trim(), {
-    mediaType: mediaType.value,
-    mediaCount: 1
+    mediaType: media.length ? 'image' : 'text',
+    mediaCount: media.length,
+    media
   })
   draftPost.value = ''
   postError.value = ''
-  mediaType.value = 'image'
+  selectedImages.value = []
+  mediaType.value = 'text'
   composerOpen.value = false
   showToast('动态已发布')
 }
@@ -304,56 +309,56 @@ function closeComposer() {
   composerOpen.value = false
   draftPost.value = ''
   postError.value = ''
-  mediaType.value = 'image'
+  selectedImages.value = []
+  mediaType.value = 'text'
 }
 
-function openComment(postId: string) {
-  activeCommentPostId.value = postId
-  commentDraft.value = ''
-  commentError.value = ''
-  privateComment.value = false
-  commentOpen.value = true
-}
-
-function closeComment() {
-  commentOpen.value = false
-  activeCommentPostId.value = ''
-  commentDraft.value = ''
-  privateComment.value = false
-  commentError.value = ''
-  commentSubmitting.value = false
-}
-
-function togglePrivateComment() {
-  const now = Date.now()
-  if (now - lastPrivateToggleAt < 120) return
-  lastPrivateToggleAt = now
-  privateComment.value = !privateComment.value
-}
-
-async function submitComment() {
-  if (commentSubmitting.value) return
-  if (!commentDraft.value.trim()) {
-    commentError.value = '先写一点内容，才能发送'
-    showToast('先写一点内容，才能发送')
+function selectMediaType(value: PlazaMediaType) {
+  mediaType.value = value
+  if (value === 'text') {
+    selectedImages.value = []
     return
   }
-  commentSubmitting.value = true
-  try {
-    await content.commentPlazaPost(activeCommentPostId.value, commentDraft.value.trim(), {
-      hiddenForOwnerOnly: privateComment.value
-    })
-    closeComment()
-    showToast('留言已发送')
-  } catch {
-    commentError.value = '留言发送失败，请稍后再试'
-  } finally {
-    commentSubmitting.value = false
-  }
+  if (value === 'image') chooseImages()
 }
 
-function clearCommentError() {
-  if (commentError.value && commentDraft.value.trim()) commentError.value = ''
+function chooseImages() {
+  const count = Math.max(1, 9 - selectedImages.value.length)
+  if (typeof uni === 'undefined' || typeof uni.chooseImage !== 'function' || count <= 0) return
+  uni.chooseImage({
+    count,
+    sizeType: ['compressed'],
+    sourceType: ['album', 'camera'],
+    success: (result) => {
+      const payload = result as { tempFilePaths?: string[]; tempFiles?: Array<{ path?: string; size?: number }> }
+      const paths = payload.tempFilePaths || []
+      const files = payload.tempFiles || []
+      if (!paths.length) return
+      const startedAt = Date.now()
+      const nextImages = paths.map((url, index) => ({
+        id: `${startedAt}_${index}_${url}`,
+        url,
+        sizeBytes: files[index]?.size
+      }))
+      selectedImages.value = [...selectedImages.value, ...nextImages].slice(0, 9)
+      mediaType.value = selectedImages.value.length ? 'image' : 'text'
+    },
+    fail: () => {
+      if (!selectedImages.value.length) mediaType.value = 'text'
+    }
+  })
+}
+
+function removeSelectedImage(id: string) {
+  selectedImages.value = selectedImages.value.filter((item) => item.id !== id)
+  if (!selectedImages.value.length) mediaType.value = 'text'
+}
+
+function inferImageMime(url: string) {
+  const normalized = (url.split('?', 1)[0] || '').toLowerCase()
+  if (normalized.endsWith('.png')) return 'image/png'
+  if (normalized.endsWith('.webp')) return 'image/webp'
+  return 'image/jpeg'
 }
 
 function ageRangeMatches(postAgeRange?: string, selectedAgeRange = '全部') {
@@ -405,6 +410,12 @@ function openCommentPage(postId: string) {
   navigateTo(`/pages/plaza/comments?postId=${postId}`)
 }
 
+function previewPostImage(media: PlazaMedia[] | undefined, currentUrl: string) {
+  const urls = (media || []).filter((item) => item.mediaType === 'image').map((item) => item.url)
+  if (!urls.length || typeof uni === 'undefined' || !uni.previewImage) return
+  uni.previewImage({ urls, current: currentUrl })
+}
+
 function toggleVoice(url: string) {
   if (playingVoiceUrl.value === url) {
     stopVoice()
@@ -434,8 +445,9 @@ function stopVoice() {
 .plaza-page {
   position: relative;
   background:
-    radial-gradient(circle at 84% -4%, rgba(191, 91, 115, 0.12), transparent 30%),
-    linear-gradient(180deg, #fbfcfa, #eef3f1);
+    radial-gradient(circle at 84% -4%, rgba(37, 99, 235, 0.06), transparent 30%),
+    radial-gradient(circle at 14% 0%, rgba(15, 118, 110, 0.06), transparent 28%),
+    linear-gradient(180deg, #ffffff, #f8fafc 58%, #f1f5f9);
 }
 
 .top-filter {
@@ -478,7 +490,7 @@ function stopVoice() {
   justify-content: space-between;
   gap: 18rpx;
   border: 1px solid rgba(35, 108, 114, 0.12);
-  border-radius: 8px;
+  border-radius: 16px;
   padding: 24rpx;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(242, 248, 245, 0.86)),
@@ -512,18 +524,25 @@ function stopVoice() {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.media-image-cell {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 12px;
+  background: rgba(35, 108, 114, 0.08);
+}
+
+.media-grid.count-1 .media-image-cell {
+  aspect-ratio: 4 / 3;
+}
+
 .media-image {
   display: block;
   width: 100%;
-  aspect-ratio: 1 / 1;
-  height: auto;
-  border-radius: 8px;
-  background: rgba(35, 108, 114, 0.08);
+  height: 100%;
+  border-radius: inherit;
   object-fit: cover;
-}
-
-.media-grid.count-1 .media-image {
-  aspect-ratio: 4 / 3;
 }
 
 .media-video {
@@ -531,7 +550,7 @@ function stopVoice() {
   width: 100%;
   height: 360rpx;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: 12px;
   background: #101820;
 }
 
@@ -541,7 +560,7 @@ function stopVoice() {
   gap: 14rpx;
   align-items: center;
   border: 1px solid rgba(35, 108, 114, 0.1);
-  border-radius: 8px;
+  border-radius: 16px;
   padding: 18rpx;
   background: linear-gradient(135deg, rgba(247, 250, 249, 0.96), rgba(235, 244, 241, 0.86));
 }
@@ -722,6 +741,100 @@ function stopVoice() {
   box-shadow: 0 30rpx 76rpx rgba(0, 0, 0, 0.22);
 }
 
+.reply-sheet-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(13, 20, 23, 0.38);
+  backdrop-filter: blur(10px);
+}
+
+.reply-sheet {
+  width: 100%;
+  max-width: 560px;
+  border-radius: 8px 8px 0 0;
+  padding: 14rpx 24rpx calc(24rpx + env(safe-area-inset-bottom));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 250, 0.96)),
+    radial-gradient(circle at 92% 0%, rgba(35, 108, 114, 0.08), transparent 30%);
+  box-sizing: border-box;
+  box-shadow: 0 -22rpx 60rpx rgba(13, 20, 23, 0.22);
+}
+
+.sheet-grip {
+  width: 72rpx;
+  height: 8rpx;
+  margin: 0 auto 20rpx;
+  border-radius: 999px;
+  background: rgba(23, 33, 38, 0.16);
+}
+
+.reply-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.reply-context {
+  display: block;
+  margin-top: 6rpx;
+}
+
+.reply-origin-card {
+  margin: 18rpx 0 16rpx;
+  border: 1px solid rgba(37, 99, 235, 0.1);
+  border-radius: 16px;
+  padding: 16rpx;
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(255, 255, 255, 0.94)),
+    radial-gradient(circle at 96% 0%, rgba(37, 99, 235, 0.08), transparent 34%);
+}
+
+.reply-origin-kicker,
+.reply-origin-author,
+.reply-origin-text {
+  display: block;
+}
+
+.reply-origin-kicker {
+  color: #2563eb;
+  font-size: 20rpx;
+  font-weight: 900;
+}
+
+.reply-origin-author {
+  margin-top: 4rpx;
+  color: #0f172a;
+  font-size: 24rpx;
+  font-weight: 900;
+}
+
+.reply-origin-text {
+  margin-top: 6rpx;
+  overflow: hidden;
+  color: #475569;
+  font-size: 24rpx;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.sheet-link {
+  flex: 0 0 auto;
+  border-radius: 8px;
+  padding: 12rpx 16rpx;
+  color: #236c72;
+  background: rgba(35, 108, 114, 0.08);
+  font-size: 23rpx;
+  font-weight: 900;
+}
+
 .composer-top {
   display: flex;
   align-items: center;
@@ -733,6 +846,7 @@ function stopVoice() {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
   width: 64rpx;
   height: 64rpx;
   border-radius: 50%;
@@ -851,6 +965,60 @@ function stopVoice() {
   background: #236c72;
 }
 
+.composer-media-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10rpx;
+  margin-top: 16rpx;
+}
+
+.composer-media-grid.count-1 {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 440rpx;
+}
+
+.composer-media-grid.count-2,
+.composer-media-grid.count-4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.composer-image-cell {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 12px;
+  background: rgba(35, 108, 114, 0.08);
+}
+
+.composer-media-grid.count-1 .composer-image-cell {
+  aspect-ratio: 4 / 3;
+}
+
+.composer-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.remove-image {
+  position: absolute;
+  top: 8rpx;
+  right: 8rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44rpx;
+  height: 44rpx;
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(15, 23, 42, 0.66);
+  font-size: 30rpx;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .modal-actions {
   display: grid;
   grid-template-columns: 0.8fr 1.2fr;
@@ -870,6 +1038,14 @@ function stopVoice() {
 
 .plaza-card {
   margin-bottom: 16rpx;
+  border-radius: 16px;
+  animation: feed-card-in 220ms ease-out both;
+  cursor: pointer;
+}
+
+.plaza-card:hover {
+  transform: translateY(-4rpx);
+  box-shadow: 0 32rpx 70rpx rgba(3, 12, 18, 0.24);
 }
 
 .plaza-card > .between {
@@ -939,6 +1115,16 @@ function stopVoice() {
   gap: 12rpx;
 }
 
+.gender-tag {
+  color: #236c72;
+  background: rgba(35, 108, 114, 0.1);
+}
+
+.emotion-tag {
+  color: #7b3b52;
+  background: rgba(191, 91, 115, 0.12);
+}
+
 .action-row {
   flex-shrink: 0;
   width: 176rpx;
@@ -948,12 +1134,20 @@ function stopVoice() {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
   width: 64rpx;
   height: 64rpx;
   border-radius: 8px;
   color: #fff;
   background: #d8758b;
   font-weight: 900;
+}
+
+.avatar-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
 }
 
 .author-row .h2,
@@ -1111,6 +1305,18 @@ function stopVoice() {
   100% {
     opacity: 0;
     transform: translateY(-24rpx) scale(1.08);
+  }
+}
+
+@keyframes feed-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(12rpx);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

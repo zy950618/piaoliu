@@ -1,24 +1,28 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import mock_store
+from app import db_business
+from app.db import get_db_session
 from app.schemas import TreeholeCreateRequest, TreeholePostOut, TreeholeReactResponse
 
 router = APIRouter(prefix="/treehole", tags=["treehole"])
 
 
 @router.post("/posts", response_model=TreeholePostOut)
-def create_treehole_post(payload: TreeholeCreateRequest) -> TreeholePostOut:
-    return mock_store.create_treehole(payload.content)
+async def create_treehole_post(payload: TreeholeCreateRequest, session: AsyncSession = Depends(get_db_session)) -> TreeholePostOut:
+    return await db_business.create_treehole(session, payload.content)
 
 
 @router.get("/feed", response_model=list[TreeholePostOut])
-def treehole_feed() -> list[TreeholePostOut]:
-    return mock_store.treeholes
+async def treehole_feed(session: AsyncSession = Depends(get_db_session)) -> list[TreeholePostOut]:
+    return await db_business.treehole_feed(session)
 
 
 @router.post("/{post_id}/react", response_model=TreeholeReactResponse)
-def react_treehole(post_id: str) -> TreeholeReactResponse:
-    post = mock_store.react_treehole(post_id)
-    if post is None:
-        raise HTTPException(status_code=404, detail="TREEHOLE_NOT_FOUND")
-    return TreeholeReactResponse(status="ok", post=post)
+async def react_treehole(post_id: str, session: AsyncSession = Depends(get_db_session)) -> TreeholeReactResponse:
+    return TreeholeReactResponse(status="ok", post=await db_business.react_treehole(session, post_id))
+
+
+@router.post("/{post_id}/reply", response_model=TreeholeReactResponse)
+async def reply_treehole(post_id: str, payload: TreeholeCreateRequest, session: AsyncSession = Depends(get_db_session)) -> TreeholeReactResponse:
+    return TreeholeReactResponse(status="ok", post=await db_business.reply_treehole(session, post_id, payload.content))

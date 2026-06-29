@@ -168,6 +168,7 @@ function startAgeDrag(thumb: 'min' | 'max', event: any) {
   ageTrackRect = getAgeTrackRect(event)
   activeAgeThumb.value = thumb
   updateAgeFromPointer(thumb, event)
+  if (typeof window === 'undefined') return
   window.addEventListener('mousemove', moveAgeDrag)
   window.addEventListener('mouseup', endAgeDrag)
   window.addEventListener('touchmove', moveAgeDrag, { passive: false })
@@ -193,6 +194,7 @@ function moveAgeDrag(event: any) {
 function endAgeDrag() {
   activeAgeThumb.value = null
   ageTrackRect = undefined
+  if (typeof window === 'undefined') return
   window.removeEventListener('mousemove', moveAgeDrag)
   window.removeEventListener('mouseup', endAgeDrag)
   window.removeEventListener('touchmove', moveAgeDrag)

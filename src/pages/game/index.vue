@@ -30,6 +30,26 @@
       <view class="ship-aura"></view>
       <image class="ship-image" src="/static/ships/aurora-cruiser.svg" mode="widthFix" />
     </view>
+
+    <view class="room-entry-dock">
+      <view class="room-entry solo-entry" @tap="openRoomConcept('solo')">
+        <view class="room-entry-top">
+          <text class="room-entry-label">单聊私密</text>
+          <text class="room-entry-icon solo-icon" />
+        </view>
+        <text class="room-entry-title">1v1 房间</text>
+        <text class="room-entry-meta">从私聊进入</text>
+      </view>
+      <view class="room-entry group-entry" @tap="openRoomConcept('group')">
+        <view class="room-entry-top">
+          <text class="room-entry-label">群聊私密</text>
+          <text class="room-entry-icon group-icon" />
+        </view>
+        <text class="room-entry-title">多人房间</text>
+        <text class="room-entry-meta">邀请制进入</text>
+      </view>
+    </view>
+
     <view class="section activity-system" :class="{ rolling: diceRolling }">
       <view class="space-field"></view>
       <view class="orbit-ring orbit-one"></view>
@@ -57,6 +77,12 @@
         <view class="planet-surface"></view>
         <text class="planet-label">摇骰子</text>
       </view>
+      <view class="activity-planet treehole-entry" @tap="goTreehole">
+        <view class="planet-ring"></view>
+        <view class="planet-surface"></view>
+        <text class="planet-badge">心情</text>
+        <text class="planet-label">树洞</text>
+      </view>
     </view>
 
     <view v-if="composerOpen" class="modal-mask center-mask">
@@ -80,17 +106,17 @@
           <view class="meaning-card">{{ activePromptMeaning }}</view>
         </view>
         <view class="option-block">
-          <text class="field-label">谁可以看</text>
+          <text class="field-label">选择对象</text>
           <view class="choice-row">
             <view
-              v-for="item in visibilityOptions"
-              :key="item"
+              v-for="item in genderOptions"
+              :key="item.value"
               class="choice-chip"
-              :class="{ active: selectedVisibility === item }"
-              @tap.stop="selectedVisibility = item"
-              @click.stop="selectedVisibility = item"
+              :class="[item.value, { active: selectedGender === item.value }]"
+              @tap.stop="selectedGender = item.value"
+              @click.stop="selectedGender = item.value"
             >
-              {{ item }}
+              {{ item.label }}
             </view>
           </view>
         </view>
@@ -106,11 +132,26 @@
       <text class="result-text">{{ currentText }}</text>
       <view class="result-meta">
         <text>含义：{{ currentMeaning }}</text>
-        <text>谁可以看：{{ currentVisibility }}</text>
+        <text>对象：{{ currentGenderLabel }}</text>
       </view>
       <view class="grid-2 result-actions">
         <view class="button secondary" @tap="save">保存</view>
         <view class="button ghost" @tap="shareToBottle">投递成瓶子</view>
+      </view>
+    </view>
+
+    <view v-if="roomConceptOpen" class="modal-mask center-mask" @tap="closeRoomConcept">
+      <view class="modal-card room-concept-card" @tap.stop @click.stop>
+        <text class="modal-kicker">{{ activeRoomConcept.kicker }}</text>
+        <text class="room-concept-title">{{ activeRoomConcept.title }}</text>
+        <text class="room-concept-body">{{ activeRoomConcept.body }}</text>
+        <view class="room-concept-flow">
+          <text v-for="step in activeRoomConcept.steps" :key="step">{{ step }}</text>
+        </view>
+        <view class="modal-actions">
+          <view class="button ghost" @tap.stop="closeRoomConcept" @click.stop="closeRoomConcept">关闭</view>
+          <view class="button" @tap.stop="enterRoomConcept" @click.stop="enterRoomConcept">{{ activeRoomConcept.action }}</view>
+        </view>
       </view>
     </view>
   </view>
@@ -120,11 +161,15 @@
 import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { useQuotaGuard } from '@/composables/useQuotaGuard'
-import { showToast } from '@/services/feedback'
+import { businessApi } from '@/services/businessApi'
+import { navigateTo, showToast, switchTab } from '@/services/feedback'
 import { useAppStore } from '@/stores/app'
 import { useContentStore } from '@/stores/content'
+import type { BottleTargetGender } from '@/types/domain'
 
 type GameMode = 'truth_public' | 'truth_private' | 'dare_public' | 'dare_private'
+type TargetGender = Exclude<BottleTargetGender, 'all'>
+type RoomKind = 'solo' | 'group'
 type ActivityEntry = {
   key: string
   mode: GameMode
@@ -132,9 +177,17 @@ type ActivityEntry = {
   quotaType: 'truth' | 'dare'
 }
 type GamePrompt = {
+  id: string
   text: string
   meaning: string
   visibility: string
+}
+type RoomConcept = {
+  kicker: string
+  title: string
+  body: string
+  steps: string[]
+  action: string
 }
 
 const app = useAppStore()
@@ -143,14 +196,17 @@ const { ensureQuota } = useQuotaGuard()
 const activeMode = ref<GameMode>('truth_public')
 const currentText = ref('')
 const currentMeaning = ref('自定义玩法内容')
-const currentVisibility = ref('所有参与者可见')
+const currentGender = ref<TargetGender>('female')
+const currentSourceId = ref<string>()
 const diceRolling = ref(false)
 const composerOpen = ref(false)
 const gameDraft = ref('')
 const gameError = ref('')
 const selectedPrompt = ref<GamePrompt>()
-const selectedVisibility = ref('所有参与者可见')
+const selectedGender = ref<TargetGender>('female')
 const randomLoading = ref(false)
+const roomConceptOpen = ref(false)
+const activeRoomKind = ref<RoomKind>('solo')
 
 const modes = [
   { key: 'truth_public', label: '常规真心话' },
@@ -166,36 +222,33 @@ const activityEntries: ActivityEntry[] = [
   { key: 'dare-private', mode: 'dare_private', label: '私密大冒险', quotaType: 'dare' }
 ]
 
-const gamePromptLibraries: Record<GameMode, GamePrompt[]> = {
-  truth_public: [
-    { text: '你最近一次真正心动，是因为哪个细节？', meaning: '从轻松细节切入，适合破冰和朋友局。', visibility: '所有参与者可见' },
-    { text: '如果今晚可以收到一句话，你最想听见什么？', meaning: '让回答保留想象空间，不强迫暴露隐私。', visibility: '所有参与者可见' },
-    { text: '有没有一个瞬间，让你突然觉得自己被理解了？', meaning: '温和地聊连接感，适合公开场景。', visibility: '所有参与者可见' }
-  ],
-  truth_private: [
-    { text: '如果我靠近一点，你会先躲开，还是先看着我？', meaning: '暧昧地试探边界和心动反应，只适合双方同意的私密局。', visibility: '仅双方可见' },
-    { text: '你最容易被哪种眼神、语气或小动作撩到？', meaning: '用诱惑但不冒犯的方式聊吸引力偏好。', visibility: '仅双方可见' },
-    { text: '如果今晚只能说一句带暗示的话，你会怎么说？', meaning: '把暧昧交给表达，不要求现实行动。', visibility: '仅双方可见' }
-  ],
-  dare_public: [
-    { text: '用 20 个字夸一下今天的自己。', meaning: '轻量表达任务，适合公开完成。', visibility: '所有参与者可见' },
-    { text: '给一个很久没联系的人发一句不打扰的问候。', meaning: '温和行动挑战，不涉及隐私暴露。', visibility: '所有参与者可见' },
-    { text: '拍一张只代表此刻心情的照片，不需要露脸。', meaning: '用画面表达状态，公开场景也安全。', visibility: '所有参与者可见' }
-  ],
-  dare_private: [
-    { text: '发一句让对方忍不住多看两遍的晚安。', meaning: '带一点诱惑感的文字挑战，重点是氛围，不越界。', visibility: '仅双方可见' },
-    { text: '用一句话描述你想被怎样靠近。', meaning: '私密地表达期待，同时保留边界。', visibility: '仅双方可见' },
-    { text: '给对方留一个只适合今晚看的暗号。', meaning: '制造亲密感和专属感，只适合双方可见。', visibility: '仅双方可见' }
-  ]
+const genderOptions: Array<{ value: TargetGender; label: string }> = [
+  { value: 'female', label: '女生' },
+  { value: 'male', label: '男生' }
+]
+
+const roomConcepts: Record<RoomKind, RoomConcept> = {
+  solo: {
+    kicker: '单个私密聊',
+    title: '1v1 私密房间',
+    body: '入口放在私聊关系里，适合两个人进行真心话、大冒险、礼物和限时内容。',
+    steps: ['私聊', '开房间', '两人互动'],
+    action: '去私聊'
+  },
+  group: {
+    kicker: '群聊私密房间',
+    title: '邀请制多人房间',
+    body: '入口独立放在游戏页，后续接入邀请、房主控制、成员列表和房间话题。',
+    steps: ['创建', '邀请', '多人互动'],
+    action: '预留入口'
+  }
 }
 
 const activeModeLabel = computed(() => modes.find((mode) => mode.key === activeMode.value)?.label || '游戏')
 const activePromptMeaning = computed(() => selectedPrompt.value?.meaning || '可以自己输入，也可以点随机从当前玩法题库取一条。')
 const draftPlaceholder = computed(() => activeMode.value.startsWith('truth') ? '写下一个真心话问题，或点随机生成。' : '写下一个大冒险任务，或点随机生成。')
-const visibilityOptions = computed(() => {
-  if (activeMode.value.endsWith('private')) return ['仅双方可见', '仅好友可见']
-  return ['所有参与者可见', '仅好友可见']
-})
+const currentGenderLabel = computed(() => genderLabel(currentGender.value))
+const activeRoomConcept = computed(() => roomConcepts[activeRoomKind.value])
 
 onLoad(() => app.hydrate())
 
@@ -208,6 +261,10 @@ function rollDice() {
     diceRolling.value = false
     showToast(`骰子点数 ${next}`)
   }, 520)
+}
+
+function goTreehole() {
+  navigateTo('/pages/treehole/index')
 }
 
 function gameQuotaLeft(type: ActivityEntry['quotaType']) {
@@ -223,7 +280,7 @@ function openComposer() {
   gameDraft.value = ''
   gameError.value = ''
   selectedPrompt.value = undefined
-  selectedVisibility.value = visibilityOptions.value[0] || '所有参与者可见'
+  selectedGender.value = 'female'
   composerOpen.value = true
 }
 
@@ -234,22 +291,19 @@ function closeComposer() {
   selectedPrompt.value = undefined
 }
 
-function fillRandomGamePrompt() {
+async function fillRandomGamePrompt() {
   if (randomLoading.value) return
   randomLoading.value = true
-  const library = gamePromptLibraries[activeMode.value]
-  const prompt = library[Math.floor(Math.random() * library.length)] || library[0]
-  if (!prompt) {
-    randomLoading.value = false
-    return
-  }
-  setTimeout(() => {
+  try {
+    const prompt = await businessApi.getGamePrompt(activeMode.value)
     selectedPrompt.value = prompt
     gameDraft.value = prompt.text
-    selectedVisibility.value = prompt.visibility
     gameError.value = ''
+  } catch {
+    showToast('题库加载失败')
+  } finally {
     randomLoading.value = false
-  }, 180)
+  }
 }
 
 function clearGameError() {
@@ -274,22 +328,58 @@ async function submitGamePrompt() {
 
   currentText.value = gameDraft.value.trim()
   currentMeaning.value = selectedPrompt.value?.meaning || '自定义玩法内容'
-  currentVisibility.value = selectedVisibility.value
+  currentGender.value = selectedGender.value
+  currentSourceId.value = selectedPrompt.value?.id
   composerOpen.value = false
   gameDraft.value = ''
   selectedPrompt.value = undefined
   showToast(`已开始${activeModeLabel.value}`)
 }
 
-function save() {
+async function save() {
+  if (!currentText.value) {
+    showToast('先开始一个玩法')
+    return
+  }
+  await content.saveUserActivityRecord({
+    recordType: 'game',
+    title: activeModeLabel.value,
+    content: currentText.value,
+    visibility: `对象：${currentGenderLabel.value}`,
+    sourceType: activeMode.value,
+    sourceId: currentSourceId.value
+  })
   showToast('已保存到游戏记录')
 }
 
 async function shareToBottle() {
   if (!currentText.value) return
   if (!ensureQuota('throw_bottle')) return
-  await content.throwBottle(currentText.value)
-  showToast('已投递成瓶子，扔瓶次数 -1')
+  await content.throwBottle(currentText.value, { targetGender: currentGender.value })
+  showToast(`已投递给${currentGenderLabel.value}，扔瓶次数 -1`)
+}
+
+function genderLabel(gender: TargetGender) {
+  return genderOptions.find((item) => item.value === gender)?.label || '对方'
+}
+
+function openRoomConcept(kind: RoomKind) {
+  activeRoomKind.value = kind
+  roomConceptOpen.value = true
+}
+
+function closeRoomConcept() {
+  roomConceptOpen.value = false
+}
+
+function enterRoomConcept() {
+  if (activeRoomKind.value === 'solo') {
+    roomConceptOpen.value = false
+    switchTab('/pages/messages/index')
+    return
+  }
+  showToast('群聊私密房间入口已预留')
+  roomConceptOpen.value = false
 }
 </script>
 
@@ -697,6 +787,139 @@ async function shareToBottle() {
   animation: trail-pulse 1.8s ease-in-out infinite;
 }
 
+.room-entry-dock {
+  position: absolute;
+  top: 28rpx;
+  right: 24rpx;
+  left: 24rpx;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14rpx;
+}
+
+.room-entry {
+  position: relative;
+  overflow: hidden;
+  min-height: 128rpx;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 20px;
+  padding: 18rpx;
+  color: #fff;
+  box-sizing: border-box;
+  box-shadow: 0 18rpx 42rpx rgba(0, 0, 0, 0.18);
+}
+
+.room-entry::after {
+  position: absolute;
+  right: -36rpx;
+  bottom: -42rpx;
+  width: 132rpx;
+  height: 132rpx;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  content: '';
+}
+
+.solo-entry {
+  background:
+    radial-gradient(circle at 18% 8%, rgba(255, 255, 255, 0.24), transparent 28%),
+    linear-gradient(145deg, rgba(20, 184, 166, 0.94), rgba(37, 99, 235, 0.9));
+}
+
+.group-entry {
+  background:
+    radial-gradient(circle at 18% 8%, rgba(255, 255, 255, 0.22), transparent 30%),
+    linear-gradient(145deg, rgba(244, 114, 182, 0.94), rgba(124, 58, 237, 0.88));
+}
+
+.room-entry-top {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+
+.room-entry-label,
+.room-entry-title,
+.room-entry-meta {
+  position: relative;
+  z-index: 1;
+  display: block;
+}
+
+.room-entry-label {
+  opacity: 0.76;
+  font-size: 21rpx;
+  font-weight: 900;
+}
+
+.room-entry-title {
+  margin-top: 12rpx;
+  font-size: 30rpx;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.room-entry-meta {
+  margin-top: 8rpx;
+  opacity: 0.82;
+  font-size: 22rpx;
+  font-weight: 800;
+}
+
+.room-entry-icon {
+  position: relative;
+  flex: 0 0 auto;
+  width: 42rpx;
+  height: 42rpx;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.room-entry-icon::before,
+.room-entry-icon::after {
+  position: absolute;
+  content: '';
+  box-sizing: border-box;
+}
+
+.solo-icon::before {
+  inset: 9rpx 12rpx 18rpx;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.solo-icon::after {
+  left: 10rpx;
+  bottom: 8rpx;
+  width: 22rpx;
+  height: 13rpx;
+  border: 3rpx solid rgba(255, 255, 255, 0.9);
+  border-radius: 13rpx 13rpx 6rpx 6rpx;
+}
+
+.group-icon::before {
+  left: 9rpx;
+  top: 10rpx;
+  width: 14rpx;
+  height: 14rpx;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 13rpx 3rpx 0 -1rpx rgba(255, 255, 255, 0.86);
+}
+
+.group-icon::after {
+  left: 8rpx;
+  bottom: 8rpx;
+  width: 28rpx;
+  height: 13rpx;
+  border: 3rpx solid rgba(255, 255, 255, 0.9);
+  border-radius: 14rpx 14rpx 6rpx 6rpx;
+}
+
 .activity-system {
   position: relative;
   z-index: 2;
@@ -1038,6 +1261,38 @@ async function shareToBottle() {
     repeating-linear-gradient(24deg, rgba(35, 108, 114, 0.05) 0 16rpx, transparent 17rpx 38rpx);
 }
 
+.treehole-entry {
+  right: 78rpx;
+  bottom: 236rpx;
+  width: 146rpx;
+  height: 146rpx;
+  animation: planet-float-b 5.6s ease-in-out infinite;
+}
+
+.treehole-entry .planet-ring {
+  opacity: 1;
+  width: 216rpx;
+  height: 56rpx;
+  border-color: rgba(154, 214, 145, 0.5);
+  border-left-color: rgba(154, 214, 145, 0.13);
+  border-bottom-color: rgba(154, 214, 145, 0.2);
+  transform: rotate(14deg);
+}
+
+.treehole-entry .planet-surface {
+  background:
+    radial-gradient(circle at 34% 28%, rgba(226, 255, 190, 0.48) 0 15rpx, transparent 16rpx),
+    radial-gradient(circle at 68% 66%, rgba(52, 88, 40, 0.34) 0 22rpx, transparent 23rpx),
+    repeating-linear-gradient(142deg, rgba(247, 255, 210, 0.16) 0 16rpx, transparent 17rpx 35rpx),
+    linear-gradient(145deg, #8ecf7c 0%, #3d9b73 52%, #1f665d 100%);
+}
+
+.treehole-entry .planet-surface::after {
+  background:
+    radial-gradient(circle at 26% 66%, rgba(255, 255, 255, 0.24) 0 8rpx, transparent 9rpx),
+    repeating-linear-gradient(20deg, transparent 0 20rpx, rgba(237, 255, 210, 0.12) 21rpx 30rpx);
+}
+
 .activity-system.rolling .dice-entry .planet-surface {
   animation: dice-roll 520ms ease-out;
 }
@@ -1162,11 +1417,69 @@ async function shareToBottle() {
   box-shadow: 0 10rpx 24rpx rgba(0, 113, 227, 0.18);
 }
 
+.choice-chip.female.active {
+  border-color: rgba(219, 39, 119, 0.2);
+  background: #db2777;
+  box-shadow: 0 10rpx 24rpx rgba(219, 39, 119, 0.18);
+}
+
+.choice-chip.male.active {
+  border-color: rgba(37, 99, 235, 0.22);
+  background: #2563eb;
+  box-shadow: 0 10rpx 24rpx rgba(37, 99, 235, 0.18);
+}
+
 .modal-actions {
   display: grid;
   grid-template-columns: 0.8fr 1.2fr;
   gap: 16rpx;
   margin-top: 26rpx;
+}
+
+.room-concept-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96)),
+    radial-gradient(circle at 94% 0%, rgba(37, 99, 235, 0.08), transparent 32%);
+}
+
+.room-concept-title,
+.room-concept-body {
+  display: block;
+}
+
+.room-concept-title {
+  margin-top: 12rpx;
+  color: #172126;
+  font-size: 38rpx;
+  font-weight: 900;
+  line-height: 1.18;
+}
+
+.room-concept-body {
+  margin-top: 14rpx;
+  color: #475569;
+  font-size: 26rpx;
+  line-height: 1.5;
+}
+
+.room-concept-flow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10rpx;
+  margin-top: 22rpx;
+}
+
+.room-concept-flow text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 66rpx;
+  border: 1px solid rgba(37, 99, 235, 0.1);
+  border-radius: 14px;
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.07);
+  font-size: 23rpx;
+  font-weight: 900;
 }
 
 .result-card {

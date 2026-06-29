@@ -17,6 +17,17 @@
     </view>
 
     <view class="section panel">
+      <text class="h2">充值金币</text>
+      <text class="muted recharge-copy">金币用于聊天送礼、查看付费内容，不可提现。</text>
+      <view class="recharge-grid">
+        <view v-for="item in rechargeOptions" :key="item" class="recharge-card" :class="{ disabled: paying }" @tap="recharge(item)">
+          <text class="recharge-amount">{{ item }}</text>
+          <text class="muted">金币</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="section panel">
       <view class="between">
         <view>
           <text class="h2">提现规则</text>
@@ -31,10 +42,16 @@
     <view class="section panel">
       <text class="h2">礼物</text>
       <view class="gift-grid">
-        <view v-for="gift in content.gifts" :key="gift.id" class="gift-card">
-          <text class="gift-icon">{{ gift.iconText }}</text>
+        <view v-for="gift in content.gifts" :key="gift.id" class="gift-card" :class="[giftTierClass(gift), { premium: isPremiumGift(gift) }]">
+          <view class="gift-stage">
+            <GiftVisual :gift="gift" size="card" :active="isPremiumGift(gift)" />
+          </view>
           <text class="body">{{ gift.name }}</text>
-          <text class="muted">{{ gift.priceCoins }} 金币</text>
+          <text class="gift-desc">{{ giftDescription(gift) }}</text>
+          <view class="gift-price-row">
+            <text class="coin-dot" />
+            <text>{{ gift.priceCoins }}</text>
+          </view>
         </view>
       </view>
     </view>
@@ -53,11 +70,16 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
+import GiftVisual from '@/components/GiftVisual.vue'
 import { showToast } from '@/services/feedback'
 import { useContentStore } from '@/stores/content'
+import type { GiftProduct } from '@/types/domain'
 
 const content = useContentStore()
+const rechargeOptions = [30, 68, 128, 328, 648, 999]
+const paying = ref(false)
 
 onLoad(() => content.loadWallet())
 
@@ -68,6 +90,37 @@ async function withdraw() {
   } catch {
     showToast('可提现收益不足')
   }
+}
+
+async function recharge(amount: number) {
+  if (paying.value) return
+  paying.value = true
+  try {
+    await content.rechargeCoins(amount)
+    showToast(`充值成功，已到账 ${amount} 金币`)
+  } catch {
+    showToast('支付失败，请稍后再试')
+  } finally {
+    paying.value = false
+  }
+}
+
+function isPremiumGift(gift: GiftProduct) {
+  return gift.priceCoins >= 520 || /crown|island|whale|plane|flight/i.test(gift.id)
+}
+
+function giftTierClass(gift: GiftProduct) {
+  if (gift.priceCoins >= 999 || gift.id.includes('crown')) return 'gift-tier-legend'
+  if (isPremiumGift(gift)) return 'gift-tier-premium'
+  if (gift.priceCoins >= 99) return 'gift-tier-rare'
+  return 'gift-tier-basic'
+}
+
+function giftDescription(gift: GiftProduct) {
+  if (gift.priceCoins >= 999 || gift.id.includes('crown')) return '全屏礼物'
+  if (isPremiumGift(gift)) return '进场特效'
+  if (gift.priceCoins >= 99) return '动态光效'
+  return '轻量心意'
 }
 </script>
 
@@ -85,17 +138,23 @@ async function withdraw() {
 
 .wallet-card {
   min-height: 210rpx;
+  border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 8px;
   padding: 26rpx;
   box-sizing: border-box;
+  box-shadow: 0 14rpx 32rpx rgba(15, 23, 42, 0.06);
 }
 
 .recharge {
-  background: linear-gradient(135deg, #f6dfb6, #fff5df);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(239, 246, 255, 0.94)),
+    radial-gradient(circle at 94% 0%, rgba(37, 99, 235, 0.12), transparent 34%);
 }
 
 .earned {
-  background: linear-gradient(135deg, #dbeeed, #eef9f5);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(240, 253, 250, 0.94)),
+    radial-gradient(circle at 94% 0%, rgba(20, 184, 166, 0.12), transparent 34%);
 }
 
 .wallet-label,
@@ -128,6 +187,37 @@ async function withdraw() {
   min-height: 68rpx;
 }
 
+.recharge-copy {
+  display: block;
+  margin-top: 8rpx;
+}
+
+.recharge-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14rpx;
+  margin-top: 20rpx;
+}
+
+.recharge-card {
+  border: 1px solid rgba(35, 108, 114, 0.12);
+  border-radius: 8px;
+  padding: 18rpx;
+  background: rgba(35, 108, 114, 0.06);
+  text-align: center;
+}
+
+.recharge-card.disabled {
+  opacity: 0.55;
+}
+
+.recharge-amount {
+  display: block;
+  color: #236c72;
+  font-size: 34rpx;
+  font-weight: 900;
+}
+
 .gift-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -136,23 +226,94 @@ async function withdraw() {
 }
 
 .gift-card {
-  border: 1px solid #eadfce;
-  border-radius: 8px;
-  padding: 18rpx;
+  position: relative;
+  overflow: hidden;
+  min-height: 210rpx;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 16px;
+  padding: 18rpx 12rpx 16rpx;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.92)),
+    radial-gradient(circle at 88% 0%, rgba(37, 99, 235, 0.08), transparent 32%);
+  box-shadow: 0 12rpx 28rpx rgba(15, 23, 42, 0.06);
   text-align: center;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 
-.gift-icon {
+.gift-card:active {
+  transform: scale(0.97);
+}
+
+.gift-card.premium {
+  border-color: rgba(37, 99, 235, 0.22);
+  box-shadow: 0 18rpx 42rpx rgba(37, 99, 235, 0.12);
+}
+
+.gift-card.premium::before {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.62) 42%, transparent 62%);
+  transform: translateX(-120%);
+  animation: walletGiftSweep 2.8s ease-in-out infinite;
+  content: '';
+}
+
+.gift-stage {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 58rpx;
-  height: 58rpx;
-  margin: 0 auto 10rpx;
-  border-radius: 50%;
-  color: #fff;
-  background: #d9895b;
+  width: 104rpx;
+  height: 104rpx;
+  margin: 0 auto 12rpx;
+}
+
+.gift-desc {
+  display: block;
+  margin-top: 5rpx;
+  color: #64748b;
+  font-size: 20rpx;
   font-weight: 800;
+}
+
+.gift-price-row {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6rpx;
+  margin-top: 8rpx;
+  border-radius: 999px;
+  padding: 7rpx 12rpx;
+  color: #0f172a;
+  background: rgba(241, 245, 249, 0.92);
+  font-size: 21rpx;
+  font-weight: 900;
+}
+
+.gift-card > .muted {
+  display: none;
+}
+
+.coin-dot {
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #fde68a, #f59e0b);
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.72), 0 0 10rpx rgba(245, 158, 11, 0.34);
+}
+
+@keyframes walletGiftSweep {
+  0%,
+  46% {
+    transform: translateX(-120%);
+  }
+
+  74%,
+  100% {
+    transform: translateX(120%);
+  }
 }
 
 .ledger-row {

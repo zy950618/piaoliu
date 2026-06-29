@@ -44,7 +44,7 @@
               <view class="row name-row">
                 <text class="h2">{{ person.nickname }}</text>
                 <text v-if="person.verified" class="tag">真人认证</text>
-                <text v-if="person.isVip" class="tag vip-tag">VIP</text>
+                <VipBadge v-if="person.isVip" variant="mini" />
               </view>
               <text class="muted">{{ person.distanceText }} · {{ person.ageRange || '年龄未知' }} · {{ person.online ? '在线' : '刚刚来过' }}</text>
             </view>
@@ -64,6 +64,7 @@
 import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import AppIcon from '@/components/AppIcon.vue'
+import VipBadge from '@/components/VipBadge.vue'
 import { showToast } from '@/services/feedback'
 import { useContentStore } from '@/stores/content'
 
@@ -91,7 +92,7 @@ onLoad(() => content.loadNearbyUsers())
 
 async function follow(id: string) {
   await content.followUser(id)
-  showToast('已关注，后续可在关注流看到动态')
+  showToast('已关注，对方动态会优先推荐')
 }
 
 async function requestFriend(id: string) {

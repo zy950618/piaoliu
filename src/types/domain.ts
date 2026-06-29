@@ -1,4 +1,4 @@
-export type QuotaType = 'fish_bottle' | 'throw_bottle' | 'truth' | 'dare' | 'treehole_post'
+﻿export type QuotaType = 'fish_bottle' | 'throw_bottle' | 'truth' | 'dare' | 'treehole_post'
 
 export type ContentStatus = 'pending' | 'approved' | 'rejected'
 export type BottleTargetGender = 'all' | 'female' | 'male'
@@ -12,6 +12,7 @@ export interface UserProfile {
   platform: 'wechat' | 'ios' | 'android' | 'h5'
   isVip: boolean
   vipLevel: 'none' | 'monthly' | 'season' | 'yearly'
+  vipExpiresAt?: string
   driftCoins: number
   gender?: 'female' | 'male' | 'unknown'
   ageRange?: string
@@ -54,11 +55,38 @@ export interface MeStatus {
   checkin: CheckinState
 }
 
+export interface UserRecordSummaryItem {
+  type: 'bottle' | 'treehole' | 'truth' | 'dare' | 'game' | 'report'
+  title: string
+  desc: string
+  count: number
+}
+
+export interface UserActivityRecord {
+  id: string
+  recordType: 'truth' | 'dare' | 'game'
+  title: string
+  content: string
+  visibility?: string
+  sourceType?: string
+  sourceId?: string
+  createdAt: string
+}
+
+export interface MembershipProduct {
+  id: string
+  name: string
+  priceLabel: string
+  platform: 'wechat' | 'ios' | 'android' | 'all'
+  benefits: string[]
+}
+
 export interface Bottle {
   id: string
   authorId: string
   authorName: string
   authorAvatarText?: string
+  authorAvatarUrl?: string
   authorVip?: boolean
   authorGender?: 'female' | 'male' | 'unknown'
   authorAgeRange?: string
@@ -109,6 +137,8 @@ export interface MessageItem {
   body: string
   createdAt: string
   unread: boolean
+  businessType?: string | null
+  businessId?: string | null
 }
 
 export interface ConversationTurn {
@@ -117,12 +147,25 @@ export interface ConversationTurn {
   body: string
   createdAt: string
   fromMe: boolean
+  type?: 'text' | 'image' | 'voice' | 'video' | 'flash_image' | 'flash_video' | 'gift' | 'game_room'
+  mediaUrl?: string
+  mediaDuration?: number
+  flashViewed?: boolean
+  giftId?: string
+  giftName?: string
+  giftIconText?: string
+  giftPriceCoins?: number
+  gameRoomId?: string
+  gameRoomMode?: 'truth' | 'dare' | 'mixed'
 }
 
 export interface ConversationThread {
   id: string
   bottleId: string
+  participantUserId: string
   participantName: string
+  participantAvatarText?: string
+  participantAvatarUrl?: string
   participantTag: string
   bottlePreview: string
   lastMessage: string
@@ -170,6 +213,9 @@ export interface AdminRewardConfigDraft {
 export interface AdminUserSummary {
   id: string
   nickname: string
+  avatarText?: string
+  avatarUrl?: string
+  status: 'active' | 'limited' | 'blocked'
   platform: UserProfile['platform']
   gender: NonNullable<UserProfile['gender']>
   isVip: boolean
@@ -180,14 +226,18 @@ export interface AdminUserSummary {
   charmValue: number
   joinedAt: string
   lastActiveAt: string
+  blockedUntil?: string | null
+  blockReason?: string | null
 }
 
 export interface AdminContentReviewItem {
   id: string
   type: 'bottle' | 'treehole' | 'private_photo' | 'plaza'
-  category: '漂流瓶' | '树洞' | '私密照片' | '广场'
+  category: 'bottle' | 'treehole' | 'private_photo' | 'plaza'
   authorId: string
   authorName: string
+  authorAvatarText?: string
+  authorAvatarUrl?: string
   preview: string
   status: ContentStatus
   riskLevel: 'low' | 'medium' | 'high'
@@ -206,6 +256,8 @@ export interface AdminChatReviewItem {
   reporterName?: string
   participantUserIds: string[]
   participants: string[]
+  participantAvatarTexts?: Array<string | null>
+  participantAvatarUrls?: Array<string | null>
   relatedContent: string
   lastMessage: string
   riskLevel: 'low' | 'medium' | 'high'
@@ -222,9 +274,13 @@ export interface AdminChatReviewItem {
 export interface AdminReportItem {
   id: string
   reporterName: string
-  targetType: 'user' | 'bottle' | 'treehole' | 'private_photo'
+  targetType: 'user' | 'bottle' | 'treehole' | 'reply' | 'chat' | 'plaza' | 'private_photo'
   targetId: string
   targetPreview: string
+  targetTypeText?: string
+  targetDisplayName?: string
+  targetAvatarText?: string
+  targetAvatarUrl?: string
   reason: string
   status: 'pending' | 'reviewing' | 'resolved'
   priority: 'normal' | 'high'
@@ -338,6 +394,7 @@ export interface GiftProduct {
   name: string
   priceCoins: number
   iconText: string
+  category?: string
 }
 
 export interface VerificationState {
@@ -368,6 +425,7 @@ export interface PlazaPost {
   authorId: string
   authorName: string
   iconText: string
+  iconUrl?: string
   topic: string
   content: string
   mediaType?: 'text' | 'image' | 'voice' | 'video'
@@ -407,6 +465,7 @@ export interface PlazaComment {
   authorId: string
   authorName: string
   iconText: string
+  iconUrl?: string
   authorGender?: 'female' | 'male' | 'unknown'
   authorAgeRange?: string
   authorVerified?: boolean

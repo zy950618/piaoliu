@@ -1,4 +1,4 @@
-import { defaultBaseQuotas, defaultVipBonus, quotaLabels, quotaOrder, weeklyCheckinRewards } from '@/constants/product'
+﻿import { defaultBaseQuotas, defaultVipBonus, quotaLabels, quotaOrder, weeklyCheckinRewards } from '@/constants/product'
 import type {
   AdRewardState,
   AdminSummary,
@@ -70,7 +70,7 @@ const adReward: AdRewardState = {
   canWatch: true,
   cooldownSeconds: 0,
   cooldownMinutes: 30,
-  rewardPerQuota: 1
+  rewardPerQuota: 10
 }
 
 const checkin: CheckinState = {
@@ -596,6 +596,7 @@ const conversationThreads: ConversationThread[] = [
   {
     id: 'thread_bottle_001',
     bottleId: 'bottle_001',
+    participantUserId: 'creator_001',
     participantName: '匿名海岛客',
     participantTag: '漂流瓶回应',
     bottlePreview: '今天把想说的话写进瓶子里，希望捞到的人刚好也需要一点安静。',
@@ -629,6 +630,7 @@ const conversationThreads: ConversationThread[] = [
   {
     id: 'thread_bottle_002',
     bottleId: 'bottle_002',
+    participantUserId: 'creator_002',
     participantName: '晚风',
     participantTag: '好友申请中',
     bottlePreview: '如果你正在犹豫要不要重新开始，我想把勇气分你一点。',
@@ -757,6 +759,7 @@ const adminUsers: AdminUserSummary[] = [
     platform: 'wechat',
     gender: 'female',
     isVip: true,
+    status: 'active',
     verificationStatus: 'approved',
     safetyScore: 98,
     walletRisk: 'normal',
@@ -771,6 +774,7 @@ const adminUsers: AdminUserSummary[] = [
     platform: 'ios',
     gender: 'female',
     isVip: true,
+    status: 'limited',
     verificationStatus: 'approved',
     safetyScore: 96,
     walletRisk: 'watch',
@@ -785,6 +789,7 @@ const adminUsers: AdminUserSummary[] = [
     platform: 'android',
     gender: 'female',
     isVip: false,
+    status: 'active',
     verificationStatus: 'pending',
     safetyScore: 91,
     walletRisk: 'normal',
@@ -799,6 +804,7 @@ const adminUsers: AdminUserSummary[] = [
     platform: 'h5',
     gender: 'unknown',
     isVip: false,
+    status: 'blocked',
     verificationStatus: 'rejected',
     safetyScore: 42,
     walletRisk: 'blocked',
@@ -813,7 +819,7 @@ const contentReviews: AdminContentReviewItem[] = [
   {
     id: 'review_bottle_001',
     type: 'bottle',
-    category: '漂流瓶',
+    category: 'bottle',
     authorId: 'creator_002',
     authorName: '晚风',
     preview: '如果你正在犹豫要不要重新开始，我想把勇气分你一点。',
@@ -828,7 +834,7 @@ const contentReviews: AdminContentReviewItem[] = [
   {
     id: 'review_tree_001',
     type: 'treehole',
-    category: '树洞',
+    category: 'treehole',
     authorId: 'creator_001',
     authorName: '海岛来信',
     preview: '有些话不想让熟人看见，但憋在心里又太重了。',
@@ -843,7 +849,7 @@ const contentReviews: AdminContentReviewItem[] = [
   {
     id: 'review_photo_001',
     type: 'private_photo',
-    category: '私密照片',
+    category: 'private_photo',
     authorId: 'creator_001',
     authorName: '海岛来信',
     preview: '今日海边碎片',
@@ -858,7 +864,7 @@ const contentReviews: AdminContentReviewItem[] = [
   {
     id: 'review_plaza_001',
     type: 'plaza',
-    category: '广场',
+    category: 'plaza',
     authorId: 'bad_user_001',
     authorName: '无礼访客',
     preview: '站外联系方式和诱导充值文案',
@@ -988,7 +994,7 @@ const adRewardRecords: AdminAdRewardRecord[] = [
     userId: 'user_mock_001',
     nickname: '海风来信',
     sessionId: 'ad_202606231010',
-    rewardPerQuota: 1,
+    rewardPerQuota: 10,
     quotaTypes: [...quotaOrder],
     status: 'settled',
     createdAt: '2026-06-23 10:10'
@@ -998,7 +1004,7 @@ const adRewardRecords: AdminAdRewardRecord[] = [
     userId: 'creator_002',
     nickname: '晚风',
     sessionId: 'ad_202606230934',
-    rewardPerQuota: 1,
+    rewardPerQuota: 10,
     quotaTypes: ['fish_bottle', 'throw_bottle'],
     status: 'cooldown',
     createdAt: '2026-06-23 09:34'

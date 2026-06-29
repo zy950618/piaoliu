@@ -7,15 +7,18 @@ describe('mockApi product rules', () => {
     expect(status.checkin.weekRewards).toEqual([10, 10, 30, 10, 10, 30, 100])
   })
 
-  it('adds one quota to all quota types after completed ad', async () => {
+  it('adds video reward coins and quota to all quota types after completed ad', async () => {
     const before = await mockApi.getMeStatus()
+    const beforeWallet = await mockApi.getWallet()
     const prepared = await mockApi.prepareAdReward()
     const after = await mockApi.commitAdReward(prepared.sessionId, true)
-    expect(after.quotas.fish_bottle.remaining).toBe(before.quotas.fish_bottle.remaining + 1)
-    expect(after.quotas.throw_bottle.remaining).toBe(before.quotas.throw_bottle.remaining + 1)
-    expect(after.quotas.truth.remaining).toBe(before.quotas.truth.remaining + 1)
-    expect(after.quotas.dare.remaining).toBe(before.quotas.dare.remaining + 1)
-    expect(after.quotas.treehole_post.remaining).toBe(before.quotas.treehole_post.remaining + 1)
+    const afterWallet = await mockApi.getWallet()
+    expect(after.quotas.fish_bottle.remaining).toBe(before.quotas.fish_bottle.remaining + prepared.rewardPerQuota)
+    expect(after.quotas.throw_bottle.remaining).toBe(before.quotas.throw_bottle.remaining + prepared.rewardPerQuota)
+    expect(after.quotas.truth.remaining).toBe(before.quotas.truth.remaining + prepared.rewardPerQuota)
+    expect(after.quotas.dare.remaining).toBe(before.quotas.dare.remaining + prepared.rewardPerQuota)
+    expect(after.quotas.treehole_post.remaining).toBe(before.quotas.treehole_post.remaining + prepared.rewardPerQuota)
+    expect(afterWallet.wallet.rechargeCoins).toBe(beforeWallet.wallet.rechargeCoins + 1)
   })
 
   it('keeps recharge coins separate from withdrawable earned coins', async () => {
@@ -37,6 +40,9 @@ describe('mockApi product rules', () => {
   it('publishes plaza posts to the top and rejects empty content', async () => {
     const before = await mockApi.listPlazaPosts()
     await expect(mockApi.publishPlazaPost('   ')).rejects.toThrow('EMPTY_PLAZA_CONTENT')
+    const plainPost = await mockApi.publishPlazaPost('今天只发布一条纯文字动态。')
+    expect(plainPost.mediaType).toBe('text')
+    expect(plainPost.mediaCount).toBe(0)
     const post = await mockApi.publishPlazaPost('今天在广场留一条新的动态。', { mediaType: 'image', mediaCount: 2 })
     const after = await mockApi.listPlazaPosts()
     expect(post.content).toBe('今天在广场留一条新的动态。')
@@ -44,7 +50,8 @@ describe('mockApi product rules', () => {
     expect(post.mediaCount).toBe(2)
     expect(post.viewCount).toBe(0)
     expect(after[0]?.id).toBe(post.id)
-    expect(after.length).toBe(before.length + 1)
+    expect(after[1]?.id).toBe(plainPost.id)
+    expect(after.length).toBe(before.length + 2)
   })
 
   it('supports video plaza posts in mock contracts', async () => {

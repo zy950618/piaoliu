@@ -1,5 +1,11 @@
-from app.mock_store import iso_now
+from datetime import UTC, datetime
+
 from app.schemas import AdminAuditLogOut
+
+
+def iso_now() -> str:
+    return datetime.now(UTC).isoformat()
+
 
 _audit_logs = [
     AdminAuditLogOut(

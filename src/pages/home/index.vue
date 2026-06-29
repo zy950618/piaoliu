@@ -3,11 +3,14 @@
     <view class="hero panel glass">
       <view class="between">
         <view class="row user-row">
-          <view class="avatar">{{ app.user?.avatarText || '海' }}</view>
+          <view class="avatar">
+            <image v-if="app.user?.avatarUrl" class="avatar-image" :src="app.user.avatarUrl" mode="aspectFill" />
+            <text v-else>{{ app.user?.avatarText || '海' }}</text>
+          </view>
           <view>
             <view class="row name-row">
               <text class="title">{{ app.user?.nickname || '匿名岛民' }}</text>
-              <text v-if="app.user?.isVip" class="tag vip-tag">VIP</text>
+              <VipBadge v-if="app.user?.isVip" variant="standard" glow />
             </view>
             <text class="muted">微信小程序 / iOS / Android 数据互通</text>
           </view>
@@ -68,9 +71,9 @@
             <text class="entry-badge">大冒险 +{{ quotaLeft('dare') }}</text>
           </view>
         </view>
-        <view class="entry tree" @tap="go('/pages/treehole/index')">
-          <text class="entry-title">树洞</text>
-          <text class="entry-copy">把重的话匿名放下</text>
+        <view class="entry tree" @tap="go('/pages/game/index')">
+          <text class="entry-title">游戏星系</text>
+          <text class="entry-copy">树洞、真心话和大冒险</text>
           <view class="entry-badges">
             <text class="entry-badge">发 +{{ quotaLeft('treehole_post') }}</text>
           </view>
@@ -106,6 +109,7 @@
 <script setup lang="ts">
 import { onLoad } from '@dcloudio/uni-app'
 import QuotaGrid from '@/components/QuotaGrid.vue'
+import VipBadge from '@/components/VipBadge.vue'
 import { navigateTo, showToast, switchTab } from '@/services/feedback'
 import { useAppStore } from '@/stores/app'
 import type { QuotaType } from '@/types/domain'
@@ -117,7 +121,7 @@ onLoad(() => {
 })
 
 function go(url: string) {
-  if (url === '/pages/bottle/index' || url === '/pages/treehole/index' || url === '/pages/plaza/index' || url === '/pages/game/index') {
+  if (url === '/pages/bottle/index' || url === '/pages/plaza/index' || url === '/pages/game/index' || url === '/pages/messages/index') {
     switchTab(url)
     return
   }
@@ -154,6 +158,7 @@ async function watchAd() {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
   width: 86rpx;
   height: 86rpx;
   border-radius: 50%;
@@ -161,6 +166,13 @@ async function watchAd() {
   background: #2d6c73;
   font-size: 34rpx;
   font-weight: 700;
+}
+
+.avatar-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
 }
 
 .name-row {

@@ -1,12 +1,12 @@
 import type { PlazaComment, PlazaMedia, PlazaPost } from '@/types/domain'
-
-const API_BASE_URL = 'http://127.0.0.1:8100'
+import { requestJson } from '@/services/http'
 
 type PlazaPostDto = {
   id: string
   author_id: string
   author_name: string
   icon_text: string
+  icon_url?: string
   topic: string
   content: string
   media_type?: PlazaPost['mediaType']
@@ -40,12 +40,24 @@ type PlazaMediaDto = {
   created_at: string
 }
 
+type PlazaMediaInput = {
+  mediaType: PlazaMedia['mediaType']
+  url: string
+  mimeType: string
+  storageKey?: string
+  sizeBytes?: number
+  durationSeconds?: number
+  width?: number
+  height?: number
+}
+
 type PlazaCommentDto = {
   id: string
   post_id: string
   author_id: string
   author_name: string
   icon_text: string
+  icon_url?: string
   author_gender?: PlazaComment['authorGender']
   author_age_range?: string
   author_verified?: boolean
@@ -56,27 +68,13 @@ type PlazaCommentDto = {
   created_at: string
 }
 
-async function requestJson<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {})
-    },
-    ...options
-  })
-  if (!response.ok) {
-    const body = await response.text()
-    throw new Error(body || `HTTP_${response.status}`)
-  }
-  return response.json() as Promise<T>
-}
-
 function toPlazaPost(dto: PlazaPostDto): PlazaPost {
   return {
     id: dto.id,
     authorId: dto.author_id,
     authorName: dto.author_name,
     iconText: dto.icon_text,
+    iconUrl: dto.icon_url,
     topic: dto.topic,
     content: dto.content,
     mediaType: dto.media_type,
@@ -120,6 +118,7 @@ function toPlazaComment(dto: PlazaCommentDto): PlazaComment {
     authorId: dto.author_id,
     authorName: dto.author_name,
     iconText: dto.icon_text,
+    iconUrl: dto.icon_url,
     authorGender: dto.author_gender,
     authorAgeRange: dto.author_age_range,
     authorVerified: dto.author_verified,
@@ -147,14 +146,27 @@ export const plazaApi = {
     return toPlazaPost(post)
   },
 
-  async publishPost(content: string, options: { mediaType?: PlazaPost['mediaType']; mediaCount?: number } = {}) {
+  async publishPost(content: string, options: { mediaType?: PlazaPost['mediaType']; mediaCount?: number; media?: PlazaMediaInput[] } = {}) {
+    const media = options.media || []
+    const mediaType = options.mediaType || (media[0]?.mediaType ?? 'text')
+    const mediaCount = options.mediaCount ?? media.length
     const post = await requestJson<PlazaPostDto>('/plaza/posts', {
       method: 'POST',
-      body: JSON.stringify({
+      body: {
         content,
-        media_type: options.mediaType || 'image',
-        media_count: options.mediaCount || 1
-      })
+        media_type: mediaType,
+        media_count: mediaCount,
+        media: media.map((item) => ({
+          media_type: item.mediaType,
+          url: item.url,
+          mime_type: item.mimeType,
+          storage_key: item.storageKey,
+          size_bytes: item.sizeBytes,
+          duration_seconds: item.durationSeconds,
+          width: item.width,
+          height: item.height
+        }))
+      }
     })
     return toPlazaPost(post)
   },

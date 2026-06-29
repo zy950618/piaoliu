@@ -1,16 +1,18 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.mock_store import consume_quota, get_status
+from app import db_business
+from app.db import get_db_session
 from app.schemas import ConsumeQuotaRequest, QuotaItem, QuotaType
 
 router = APIRouter(prefix="/quota", tags=["quota"])
 
 
 @router.get("/today", response_model=dict[QuotaType, QuotaItem])
-def quota_today() -> dict[QuotaType, QuotaItem]:
-    return get_status().quotas
+async def quota_today(session: AsyncSession = Depends(get_db_session)) -> dict[QuotaType, QuotaItem]:
+    return (await db_business.get_status(session)).quotas
 
 
 @router.post("/consume", response_model=QuotaItem)
-def quota_consume(payload: ConsumeQuotaRequest) -> QuotaItem:
-    return consume_quota(payload.quota_type, payload.business_id)
+async def quota_consume(payload: ConsumeQuotaRequest, session: AsyncSession = Depends(get_db_session)) -> QuotaItem:
+    return await db_business.consume_quota(session, payload.quota_type, payload.business_id)

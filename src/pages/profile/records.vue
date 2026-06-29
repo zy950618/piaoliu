@@ -20,13 +20,14 @@
 </template>
 
 <script setup lang="ts">
-const records = [
-  { title: '我的瓶子', desc: '已投递和已捞起的瓶子', count: '12' },
-  { title: '我的树洞', desc: '发布、共鸣和回复记录', count: '8' },
-  { title: '真心话记录', desc: '公开和私密真心话', count: '6' },
-  { title: '大冒险记录', desc: '公开和私密大冒险', count: '5' },
-  { title: '举报记录', desc: '安全处理进度', count: '2' }
-]
+import { computed } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
+import { useContentStore } from '@/stores/content'
+
+const content = useContentStore()
+const records = computed(() => content.userRecords)
+
+onLoad(() => content.loadUserRecords())
 </script>
 
 <style scoped lang="scss">

@@ -1,21 +1,23 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.mock_store import ad_reward, commit_ad_reward, prepare_ad_reward
+from app import db_business
+from app.db import get_db_session
 from app.schemas import AdCommitRequest, AdPrepareResponse, AdRewardState, MeStatus
 
 router = APIRouter(prefix="/ads/reward", tags=["ads"])
 
 
 @router.get("/status", response_model=AdRewardState)
-def reward_status() -> AdRewardState:
-    return ad_reward
+async def reward_status(session: AsyncSession = Depends(get_db_session)) -> AdRewardState:
+    return (await db_business.get_status(session)).ad_reward
 
 
 @router.post("/prepare", response_model=AdPrepareResponse)
-def reward_prepare() -> AdPrepareResponse:
-    return AdPrepareResponse(reward_session_id=prepare_ad_reward(), reward_per_quota=ad_reward.reward_per_quota)
+async def reward_prepare(session: AsyncSession = Depends(get_db_session)) -> AdPrepareResponse:
+    return AdPrepareResponse(reward_session_id=await db_business.prepare_ad_reward(session), reward_per_quota=10)
 
 
 @router.post("/commit", response_model=MeStatus)
-def reward_commit(payload: AdCommitRequest) -> MeStatus:
-    return commit_ad_reward(payload.reward_session_id, payload.completed)
+async def reward_commit(payload: AdCommitRequest, session: AsyncSession = Depends(get_db_session)) -> MeStatus:
+    return await db_business.commit_ad_reward(session, payload.reward_session_id, payload.completed)

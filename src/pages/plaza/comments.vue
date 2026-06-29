@@ -11,7 +11,10 @@
     <template v-else-if="post">
       <view class="panel post-panel">
         <view class="post-head">
-          <view class="author-avatar">{{ post.iconText }}</view>
+          <view class="author-avatar">
+            <image v-if="post.iconUrl" class="avatar-image" :src="post.iconUrl" mode="aspectFill" />
+            <text v-else>{{ post.iconText }}</text>
+          </view>
           <view class="author-main">
             <view class="author-line">
               <text class="author-name">{{ post.authorName }}</text>
@@ -28,13 +31,14 @@
         <view v-if="post.media?.length" class="media-preview">
           <template v-if="post.mediaType === 'image'">
             <view class="media-grid" :class="imageGridClass(post.media.length)">
-              <image
+              <view
                 v-for="media in post.media.slice(0, 9)"
                 :key="media.id"
-                class="media-image"
-                :src="media.url"
-                mode="aspectFill"
-              />
+                @tap="previewPostImage(post.media, media.url)"
+                class="media-image-cell"
+              >
+                <image class="media-image" :src="media.url" mode="aspectFill" />
+              </view>
             </view>
           </template>
 
@@ -78,7 +82,10 @@
         </view>
 
         <view v-else v-for="comment in comments" :key="comment.id" class="panel comment-card">
-          <view class="comment-avatar" :style="{ background: avatarColor(comment.iconText) }">{{ comment.iconText }}</view>
+          <view class="comment-avatar" :style="{ background: avatarColor(comment.iconText) }">
+            <image v-if="comment.iconUrl" class="avatar-image" :src="comment.iconUrl" mode="aspectFill" />
+            <text v-else>{{ comment.iconText }}</text>
+          </view>
           <view class="comment-body">
             <view class="comment-title-row">
               <text class="comment-author">{{ comment.authorName }}</text>
@@ -105,6 +112,8 @@
             :auto-height="false"
             placeholder="写一句友善留言"
             @input="clearCommentError"
+            @tap.stop
+            @click.stop
           />
           <view class="send-button" :class="{ disabled: submitting || !commentDraft.trim() }" @tap="submitComment">
             <image class="send-icon" src="/static/icons/send-paper-plane.png" mode="aspectFit" />
@@ -115,9 +124,22 @@
             <view class="check-box" :class="{ checked: privateComment }">{{ privateComment ? '✓' : '' }}</view>
             <text>隐藏，仅主人查看</text>
           </view>
+          <view class="gift-entry" @tap.stop="openGiftModal">送礼物</view>
         </view>
         <text v-if="commentError" class="post-error">{{ commentError }}</text>
       </view>
+
+      <GiftSheet
+        v-if="giftModalOpen"
+        :receiver-name="post.authorName"
+        :wallet-balance="content.wallet?.rechargeCoins || 0"
+        :gifts="content.gifts"
+        :sending-gift-id="sendingGiftId"
+        @close="giftModalOpen = false"
+        @recharge="goWallet"
+        @select="sendGiftToPost"
+      />
+      <GiftSplash :gift="celebrationGift" />
     </template>
   </view>
 </template>
@@ -125,9 +147,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
-import { showToast } from '@/services/feedback'
+import GiftSheet from '@/components/GiftSheet.vue'
+import GiftSplash from '@/components/GiftSplash.vue'
+import { navigateTo, showToast } from '@/services/feedback'
 import { useContentStore } from '@/stores/content'
-import type { PlazaComment, PlazaPost } from '@/types/domain'
+import type { GiftProduct, PlazaComment, PlazaMedia, PlazaPost } from '@/types/domain'
 
 const content = useContentStore()
 const postId = ref('')
@@ -140,9 +164,13 @@ const commentDraft = ref('')
 const commentError = ref('')
 const errorText = ref('')
 const playingVoiceUrl = ref('')
+const giftModalOpen = ref(false)
+const sendingGiftId = ref('')
+const celebrationGift = ref<GiftProduct>()
 const firstMedia = computed(() => post.value?.media?.[0])
 let voicePlayer: ReturnType<typeof uni.createInnerAudioContext> | undefined
 let lastPrivateToggleAt = 0
+let giftTimer: ReturnType<typeof setTimeout> | undefined
 
 onLoad(async (query) => {
   postId.value = String(query?.postId || '')
@@ -155,6 +183,7 @@ onLoad(async (query) => {
 
 onUnload(() => {
   stopVoice()
+  if (giftTimer) clearTimeout(giftTimer)
 })
 
 async function loadPage() {
@@ -163,7 +192,8 @@ async function loadPage() {
   try {
     const [loadedPost, loadedComments] = await Promise.all([
       content.loadPlazaPost(postId.value),
-      content.loadPlazaComments(postId.value)
+      content.loadPlazaComments(postId.value),
+      content.loadWallet()
     ])
     post.value = loadedPost
     comments.value = loadedComments
@@ -187,6 +217,46 @@ function togglePrivateComment() {
   if (now - lastPrivateToggleAt < 120) return
   lastPrivateToggleAt = now
   privateComment.value = !privateComment.value
+}
+
+async function openGiftModal() {
+  await content.loadWallet()
+  giftModalOpen.value = true
+}
+
+async function sendGiftToPost(giftId: string) {
+  if (!post.value || sendingGiftId.value) return
+  const gift = content.gifts.find((item) => item.id === giftId)
+  if (!gift) return
+  if ((content.wallet?.rechargeCoins || 0) < gift.priceCoins) {
+    showToast('金币不足，先去充值')
+    goWallet()
+    return
+  }
+  sendingGiftId.value = giftId
+  try {
+    await content.sendGift(giftId, post.value.authorId)
+    giftModalOpen.value = false
+    playGiftCelebration(gift)
+    showToast(`已送出 ${gift.name}`)
+  } catch {
+    showToast('礼物发送失败，请稍后再试')
+  } finally {
+    sendingGiftId.value = ''
+  }
+}
+
+function goWallet() {
+  giftModalOpen.value = false
+  navigateTo('/pages/wallet/index')
+}
+
+function playGiftCelebration(gift: GiftProduct) {
+  celebrationGift.value = gift
+  if (giftTimer) clearTimeout(giftTimer)
+  giftTimer = setTimeout(() => {
+    celebrationGift.value = undefined
+  }, 1300)
 }
 
 async function submitComment() {
@@ -215,6 +285,12 @@ async function submitComment() {
 
 function imageGridClass(count: number) {
   return `count-${Math.min(Math.max(count, 1), 9)}`
+}
+
+function previewPostImage(media: PlazaMedia[] | undefined, currentUrl: string) {
+  const urls = (media || []).filter((item) => item.mediaType === 'image').map((item) => item.url)
+  if (!urls.length || typeof uni === 'undefined' || !uni.previewImage) return
+  uni.previewImage({ urls, current: currentUrl })
 }
 
 function genderLabel(gender?: 'female' | 'male' | 'unknown') {
@@ -294,8 +370,16 @@ function stopVoice() {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
   color: #fff;
   font-weight: 900;
+}
+
+.avatar-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
 }
 
 .author-avatar {
@@ -380,18 +464,25 @@ function stopVoice() {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.media-image-cell {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 20rpx;
+  background: rgba(35, 108, 114, 0.08);
+}
+
+.media-grid.count-1 .media-image-cell {
+  aspect-ratio: 4 / 3;
+}
+
 .media-image {
   display: block;
   width: 100%;
-  aspect-ratio: 1 / 1;
-  height: auto;
-  border-radius: 20rpx;
-  background: rgba(35, 108, 114, 0.08);
+  height: 100%;
+  border-radius: inherit;
   object-fit: cover;
-}
-
-.media-grid.count-1 .media-image {
-  aspect-ratio: 4 / 3;
 }
 
 .media-video {
@@ -690,7 +781,7 @@ function stopVoice() {
 .composer-bottom {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
   gap: 14rpx;
   margin-top: 9rpx;
   padding-left: 4rpx;
@@ -701,9 +792,21 @@ function stopVoice() {
   align-items: center;
   gap: 10rpx;
   min-width: 0;
+  flex: 1;
   color: #65757b;
   font-size: 22rpx;
   font-weight: 800;
+}
+
+.gift-entry {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 10rpx 16rpx;
+  color: #fff;
+  background: linear-gradient(135deg, #ef3e36, #ff7a45);
+  font-size: 22rpx;
+  font-weight: 900;
+  box-shadow: 0 8rpx 18rpx rgba(239, 62, 54, 0.18);
 }
 
 .check-box {
@@ -765,4 +868,5 @@ function stopVoice() {
   font-size: 23rpx;
   font-weight: 800;
 }
+
 </style>

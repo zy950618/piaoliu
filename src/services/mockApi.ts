@@ -1,4 +1,4 @@
-import { quotaFullLabels } from '@/constants/product'
+﻿import { quotaFullLabels } from '@/constants/product'
 import type {
   AdminDashboard,
   AdminRewardConfigDraft,
@@ -220,6 +220,15 @@ export const mockApi = {
     }
     mockState.settledAdSessions.add(sessionId)
     addAdRewardToAllQuotas()
+    mockState.wallet.rechargeCoins += 1
+    mockState.ledger.unshift({
+      id: `ledger_ad_${Date.now()}`,
+      title: '看视频奖励金币',
+      amount: 1,
+      coinBucket: 'recharge',
+      withdrawable: false,
+      createdAt: nowIso()
+    })
     resetAdCooldown()
     return delay(getMeStatusSnapshot())
   },
@@ -259,7 +268,7 @@ export const mockApi = {
       mockState.contentReviews.unshift({
         id: `review_${bottle.id}`,
         type: 'bottle',
-        category: '漂流瓶',
+        category: 'bottle',
         authorId: mockState.user.id,
         authorName: mockState.user.nickname,
         preview: moderation.maskedText,
@@ -304,6 +313,7 @@ export const mockApi = {
         mockState.conversationThreads.unshift({
           id: `thread_${id}`,
           bottleId: id,
+          participantUserId: bottle.authorId,
           participantName: bottle.authorName,
           participantTag: '漂流瓶回应',
           bottlePreview: bottle.content,
@@ -474,7 +484,7 @@ export const mockApi = {
       mockState.contentReviews.unshift({
         id: `review_${post.id}`,
         type: 'treehole',
-        category: '树洞',
+        category: 'treehole',
         authorId: mockState.user.id,
         authorName: mockState.user.nickname,
         preview: moderation.maskedText,

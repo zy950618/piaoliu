@@ -1,37 +1,34 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import mock_store
+from app import db_business
+from app.db import get_db_session
 from app.schemas import MembershipOrderOut, MembershipProduct, OrderVerifyRequest, OrderVerifyResponse
 
 router = APIRouter(tags=["membership"])
 
 
 @router.get("/membership/products", response_model=list[MembershipProduct])
-def membership_products() -> list[MembershipProduct]:
-    benefits = ["每日次数增加", "会员身份标识", "专属装扮", "历史记录扩容"]
-    return [
-        MembershipProduct(id="vip_month", name="月卡会员", price_label="¥18", platform="all", benefits=benefits),
-        MembershipProduct(id="vip_season", name="季卡会员", price_label="¥45", platform="all", benefits=benefits),
-        MembershipProduct(id="vip_year", name="年卡会员", price_label="¥128", platform="all", benefits=benefits),
-    ]
+async def membership_products(session: AsyncSession = Depends(get_db_session)) -> list[MembershipProduct]:
+    return await db_business.list_membership_products(session)
 
 
 @router.get("/orders", response_model=list[MembershipOrderOut])
-def list_orders() -> list[MembershipOrderOut]:
-    return list(mock_store.orders_by_transaction.values())
+async def list_orders(session: AsyncSession = Depends(get_db_session)) -> list[MembershipOrderOut]:
+    return await db_business.list_membership_orders(session)
 
 
 @router.get("/membership/orders", response_model=list[MembershipOrderOut])
-def list_membership_orders() -> list[MembershipOrderOut]:
-    return list_orders()
+async def list_membership_orders(session: AsyncSession = Depends(get_db_session)) -> list[MembershipOrderOut]:
+    return await db_business.list_membership_orders(session)
 
 
 @router.post("/orders/verify", response_model=OrderVerifyResponse)
-def verify_order(payload: OrderVerifyRequest) -> OrderVerifyResponse:
-    order = mock_store.verify_membership_order(payload.platform, payload.product_id, payload.transaction_id)
-    return OrderVerifyResponse(order=order, user=mock_store.user)
+async def verify_order(payload: OrderVerifyRequest, session: AsyncSession = Depends(get_db_session)) -> OrderVerifyResponse:
+    order, user = await db_business.verify_membership_order(session, payload.platform, payload.product_id, payload.transaction_id)
+    return OrderVerifyResponse(order=order, user=user)
 
 
 @router.post("/membership/orders/verify", response_model=OrderVerifyResponse)
-def verify_membership_order(payload: OrderVerifyRequest) -> OrderVerifyResponse:
-    return verify_order(payload)
+async def verify_membership_order(payload: OrderVerifyRequest, session: AsyncSession = Depends(get_db_session)) -> OrderVerifyResponse:
+    return await verify_order(payload, session)
