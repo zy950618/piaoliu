@@ -366,6 +366,8 @@ export const mockApi = {
             fromMe: true
           }
         ],
+        disciplineStatus: 'violation',
+        disciplineSummary: `命中聊天安全关键词：${moderation.matchedKeywords.join('、')}。`,
         updatedAt: nowIso()
       })
     }

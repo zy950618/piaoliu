@@ -274,8 +274,10 @@
 
         <section v-if="activeTab === 'chats'" class="panel">
           <div class="panel-head">
-            <h2>聊天与互动安全</h2>
-            <p>覆盖漂流瓶回信、树洞回应和广场互动会话</p>
+            <div>
+              <h2>聊天与互动安全</h2>
+              <p>覆盖漂流瓶回信、树洞回应、广场互动和游戏房间纪律</p>
+            </div>
           </div>
           <div class="toolbar-actions">
             <button
@@ -301,13 +303,15 @@
               {{ filter.label }}（{{ chatRiskCount(filter.value) }}）
             </button>
           </div>
-          <table>
+          <table class="chat-table">
             <thead>
               <tr>
                 <th>会话信息</th>
                 <th>来源</th>
                 <th>关联对象</th>
                 <th>最后消息</th>
+                <th>消息数</th>
+                <th>纪律</th>
                 <th>风险</th>
                 <th>状态</th>
                 <th>触发</th>
@@ -315,7 +319,12 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="chat in filteredChats" :key="chat.id">
+              <tr
+                v-for="chat in filteredChats"
+                :key="chat.id"
+                :class="{ selected: selectedChat?.id === chat.id }"
+                @click="selectedChatId = chat.id"
+              >
                 <td>
                   <div class="user-cell">
                     <span class="pill">会话</span>
@@ -349,6 +358,11 @@
                   </div>
                 </td>
                 <td class="preview-cell">{{ chat.lastMessage }}</td>
+                <td>{{ chat.messages.length }} 条</td>
+                <td>
+                  <span class="pill" :class="chat.disciplineStatus">{{ disciplineStatusText(chat.disciplineStatus) }}</span>
+                  <small>{{ sourceTreatmentText(chat.source) }}</small>
+                </td>
                 <td><span class="pill" :class="chat.riskLevel">{{ riskText(chat.riskLevel) }}</span></td>
                 <td><span class="pill" :class="chat.status">{{ chatStatusText(chat.status) }}</span></td>
                 <td>{{ triggerText(chat.reviewTrigger) }}</td>
@@ -356,6 +370,59 @@
               </tr>
             </tbody>
           </table>
+
+          <section v-if="selectedChat" class="chat-detail-panel">
+            <div class="panel-head nested">
+              <div>
+                <h3>完整聊天内容</h3>
+                <p>{{ contentTypeLabel(selectedChat.source) }} · {{ selectedChat.participants.join(' / ') }}</p>
+              </div>
+              <span class="pill" :class="selectedChat.disciplineStatus">{{ disciplineStatusText(selectedChat.disciplineStatus) }}</span>
+            </div>
+
+            <dl class="chat-review-meta">
+              <dt>处理分区</dt>
+              <dd>{{ sourceTreatmentText(selectedChat.source) }}</dd>
+              <dt>纪律摘要</dt>
+              <dd>{{ selectedChat.disciplineSummary }}</dd>
+              <dt>处理策略</dt>
+              <dd>{{ selectedChat.handlingPolicy }}</dd>
+              <dt>关联内容</dt>
+              <dd>{{ selectedChat.relatedContent || '无关联内容' }}</dd>
+              <dt v-if="selectedChat.roomMode">房间模式</dt>
+              <dd v-if="selectedChat.roomMode">{{ gameRoomModeText(selectedChat.roomMode) }}</dd>
+            </dl>
+
+            <div v-if="selectedChat.matchedKeywords?.length" class="chips chat-keywords">
+              <span v-for="word in selectedChat.matchedKeywords" :key="word" class="chip">{{ word }}</span>
+            </div>
+
+            <div class="related-users">
+              <h3>关联用户</h3>
+              <div
+                v-for="(participant, index) in selectedChat.participants"
+                :key="`${selectedChat.id}-detail-${participant}-${index}`"
+                class="related-user"
+              >
+                <strong>{{ participant }}</strong>
+                <span>{{ visibleCode(selectedChat.participantUserIds[index] || '', '账号编号') }}</span>
+              </div>
+            </div>
+
+            <div class="chat-transcript">
+              <h3>消息明细（{{ selectedChat.messages.length }} 条）</h3>
+              <article
+                v-for="message in selectedChat.messages"
+                :key="message.id"
+                class="chat-bubble"
+                :class="{ mine: message.fromMe, room: message.type === 'game_room' }"
+              >
+                <small>{{ message.senderName }} · {{ turnTypeText(message.type) }} · {{ formatDateTime(message.createdAt) }}</small>
+                <p>{{ message.body }}</p>
+                <small v-for="line in messageExtraLines(message)" :key="`${message.id}-${line}`">{{ line }}</small>
+              </article>
+            </div>
+          </section>
         </section>
 
         <section v-if="activeTab === 'reports'" class="panel">
@@ -496,6 +563,7 @@ import type {
   AdminContentReviewItem,
   AdminChatReviewItem,
   AdminReportItem,
+  ConversationTurn,
   ContentStatus,
   AdminContentReviewItem as ContentReviewItemAlias
 } from '@/types/domain'
@@ -585,6 +653,7 @@ const userBatchReason = ref('')
 
 const selectedUserIds = ref<string[]>([])
 const selectedContentIds = ref<string[]>([])
+const selectedChatId = ref('')
 
 const activeContentCategory = ref<ContentCategory>('all')
 const contentRiskFilter = ref<RiskLevel>('all')
@@ -602,6 +671,9 @@ const tabsWithCounts = computed(() =>
     }
     if (tab.key === 'content') {
       return { ...tab, badge: dashboard.value.contentReviews.length }
+    }
+    if (tab.key === 'chats') {
+      return { ...tab, badge: dashboard.value.chatReviews.length }
     }
     if (tab.key === 'reports') {
       return { ...tab, badge: dashboard.value.reports.length }
@@ -670,7 +742,8 @@ const categoryLabelMap: Record<ContentCategory, string> = {
 const contentTypeLabelMap: Record<AdminChatReviewItem['source'], string> = {
   bottle: '漂流瓶',
   treehole: '树洞',
-  plaza: '广场'
+  plaza: '广场',
+  game_room: '游戏房间'
 }
 
 const reportStatusLabelMap: Record<AdminReportItem['status'], string> = {
@@ -698,7 +771,8 @@ const chatSourceFilters = computed(() => {
     { value: 'all' as const, label: '全部会话', count: rows.length },
     { value: 'bottle' as const, label: '漂流瓶', count: countSource('bottle') },
     { value: 'treehole' as const, label: '树洞', count: countSource('treehole') },
-    { value: 'plaza' as const, label: '广场', count: countSource('plaza') }
+    { value: 'plaza' as const, label: '广场', count: countSource('plaza') },
+    { value: 'game_room' as const, label: '游戏房间', count: countSource('game_room') }
   ]
 })
 
@@ -758,6 +832,11 @@ const filteredChats = computed(() => {
     rows = rows.filter((item) => item.riskLevel === activeChatRiskFilter.value)
   }
   return rows
+})
+
+const selectedChat = computed(() => {
+  if (!filteredChats.value.length) return undefined
+  return filteredChats.value.find((item) => item.id === selectedChatId.value) || filteredChats.value[0]
 })
 
 const chatRisksBySource = computed(() => {
@@ -854,6 +933,65 @@ function formatReportTypeLabel(type: AdminReportItem['targetType']) {
 
 function contentTypeLabel(type: AdminChatReviewItem['source']) {
   return contentTypeLabelMap[type]
+}
+
+function sourceTreatmentText(source: AdminChatReviewItem['source']) {
+  const map: Record<AdminChatReviewItem['source'], string> = {
+    bottle: '漂流瓶回信复核',
+    treehole: '树洞倾诉保护',
+    plaza: '广场互动治理',
+    game_room: '游戏房间纪律观察'
+  }
+  return map[source]
+}
+
+function disciplineStatusText(status: AdminChatReviewItem['disciplineStatus']) {
+  const map: Record<AdminChatReviewItem['disciplineStatus'], string> = {
+    clear: '正常',
+    watch: '观察',
+    violation: '违规'
+  }
+  return map[status]
+}
+
+function gameRoomModeText(mode: NonNullable<ConversationTurn['gameRoomMode']>) {
+  const map: Record<NonNullable<ConversationTurn['gameRoomMode']>, string> = {
+    truth: '真心话',
+    dare: '大冒险',
+    mixed: '真心话大冒险'
+  }
+  return map[mode]
+}
+
+function turnTypeText(type: ConversationTurn['type'] = 'text') {
+  const map: Record<NonNullable<ConversationTurn['type']>, string> = {
+    text: '文字',
+    image: '图片',
+    voice: '语音',
+    video: '视频',
+    flash_image: '闪照',
+    flash_video: '闪视频',
+    gift: '礼物',
+    game_room: '游戏房间'
+  }
+  return map[type]
+}
+
+function messageExtraLines(message: ConversationTurn) {
+  const lines: string[] = []
+  if (message.gameRoomMode) {
+    lines.push(`房间模式：${gameRoomModeText(message.gameRoomMode)}`)
+  }
+  if (message.giftName) {
+    lines.push(`礼物：${message.giftIconText || ''}${message.giftName}（${message.giftPriceCoins || 0} 金币）`)
+  }
+  if (message.mediaUrl) {
+    lines.push(`媒体内容：${turnTypeText(message.type)}${message.mediaDuration ? `，${message.mediaDuration} 秒` : ''}`)
+  }
+  if (message.flashViewed !== undefined && (message.type === 'flash_image' || message.type === 'flash_video')) {
+    lines.push(`闪照状态：${message.flashViewed ? '已查看' : '未查看'}`)
+  }
+  return lines
 }
 
 function reportStatusLabel(status: AdminReportItem['status']) {

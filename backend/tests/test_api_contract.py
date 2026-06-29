@@ -525,10 +525,20 @@ def test_conversations_are_user_scoped_and_admin_chats_are_monitored():
     assert "turns" in thread
 
     assert chats.status_code == 200
-    chat = next(item for item in chats.json() if item["thread_id"] == thread["id"])
+    chat_rows = chats.json()
+    chat = next(item for item in chat_rows if item["thread_id"] == thread["id"])
     assert thread["participant_user_id"] in chat["participant_user_ids"]
     assert chat["participants"]
     assert chat["messages"]
+
+    sources = {item["source"] for item in chat_rows}
+    assert {"bottle", "treehole", "plaza", "game_room"}.issubset(sources)
+    game_chat = next(item for item in chat_rows if item["source"] == "game_room")
+    assert game_chat["messages"]
+    assert any(message["type"] == "game_room" for message in game_chat["messages"])
+    assert game_chat["discipline_status"] in {"watch", "violation"}
+    assert game_chat["discipline_summary"]
+    assert game_chat["room_mode"] in {"truth", "dare", "mixed"}
 
 
 def test_treehole_react_is_idempotent_for_same_post():

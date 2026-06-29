@@ -252,7 +252,7 @@ export interface AdminContentReviewItem {
 export interface AdminChatReviewItem {
   id: string
   threadId: string
-  source: 'bottle' | 'treehole' | 'plaza'
+  source: 'bottle' | 'treehole' | 'plaza' | 'game_room'
   reporterName?: string
   participantUserIds: string[]
   participants: string[]
@@ -268,6 +268,9 @@ export interface AdminChatReviewItem {
   autoAction: 'mask_and_review' | 'reject' | 'manual_review'
   reason: string
   messages: ConversationTurn[]
+  disciplineStatus: 'clear' | 'watch' | 'violation'
+  disciplineSummary: string
+  roomMode?: 'truth' | 'dare' | 'mixed' | null
   updatedAt: string
 }
 

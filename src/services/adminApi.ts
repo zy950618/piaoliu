@@ -97,7 +97,7 @@ type AdminChatMessageDto = {
 type AdminChatDto = {
   id: string
   thread_id: string
-  source: 'bottle' | 'treehole' | 'plaza'
+  source: 'bottle' | 'treehole' | 'plaza' | 'game_room'
   participant_user_ids: string[]
   participants: string[]
   participant_avatar_texts?: (string | null)[]
@@ -112,6 +112,9 @@ type AdminChatDto = {
   auto_action: 'mask_and_review' | 'reject' | 'manual_review'
   reason: string
   messages: AdminChatMessageDto[]
+  discipline_status?: 'clear' | 'watch' | 'violation'
+  discipline_summary?: string
+  room_mode?: ConversationTurn['gameRoomMode'] | null
   updated_at: string
 }
 
@@ -395,6 +398,9 @@ export const adminApi = {
           gameRoomId: message.game_room_id,
           gameRoomMode: message.game_room_mode
         })),
+        disciplineStatus: item.discipline_status || 'clear',
+        disciplineSummary: item.discipline_summary || '未发现需要处置的聊天纪律问题。',
+        roomMode: item.room_mode,
         updatedAt: item.updated_at
       })),
       reports: reports.map((item) => {

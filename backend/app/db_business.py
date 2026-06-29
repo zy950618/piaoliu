@@ -110,6 +110,7 @@ BASE_QUOTAS: dict[QuotaType, tuple[str, int]] = {
     QuotaType.treehole_post: ("树洞", 4),
 }
 CHAT_RISK_WORDS = ["wechat", "wx", "qq", "telegram", "phone", "mobile", "bank", "transfer", "cash", "微信", "QQ", "手机号", "站外", "私下", "转账"]
+GAME_DISCIPLINE_WORDS = ["刷屏", "辱骂", "威胁", "约线下", "越界", "站外", "私下", "转账", "微信", "QQ", "手机号", "telegram", "wx"]
 TRUTH_QUESTIONS = [
     ("truth_001", "关系", "最近一次让你心动的小细节是什么？"),
     ("truth_002", "自我", "你最希望别人理解你的哪一面？"),
@@ -475,8 +476,7 @@ async def seed_content(session: AsyncSession) -> None:
                     created_at=now(),
                 )
             )
-    if await session.scalar(select(func.count(ConversationThread.id)).where(ConversationThread.user_a_id == current_user_id())) == 0:
-        await create_seed_threads(session)
+    await create_seed_threads(session)
 
 
 async def create_seed_plaza(session: AsyncSession) -> None:
@@ -539,41 +539,171 @@ async def create_seed_plaza(session: AsyncSession) -> None:
 
 async def create_seed_threads(session: AsyncSession) -> None:
     user = await session.get(User, current_user_id())
-    thread_id = stable_user_seed_id("thread", "welcome")
-    thread = ConversationThread(
-        id=thread_id,
+    user_name = user.nickname if user else "海风来信"
+
+    async def add_thread(
+        *,
+        key: str,
+        bottle_id: str | None,
+        user_b_id: str,
+        participant_name: str,
+        participant_tag: str,
+        related_content: str,
+        last_message: str,
+        unread_count: int,
+        turns: list[dict[str, str]],
+        room_mode: str | None = None,
+        report_reason: str | None = None,
+    ) -> None:
+        thread_id = stable_user_seed_id("thread", key)
+        if await session.get(ConversationThread, thread_id) is not None:
+            return
+
+        thread = ConversationThread(
+            id=thread_id,
+            bottle_id=bottle_id,
+            user_a_id=current_user_id(),
+            user_b_id=user_b_id,
+            participant_name=participant_name,
+            participant_tag=participant_tag,
+            bottle_preview=related_content,
+            last_message=last_message,
+            unread_count=unread_count,
+            status="active",
+            created_at=now(),
+            updated_at=now(),
+        )
+        session.add(thread)
+
+        room_id: str | None = None
+        if room_mode:
+            room_id = stable_user_seed_id("room", key)
+            session.add(GameRoom(id=room_id, owner_id=current_user_id(), thread_id=thread_id, mode=room_mode, status="open", created_at=now()))
+
+        seed_turns = []
+        for index, turn in enumerate(turns, start=1):
+            turn_type = turn.get("type", "text")
+            seed_turns.append(
+                ConversationTurn(
+                    id=stable_user_seed_id("turn", f"{key}_{index}"),
+                    thread_id=thread_id,
+                    sender_id=turn["sender_id"],
+                    sender_name=turn["sender_name"],
+                    body=turn["body"],
+                    turn_type=turn_type,
+                    game_room_id=room_id if turn_type == "game_room" else None,
+                    created_at=now(),
+                )
+            )
+        session.add_all(seed_turns)
+
+        if report_reason:
+            session.add(
+                ContentReport(
+                    id=stable_user_seed_id("report", key),
+                    reporter_id=current_user_id(),
+                    target_type="chat",
+                    target_id=thread_id,
+                    reason=report_reason,
+                    status="reviewing",
+                    created_at=now(),
+                )
+            )
+
+    await add_thread(
+        key="welcome",
         bottle_id="bottle_001",
-        user_a_id=current_user_id(),
         user_b_id=CREATOR_IDS["creator_001"],
         participant_name="匿名海岛客",
         participant_tag="漂流瓶回应",
-        bottle_preview="今天把想说的话写进瓶子里，希望捞到的人刚好也需要一点安静。",
+        related_content="今天把想说的话写进瓶子里，希望捞到的人刚好也需要一点安静。",
         last_message="我也有过类似的夜晚，看到这句的时候刚好安静下来。",
         unread_count=1,
-        status="active",
-        created_at=now(),
-        updated_at=now(),
+        turns=[
+            {"sender_id": CREATOR_IDS["creator_001"], "sender_name": "匿名海岛客", "body": "今天把想说的话写进瓶子里，希望捞到的人刚好也需要一点安静。"},
+            {"sender_id": current_user_id(), "sender_name": user_name, "body": "我收到了。今晚确实需要一点安静，谢谢你。"},
+            {"sender_id": CREATOR_IDS["creator_001"], "sender_name": "匿名海岛客", "body": "我也有过类似的夜晚，看到这句的时候刚好安静下来。"},
+        ],
     )
-    session.add(thread)
-    session.add_all(
-        [
-            ConversationTurn(id=stable_user_seed_id("turn", "welcome_1"), thread_id=thread.id, sender_id=CREATOR_IDS["creator_001"], sender_name="匿名海岛客", body=thread.bottle_preview or "", turn_type="text", created_at=now()),
-            ConversationTurn(id=stable_user_seed_id("turn", "welcome_2"), thread_id=thread.id, sender_id=current_user_id(), sender_name=user.nickname if user else "海风来信", body="我收到了。今晚确实需要一点安静，谢谢你。", turn_type="text", created_at=now()),
-            ConversationTurn(id=stable_user_seed_id("turn", "welcome_3"), thread_id=thread.id, sender_id=CREATOR_IDS["creator_001"], sender_name="匿名海岛客", body=thread.last_message or "", turn_type="text", created_at=now()),
-        ]
+    await add_thread(
+        key="treehole_support",
+        bottle_id=None,
+        user_b_id=CREATOR_IDS["creator_005"],
+        participant_name="小满",
+        participant_tag="树洞倾诉",
+        related_content="树洞：有些话不想让熟人看见，但憋在心里又太重了。",
+        last_message="先把今晚过完，明天再决定要不要继续聊。",
+        unread_count=0,
+        turns=[
+            {"sender_id": CREATOR_IDS["creator_005"], "sender_name": "小满", "body": "我在树洞里看到你的回复，想认真说声谢谢。"},
+            {"sender_id": current_user_id(), "sender_name": user_name, "body": "不用急着好起来，先把今晚过完就好。"},
+            {"sender_id": CREATOR_IDS["creator_005"], "sender_name": "小满", "body": "先把今晚过完，明天再决定要不要继续聊。"},
+        ],
     )
-    session.add(
-        MessageNotification(
-            id=stable_user_seed_id("msg", "welcome"),
-            user_id=current_user_id(),
-            title="漂流瓶有新回应",
-            body="匿名海岛客回复了你的瓶子。",
-            unread=True,
-            business_type="bottle",
-            business_id="bottle_001",
-            created_at=now(),
+    await add_thread(
+        key="plaza_comment",
+        bottle_id=None,
+        user_b_id=CREATOR_IDS["creator_003"],
+        participant_name="北岸",
+        participant_tag="广场互动",
+        related_content="广场：附近 2km 有人分享了今天的晚风和一家新开的甜品店。",
+        last_message="如果去那家店，建议坐靠窗的位置。",
+        unread_count=0,
+        turns=[
+            {"sender_id": current_user_id(), "sender_name": user_name, "body": "你说的甜品店是在河边那家吗？"},
+            {"sender_id": CREATOR_IDS["creator_003"], "sender_name": "北岸", "body": "是的，晚上人少一点。"},
+            {"sender_id": CREATOR_IDS["creator_003"], "sender_name": "北岸", "body": "如果去那家店，建议坐靠窗的位置。"},
+        ],
+    )
+    await add_thread(
+        key="game_room_watch",
+        bottle_id=None,
+        user_b_id=CREATOR_IDS["creator_007"],
+        participant_name="南风",
+        participant_tag="游戏房间",
+        related_content="真心话大冒险房间：公开破冰局",
+        last_message="请按房间规则来，别刷屏，也不要约线下。",
+        unread_count=2,
+        room_mode="mixed",
+        report_reason="chat_risk:刷屏,约线下",
+        turns=[
+            {"sender_id": current_user_id(), "sender_name": user_name, "body": "创建了真心话大冒险房间，邀请对方一起玩", "type": "game_room"},
+            {"sender_id": CREATOR_IDS["creator_007"], "sender_name": "南风", "body": "我先选真心话，问题可以轻一点。"},
+            {"sender_id": current_user_id(), "sender_name": user_name, "body": "可以，公开房间不问隐私。"},
+            {"sender_id": CREATOR_IDS["creator_007"], "sender_name": "南风", "body": "有人开始刷屏，还想约线下，先提醒一下。"},
+            {"sender_id": current_user_id(), "sender_name": user_name, "body": "请按房间规则来，别刷屏，也不要约线下。"},
+        ],
+    )
+    await add_thread(
+        key="game_room_clean",
+        bottle_id=None,
+        user_b_id=CREATOR_IDS["creator_008"],
+        participant_name="阿树",
+        participant_tag="游戏房间",
+        related_content="真心话房间：轻量聊天局",
+        last_message="这个问题刚好适合今天。",
+        unread_count=0,
+        room_mode="truth",
+        turns=[
+            {"sender_id": current_user_id(), "sender_name": user_name, "body": "创建了真心话房间，邀请对方一起玩", "type": "game_room"},
+            {"sender_id": CREATOR_IDS["creator_008"], "sender_name": "阿树", "body": "我想回答一个关于最近开心瞬间的问题。"},
+            {"sender_id": current_user_id(), "sender_name": user_name, "body": "这个问题刚好适合今天。"},
+        ],
+    )
+
+    if await session.get(MessageNotification, stable_user_seed_id("msg", "welcome")) is None:
+        session.add(
+            MessageNotification(
+                id=stable_user_seed_id("msg", "welcome"),
+                user_id=current_user_id(),
+                title="漂流瓶有新回应",
+                body="匿名海岛客回复了你的瓶子。",
+                unread=True,
+                business_type="bottle",
+                business_id="bottle_001",
+                created_at=now(),
+            )
         )
-    )
 
 
 async def seed_wallet_side_data(session: AsyncSession) -> None:
@@ -1722,6 +1852,34 @@ async def send_thread_gift(session: AsyncSession, thread_id: str, gift_id: str) 
     return wallet, await to_thread(session, thread)
 
 
+def classify_chat_source(thread: ConversationThread, turns: list[ConversationTurn]) -> str:
+    if any(turn.turn_type == "game_room" or turn.game_room_id for turn in turns):
+        return "game_room"
+    if thread.bottle_id:
+        return "bottle"
+    if "树洞" in (thread.participant_tag or ""):
+        return "treehole"
+    return "plaza"
+
+
+def analyze_chat_discipline(source_type: str, turns: list[ConversationTurn], matched_keywords: list[str]) -> tuple[str, str, list[str]]:
+    body_text = "\n".join(turn.body for turn in turns).lower()
+    keywords: list[str] = []
+    for word in [*matched_keywords, *GAME_DISCIPLINE_WORDS]:
+        if word in keywords:
+            continue
+        if word in matched_keywords or word.lower() in body_text:
+            keywords.append(word)
+
+    if source_type == "game_room":
+        if keywords:
+            return "violation", f"命中游戏房间纪律：{', '.join(keywords[:5])}。", keywords
+        return "watch", "游戏房间纪律观察：关注刷屏、辱骂、越界任务和站外导流。", keywords
+    if keywords:
+        return "violation", f"命中聊天安全关键词：{', '.join(keywords[:5])}。", keywords
+    return "clear", "未发现需要处置的聊天纪律问题。", keywords
+
+
 async def admin_chat_reviews(session: AsyncSession) -> list[AdminChatReviewOut]:
     await get_current_user(session)
     threads = (await session.execute(select(ConversationThread).order_by(desc(ConversationThread.updated_at)))).scalars().all()
@@ -1736,14 +1894,42 @@ async def admin_chat_reviews(session: AsyncSession) -> list[AdminChatReviewOut]:
         matched_keywords: list[str] = []
         if reporter and reporter.reason.startswith("chat_risk:"):
             matched_keywords = [word for word in reporter.reason.replace("chat_risk:", "").split(",") if word]
-        risk_level = "high" if matched_keywords else "low"
+        source_type = classify_chat_source(thread, turns)
+        discipline_status, discipline_summary, all_keywords = analyze_chat_discipline(source_type, turns, matched_keywords)
+        risk_level = "high" if discipline_status == "violation" else "medium" if discipline_status == "watch" else "low"
+        room_mode = None
+        for turn in turns:
+            if not turn.game_room_id:
+                continue
+            room = await session.get(GameRoom, turn.game_room_id)
+            if room:
+                room_mode = room.mode
+                break
         owner_name = owner.nickname if owner else thread.user_a_id
         participant_name = participant.nickname if participant else thread.participant_name
         owner_avatar_text = owner.avatar_text if owner else None
         owner_avatar_url = owner.avatar_url if owner else None
         participant_avatar_text = participant.avatar_text if participant else None
         participant_avatar_url = participant.avatar_url if participant else None
-        source_type = "bottle" if thread.bottle_id else ("treehole" if "树洞" in (thread.participant_tag or "") else "plaza")
+        if reporter and reporter.status == "reviewing":
+            status = "reviewing"
+        elif reporter and reporter.status == "resolved":
+            status = "resolved"
+        elif discipline_status == "violation":
+            status = "reviewing"
+        elif discipline_status == "watch":
+            status = "pending"
+        else:
+            status = "resolved"
+        if source_type == "game_room":
+            handling_policy = "游戏房间纪律复核" if discipline_status == "violation" else "游戏房间纪律观察"
+        elif all_keywords:
+            handling_policy = "聊天关键词脱敏并人工复核"
+        else:
+            handling_policy = "聊天上下文留存观察"
+        reason = discipline_summary
+        if reporter and not reporter.reason.startswith("chat_risk:"):
+            reason = reporter.reason
         rows.append(AdminChatReviewOut(
             id=reporter.id if reporter else f"chat_review_{thread.id}",
             thread_id=thread.id,
@@ -1755,13 +1941,16 @@ async def admin_chat_reviews(session: AsyncSession) -> list[AdminChatReviewOut]:
             related_content=thread.bottle_preview or "",
             last_message=thread.last_message or "",
             risk_level=risk_level,
-            status="reviewing" if reporter and reporter.status == "reviewing" else "resolved" if reporter and reporter.status == "resolved" else "pending" if reporter else "resolved",
-            review_trigger="keyword" if matched_keywords else "risk",
-            handling_policy="chat_mask_and_manual_review" if matched_keywords else "chat_context_monitor",
-            matched_keywords=matched_keywords,
-            auto_action="mask_and_review" if matched_keywords else "manual_review",
-            reason=reporter.reason if reporter else "会话留存监控",
+            status=status,
+            review_trigger="keyword" if all_keywords else "risk",
+            handling_policy=handling_policy,
+            matched_keywords=all_keywords,
+            auto_action="mask_and_review" if discipline_status == "violation" else "manual_review",
+            reason=reason,
             messages=[await to_turn(session, turn) for turn in turns],
+            discipline_status=discipline_status,
+            discipline_summary=discipline_summary,
+            room_mode=room_mode,
             updated_at=iso(thread.updated_at),
         ))
     return rows

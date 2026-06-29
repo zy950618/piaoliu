@@ -568,6 +568,10 @@ tbody tr:hover {
   background: #f7faf9;
 }
 
+tbody tr.selected {
+  background: #eef8f6;
+}
+
 .preview-cell {
   max-width: 320px;
 }
@@ -601,9 +605,16 @@ tbody tr:hover {
 }
 
 .pill.low,
-.pill.normal {
+.pill.normal,
+.pill.clear,
+.pill.resolved {
   color: #206246;
   background: #ddf3e8;
+}
+
+.pill.violation {
+  color: #8e312d;
+  background: #fde8e6;
 }
 
 .primary-button,
@@ -704,6 +715,31 @@ dd {
   border-top: 1px solid #edf2f0;
 }
 
+.chat-table tbody tr {
+  cursor: pointer;
+}
+
+.chat-detail-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #edf2f0;
+}
+
+.chat-review-meta {
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: start;
+}
+
+.chat-review-meta dd {
+  margin: 0 0 8px;
+}
+
+.chat-keywords {
+  margin-bottom: 2px;
+}
+
 .chat-transcript h3,
 .related-users h3 {
   margin: 0 0 12px;
@@ -777,6 +813,16 @@ dd {
   border: 1px solid #dce5e1;
   border-radius: 12px;
   background: #f8fbfa;
+}
+
+.chat-bubble.mine {
+  border-color: #b9d8d4;
+  background: #eef8f6;
+}
+
+.chat-bubble.room {
+  border-color: #d6c58e;
+  background: #fff8df;
 }
 
 .chat-bubble p {

@@ -896,6 +896,8 @@ const chatReviews: AdminChatReviewItem[] = [
     autoAction: 'manual_review',
     reason: '用户举报后进入聊天上下文复核',
     messages: conversationThreads[0]?.turns.map((turn) => ({ ...turn })) ?? [],
+    disciplineStatus: 'clear',
+    disciplineSummary: '未发现需要处置的聊天纪律问题。',
     updatedAt: '2026-06-23 10:31'
   },
   {
@@ -914,6 +916,8 @@ const chatReviews: AdminChatReviewItem[] = [
     autoAction: 'manual_review',
     reason: '好友申请前对话需要确认是否存在骚扰或诱导',
     messages: conversationThreads[1]?.turns.map((turn) => ({ ...turn })) ?? [],
+    disciplineStatus: 'watch',
+    disciplineSummary: '好友申请前对话进入观察，重点确认是否存在骚扰或诱导。',
     updatedAt: '2026-06-23 09:48'
   },
   {
@@ -948,7 +952,91 @@ const chatReviews: AdminChatReviewItem[] = [
         fromMe: false
       }
     ],
+    disciplineStatus: 'violation',
+    disciplineSummary: '命中聊天安全关键词：私下聊、快速赚金币。',
     updatedAt: '2026-06-23 08:54'
+  },
+  {
+    id: 'chat_review_004',
+    threadId: 'manual_plaza_001',
+    source: 'plaza',
+    reporterName: '北岸',
+    participantUserIds: ['user_mock_001', 'creator_003'],
+    participants: ['海风来信', '北岸'],
+    relatedContent: '广场：附近 2km 有人分享了今天的晚风和一家新开的甜品店。',
+    lastMessage: '如果去那家店，建议坐靠窗的位置。',
+    riskLevel: 'low',
+    status: 'resolved',
+    reviewTrigger: 'risk',
+    handlingPolicy: '广场互动治理',
+    autoAction: 'manual_review',
+    reason: '广场评论转私信后保留上下文观察',
+    messages: [
+      {
+        id: 'plaza_chat_turn_001',
+        senderName: '海风来信',
+        body: '你说的甜品店是在河边那家吗？',
+        createdAt: '2026-06-23 09:10',
+        fromMe: true
+      },
+      {
+        id: 'plaza_chat_turn_002',
+        senderName: '北岸',
+        body: '是的，晚上人少一点，建议坐靠窗的位置。',
+        createdAt: '2026-06-23 09:12',
+        fromMe: false
+      }
+    ],
+    disciplineStatus: 'clear',
+    disciplineSummary: '未发现需要处置的聊天纪律问题。',
+    updatedAt: '2026-06-23 09:12'
+  },
+  {
+    id: 'chat_review_005',
+    threadId: 'manual_game_room_001',
+    source: 'game_room',
+    reporterName: '系统风控',
+    participantUserIds: ['user_mock_001', 'creator_007'],
+    participants: ['海风来信', '南风'],
+    relatedContent: '真心话大冒险房间：公开破冰局',
+    lastMessage: '请按房间规则来，别刷屏，也不要约线下。',
+    riskLevel: 'high',
+    status: 'reviewing',
+    reviewTrigger: 'keyword',
+    handlingPolicy: '游戏房间纪律复核',
+    matchedKeywords: ['刷屏', '约线下'],
+    autoAction: 'mask_and_review',
+    reason: '游戏房间命中纪律问题',
+    messages: [
+      {
+        id: 'game_room_turn_001',
+        senderName: '海风来信',
+        body: '创建了真心话大冒险房间，邀请对方一起玩',
+        createdAt: '2026-06-23 09:30',
+        fromMe: true,
+        type: 'game_room',
+        gameRoomId: 'room_mock_001',
+        gameRoomMode: 'mixed'
+      },
+      {
+        id: 'game_room_turn_002',
+        senderName: '南风',
+        body: '有人开始刷屏，还想约线下，先提醒一下。',
+        createdAt: '2026-06-23 09:34',
+        fromMe: false
+      },
+      {
+        id: 'game_room_turn_003',
+        senderName: '海风来信',
+        body: '请按房间规则来，别刷屏，也不要约线下。',
+        createdAt: '2026-06-23 09:35',
+        fromMe: true
+      }
+    ],
+    disciplineStatus: 'violation',
+    disciplineSummary: '命中游戏房间纪律：刷屏、约线下。',
+    roomMode: 'mixed',
+    updatedAt: '2026-06-23 09:35'
   }
 ]
 

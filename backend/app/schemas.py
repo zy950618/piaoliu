@@ -619,7 +619,7 @@ class ConversationTurnOut(BaseModel):
 class AdminChatReviewOut(BaseModel):
     id: str
     thread_id: str
-    source: Literal["bottle", "treehole", "plaza"]
+    source: Literal["bottle", "treehole", "plaza", "game_room"]
     participant_user_ids: list[str]
     participants: list[str]
     related_content: str
@@ -632,6 +632,9 @@ class AdminChatReviewOut(BaseModel):
     auto_action: Literal["mask_and_review", "reject", "manual_review"]
     reason: str
     messages: list[ConversationTurnOut]
+    discipline_status: Literal["clear", "watch", "violation"] = "clear"
+    discipline_summary: str = ""
+    room_mode: Literal["truth", "dare", "mixed"] | None = None
     participant_avatar_texts: list[str | None] = []
     participant_avatar_urls: list[str | None] = []
     updated_at: str
