@@ -13,6 +13,24 @@ def _error_payload(code: str, message: str, details: Any = None) -> dict[str, An
     return payload
 
 
+def _field_path(loc: Any) -> str:
+    if not isinstance(loc, (list, tuple)):
+        return str(loc)
+    return ".".join(str(part) for part in loc)
+
+
+def _field_error_code(error_type: str) -> str:
+    if error_type == "missing":
+        return "FIELD_REQUIRED"
+    if "too_short" in error_type or "min_length" in error_type:
+        return "FIELD_TOO_SHORT"
+    if "too_long" in error_type or "max_length" in error_type:
+        return "FIELD_TOO_LONG"
+    if "type" in error_type:
+        return "FIELD_TYPE_INVALID"
+    return "FIELD_INVALID"
+
+
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
     detail = exc.detail
     if isinstance(detail, dict):
@@ -27,9 +45,22 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
 
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    raw_errors = exc.errors()
+    field_errors = [
+        {
+            "field": _field_path(error.get("loc", "")),
+            "code": _field_error_code(str(error.get("type", ""))),
+            "message": str(error.get("msg", "Invalid field")),
+        }
+        for error in raw_errors
+    ]
     return JSONResponse(
         status_code=422,
-        content=_error_payload("VALIDATION_ERROR", "Request validation failed", exc.errors()),
+        content=_error_payload(
+            "VALIDATION_ERROR",
+            "Request validation failed",
+            {"field_errors": field_errors, "raw_errors": raw_errors},
+        ),
     )
 
 

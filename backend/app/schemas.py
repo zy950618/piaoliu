@@ -61,6 +61,16 @@ class AdRewardState(BaseModel):
     cooldown_minutes: int
     reward_per_quota: int
     active_session_id: str | None = None
+    display_type: Literal["video", "image", "link"] = "video"
+    provider: str = "mock_alliance"
+    placement_id: str = "reward_video_default"
+    title: str = "激励视频"
+    description: str = "完整观看后可获得次数奖励"
+    media_url: str | None = None
+    click_url: str | None = None
+    countdown_seconds: int = 5
+    mini_program_app_id: str | None = None
+    mini_program_path: str | None = None
 
 
 class CheckinState(BaseModel):
@@ -186,9 +196,32 @@ class GamePromptOut(BaseModel):
     visibility: str
 
 
+class GameRandomMatchRequest(BaseModel):
+    mode: Literal["truth", "dare"] = "truth"
+    gender: Literal["all", "female", "male"] = "all"
+    age_range: str | None = Field(default=None, max_length=24)
+    client_match_id: str = Field(min_length=3, max_length=120)
+
+
+class GameRandomMatchResponse(BaseModel):
+    match_id: str
+    room_id: str
+    mode: Literal["truth", "dare"]
+    status: Literal["matched"]
+    target_user: "NearbyUser"
+    quota: QuotaItem
+    source_type: Literal["game_room"]
+    source_id: str
+    evidence_id: str
+    next_action: Literal["wait_confirm"]
+
+
 class AdPrepareResponse(BaseModel):
     reward_session_id: str
     reward_per_quota: int
+    countdown_seconds: int = 5
+    provider: str = "mock_alliance"
+    placement_id: str = "reward_video_default"
 
 
 class AdCommitRequest(BaseModel):
@@ -381,9 +414,11 @@ class NearbyUser(BaseModel):
     id: str
     nickname: str
     icon_text: str
+    icon_url: str | None = None
     gender: Literal["female", "male", "unknown"]
     verified: bool
     age_range: str | None = None
+    city: str | None = None
     distance_km: float | None = None
     distance_text: str
     signature: str
@@ -413,6 +448,16 @@ class AdminRewardConfig(BaseModel):
     ad_reward_per_quota: int
     checkin_rewards: list[int]
     reject_refund_enabled: bool = False
+    ad_display_type: Literal["video", "image", "link"] = "video"
+    ad_provider: str = Field(default="mock_alliance", max_length=80)
+    ad_placement_id: str = Field(default="reward_video_default", max_length=120)
+    ad_title: str = Field(default="激励视频", max_length=80)
+    ad_description: str = Field(default="完整观看后可获得次数奖励", max_length=200)
+    ad_media_url: str | None = Field(default=None, max_length=500)
+    ad_click_url: str | None = Field(default=None, max_length=500)
+    ad_countdown_seconds: int = Field(default=5, ge=3, le=60)
+    mini_program_app_id: str | None = Field(default=None, max_length=80)
+    mini_program_path: str | None = Field(default=None, max_length=200)
 
 
 class AdminSummary(BaseModel):
@@ -431,6 +476,7 @@ class ActionResponse(BaseModel):
 
 class ReportOut(BaseModel):
     id: str
+    reporter_id: str | None = None
     target_type: Literal["user", "bottle", "treehole", "reply", "chat", "plaza", "private_photo"]
     target_id: str
     reason: str
@@ -441,6 +487,76 @@ class ReportOut(BaseModel):
     target_avatar_text: str | None = None
     target_avatar_url: str | None = None
     target_preview: str | None = None
+    evidence_refs: list[str] = Field(default_factory=list)
+    audit_refs: list[str] = Field(default_factory=list)
+
+
+class AdminReportResolveRequest(BaseModel):
+    action: Literal["resolve"] = "resolve"
+    reason: str = Field(min_length=1, max_length=200)
+    penalty_action: Literal["none", "limit_user", "freeze_chat", "offline_content"] = "none"
+
+
+class AdminReportResolveResponse(BaseModel):
+    report_id: str
+    before_status: Literal["queued", "reviewing", "resolved"]
+    after_status: Literal["queued", "reviewing", "resolved"]
+    reason: str
+    audit_id: str
+    resolved_at: str
+    penalty_action: Literal["none", "limit_user", "freeze_chat", "offline_content"] = "none"
+    penalty_target_user_id: str | None = None
+    penalty_target_thread_id: str | None = None
+    penalty_target_content_id: str | None = None
+    penalty_target_content_type: str | None = None
+    penalty_audit_id: str | None = None
+
+
+class AdminReportRestoreRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=200)
+
+
+class AdminReportRestoreResponse(BaseModel):
+    report_id: str
+    thread_id: str
+    before_thread_status: Literal["active", "risk_frozen"]
+    after_thread_status: Literal["active", "risk_frozen"]
+    reason: str
+    audit_id: str
+    restored_at: str
+
+
+class ChatAppealCreateRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=240)
+
+
+class ChatAppealOut(BaseModel):
+    id: str
+    thread_id: str
+    user_id: str
+    user_name: str | None = None
+    participant_name: str | None = None
+    reason: str
+    status: Literal["pending", "approved", "rejected"]
+    admin_reason: str | None = None
+    audit_refs: list[str] = Field(default_factory=list)
+    created_at: str
+    updated_at: str
+
+
+class AdminChatAppealReviewRequest(BaseModel):
+    action: Literal["approve", "reject"]
+    reason: str = Field(min_length=1, max_length=240)
+
+
+class AdminChatAppealReviewResponse(BaseModel):
+    appeal_id: str
+    thread_id: str
+    before_status: Literal["pending", "approved", "rejected"]
+    after_status: Literal["pending", "approved", "rejected"]
+    thread_status: Literal["active", "risk_frozen"]
+    audit_id: str
+    reviewed_at: str
 
 
 class BlockOut(BaseModel):
@@ -519,6 +635,7 @@ class AdminAuditLogOut(BaseModel):
     action: str
     target_type: str
     target_id: str
+    detail: str | None = None
     created_at: str
 
 
@@ -643,6 +760,8 @@ class AdminChatReviewOut(BaseModel):
 class ConversationThreadOut(BaseModel):
     id: str
     bottle_id: str | None = None
+    status: Literal["active", "risk_frozen"] = "active"
+    frozen_notice: str | None = None
     participant_user_id: str
     participant_name: str
     participant_avatar_text: str | None = None
@@ -684,3 +803,194 @@ class WalletRechargeRequest(BaseModel):
 class WalletRechargeResponse(BaseModel):
     order_id: str
     wallet: WalletState
+
+
+PrivatePhotoReviewStatus = Literal["ai_pending", "ai_approved", "manual_required", "manual_approved", "rejected", "frozen", "appeal_pending"]
+PrivatePhotoRiskLevel = Literal["low_risk", "medium_risk", "high_risk"]
+PrivatePhotoRevenueState = Literal["frozen", "eligible", "ineligible"]
+
+
+class PrivatePhotoCreateRequest(BaseModel):
+    file_id: str | None = Field(default=None, max_length=120)
+    upload_token: str | None = Field(default=None, max_length=120)
+    visibility: Literal["private"] = "private"
+    caption: str | None = Field(default=None, max_length=160)
+    client_upload_id: str | None = Field(default=None, max_length=120)
+
+
+class PrivatePhotoReviewOut(BaseModel):
+    id: str
+    owner_id: str
+    review_status: PrivatePhotoReviewStatus
+    risk_level: PrivatePhotoRiskLevel
+    model_labels: list[str]
+    confidence: float
+    auto_action: Literal["approve", "manual_review", "reject", "freeze"]
+    revenue_state: PrivatePhotoRevenueState
+    user_visible_message: str
+    created_at: str
+    manual_review: dict[str, str] | None = None
+    appeal_state: str | None = None
+    audit_refs: list[str] = Field(default_factory=list)
+
+
+class PrivatePhotoUnlockNewResponse(BaseModel):
+    unlock_id: str
+    photo_id: str
+    charged_amount: int
+    creator_revenue_state: PrivatePhotoRevenueState
+    audit_id: str
+
+
+class PrivatePhotoAppealRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=200)
+
+
+class PrivatePhotoAppealResponse(BaseModel):
+    photo_id: str
+    review_status: PrivatePhotoReviewStatus
+    appeal_state: str
+    revenue_state: PrivatePhotoRevenueState
+    audit_id: str
+
+
+class AdminPrivatePhotoReviewOut(BaseModel):
+    id: str
+    photo_id: str
+    user_id: str
+    review_status: PrivatePhotoReviewStatus
+    risk_level: PrivatePhotoRiskLevel
+    model_labels: list[str]
+    confidence: float
+    auto_action: Literal["approve", "manual_review", "reject", "freeze"]
+    report_count: int = 0
+    revenue_state: PrivatePhotoRevenueState
+    assigned_admin_id: str | None = None
+    updated_at: str
+
+
+class AdminPrivatePhotoReviewRequest(BaseModel):
+    action: Literal["approve", "reject", "freeze", "unfreeze", "request_more_review"]
+    reason: str = Field(min_length=1, max_length=200)
+    manual_labels: list[str] = Field(default_factory=list)
+    revenue_action: Literal["keep_frozen", "release", "forfeit"] = "keep_frozen"
+
+
+class AdminPrivatePhotoReviewResponse(BaseModel):
+    review_id: str
+    before_status: PrivatePhotoReviewStatus
+    after_status: PrivatePhotoReviewStatus
+    before_revenue_state: PrivatePhotoRevenueState
+    after_revenue_state: PrivatePhotoRevenueState
+    audit_id: str
+
+
+class AdminPrivatePhotoRiskSummary(BaseModel):
+    low_risk: int
+    medium_risk: int
+    high_risk: int
+    manual_required: int
+    frozen: int
+
+
+ChatSourceType = Literal["bottle_reply", "plaza_comment", "treehole_comment", "game_room", "private_room", "match_expand", "friend"]
+ChatConversationStatus = Literal["pending", "active", "muted", "blocked", "expired", "reported", "risk_frozen"]
+
+
+class ChatContextRequestCreate(BaseModel):
+    target_user_id: str = Field(min_length=1, max_length=80)
+    source_type: ChatSourceType
+    source_id: str | None = Field(default=None, max_length=120)
+    reply_id: str | None = Field(default=None, max_length=120)
+    initiator_action: Literal["reply", "continue_chat", "private_chat", "room_confirm"]
+    evidence_id: str | None = Field(default=None, max_length=120)
+
+
+class ChatContextRequestAccept(BaseModel):
+    confirm_action: Literal["reply", "continue_chat", "private_chat", "room_confirm"]
+    evidence_id: str = Field(min_length=1, max_length=120)
+
+
+class ChatContextRequestReject(BaseModel):
+    reason: str = Field(min_length=1, max_length=160)
+
+
+class ChatContextRequestOut(BaseModel):
+    id: str
+    status: ChatConversationStatus
+    conversation_id: str | None = None
+    source_type: ChatSourceType
+    source_id: str | None = None
+    source_summary: dict[str, str]
+    rate_limit: dict[str, int | str]
+
+
+class MatchExpandContextResponse(BaseModel):
+    request: ChatContextRequestOut
+    gate: Literal["vip", "drift_coins"]
+    cost_coins: int
+    remaining_drift_coins: int
+    user: UserProfile
+    thread_id: str | None = None
+
+
+class ChatMessageCreate(BaseModel):
+    content_type: Literal["text", "image", "voice", "system_source_card"] = "text"
+    content: str = Field(min_length=1, max_length=500)
+    client_message_id: str | None = Field(default=None, max_length=120)
+
+
+class ChatMessageOut(BaseModel):
+    id: str
+    sender_id: str
+    content_type: Literal["text", "image", "voice", "system_source_card"]
+    content: str
+    status: Literal["sent", "risk_pending", "blocked"]
+    created_at: str
+
+
+class ChatConversationOut(BaseModel):
+    id: str
+    status: ChatConversationStatus
+    source_type: ChatSourceType
+    source_id: str | None = None
+    source_summary: dict[str, str]
+    participants: list[str]
+    friendship_state: Literal["none", "friend"] = "none"
+    expires_at: str | None = None
+    last_message: str | None = None
+    rate_limit: dict[str, int | str] = Field(default_factory=dict)
+    risk_state: Literal["clear", "reported", "risk_frozen", "blocked"] = "clear"
+    report_state: Literal["none", "reported"] = "none"
+    messages: list[ChatMessageOut] = Field(default_factory=list)
+    audit_refs: list[str] = Field(default_factory=list)
+
+
+class ChatMessageSendResponse(BaseModel):
+    message_id: str
+    status: Literal["sent", "risk_pending", "blocked"]
+    risk_labels: list[str] = Field(default_factory=list)
+    audit_id: str
+
+
+class ChatConversationReportRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=160)
+    message_ids: list[str] = Field(default_factory=list)
+    description: str | None = Field(default=None, max_length=500)
+
+
+class ChatConversationReportResponse(BaseModel):
+    report_id: str
+    conversation_status: ChatConversationStatus
+    audit_id: str
+
+
+class ChatConversationBlockRequest(BaseModel):
+    target_user_id: str = Field(min_length=1, max_length=80)
+    reason: str = Field(min_length=1, max_length=160)
+
+
+class ChatConversationBlockResponse(BaseModel):
+    block_id: str
+    conversation_status: ChatConversationStatus
+    audit_id: str

@@ -4,14 +4,22 @@ import type {
   BottleTargetGender,
   BottleTargetScope,
   CheckinState,
+  ChatAppeal,
   CoinLedgerItem,
   ConversationThread,
   ConversationTurn,
+  ContextChatConversation,
+  ContextChatRequest,
+  ContextChatRequestAcceptPayload,
+  ContextChatRequestPayload,
   CreatorProfile,
   DareTask,
   GiftProduct,
+  GameRandomMatch,
+  GameRandomMatchMode,
   MembershipProduct,
   MessageItem,
+  MatchExpandContextResponse,
   NearbyUser,
   PrivatePhoto,
   ReferralState,
@@ -24,12 +32,15 @@ import type {
   WalletState
 } from '@/types/domain'
 import { requestJson } from '@/services/http'
+import { resolveAvatarUrl } from '@/utils/avatar'
 
 export interface BottleFilterOptions {
   city?: string
   gender?: string
   ageRange?: string
 }
+
+export type ReportableTargetType = 'user' | 'bottle' | 'plaza'
 
 type BottleDto = {
   id: string
@@ -100,6 +111,8 @@ type ConversationTurnDto = {
 type ConversationThreadDto = {
   id: string
   bottle_id?: string
+  status?: 'active' | 'risk_frozen'
+  frozen_notice?: string | null
   participant_user_id: string
   participant_name: string
   participant_avatar_text?: string
@@ -110,6 +123,65 @@ type ConversationThreadDto = {
   updated_at: string
   unread_count: number
   turns: ConversationTurnDto[]
+}
+
+type ChatAppealDto = {
+  id: string
+  thread_id: string
+  user_id: string
+  user_name?: string | null
+  participant_name?: string | null
+  reason: string
+  status: ChatAppeal['status']
+  admin_reason?: string | null
+  audit_refs: string[]
+  created_at: string
+  updated_at: string
+}
+
+type ContextChatRequestDto = {
+  id: string
+  status: ContextChatRequest['status']
+  conversation_id?: string | null
+  source_type: ContextChatRequest['sourceType']
+  source_id?: string | null
+  source_summary: Record<string, string>
+  rate_limit: Record<string, number | string>
+}
+
+type MatchExpandContextResponseDto = {
+  request: ContextChatRequestDto
+  gate: MatchExpandContextResponse['gate']
+  cost_coins: number
+  remaining_drift_coins: number
+  user: UserProfileDto
+  thread_id?: string | null
+}
+
+type ContextChatMessageDto = {
+  id: string
+  sender_id: string
+  content_type: ContextChatConversation['messages'][number]['contentType']
+  content: string
+  status: ContextChatConversation['messages'][number]['status']
+  created_at: string
+}
+
+type ContextChatConversationDto = {
+  id: string
+  status: ContextChatConversation['status']
+  source_type: ContextChatConversation['sourceType']
+  source_id?: string | null
+  source_summary: Record<string, string>
+  participants: string[]
+  friendship_state: ContextChatConversation['friendshipState']
+  expires_at?: string | null
+  last_message?: string | null
+  rate_limit: Record<string, number | string>
+  risk_state: ContextChatConversation['riskState']
+  report_state: ContextChatConversation['reportState']
+  messages: ContextChatMessageDto[]
+  audit_refs: string[]
 }
 
 type WalletDto = {
@@ -176,6 +248,12 @@ type PrivatePhotoDto = {
   price_coins: number
   blurred?: boolean
   status: PrivatePhoto['status']
+  review_status?: PrivatePhoto['reviewStatus']
+  risk_level?: PrivatePhoto['riskLevel']
+  revenue_state?: PrivatePhoto['revenueState']
+  model_labels?: string[]
+  model_confidence?: number
+  audit_note?: string
   purchased: boolean
 }
 
@@ -183,14 +261,39 @@ type NearbyUserDto = {
   id: string
   nickname: string
   icon_text: string
+  icon_url?: string
   gender: NearbyUser['gender']
   verified: boolean
   age_range?: string
+  city?: string
   distance_km?: number
   distance_text: string
   signature: string
   is_vip: boolean
   online: boolean
+}
+
+type QuotaItemDto = {
+  type: GameRandomMatch['quota']['type']
+  label: string
+  base: number
+  vip_bonus: number
+  ad_bonus: number
+  used: number
+  remaining: number
+}
+
+type GameRandomMatchDto = {
+  match_id: string
+  room_id: string
+  mode: GameRandomMatchMode
+  status: 'matched'
+  target_user: NearbyUserDto
+  quota: QuotaItemDto
+  source_type: 'game_room'
+  source_id: string
+  evidence_id: string
+  next_action: 'wait_confirm'
 }
 
 type BlacklistDto = {
@@ -336,16 +439,72 @@ function toThread(dto: ConversationThreadDto): ConversationThread {
   return {
     id: dto.id,
     bottleId: dto.bottle_id || '',
+    status: dto.status || 'active',
+    frozenNotice: dto.frozen_notice || undefined,
     participantUserId: dto.participant_user_id,
     participantName: dto.participant_name,
     participantAvatarText: dto.participant_avatar_text,
-    participantAvatarUrl: dto.participant_avatar_url,
+    participantAvatarUrl: resolveAvatarUrl(dto.participant_avatar_url, dto.participant_user_id || dto.id),
     participantTag: dto.participant_tag,
     bottlePreview: dto.bottle_preview || '',
     lastMessage: dto.last_message || '',
     updatedAt: dto.updated_at,
     unreadCount: dto.unread_count,
     turns: dto.turns.map(toTurn)
+  }
+}
+
+export function toChatAppeal(dto: ChatAppealDto): ChatAppeal {
+  return {
+    id: dto.id,
+    threadId: dto.thread_id,
+    userId: dto.user_id,
+    userName: dto.user_name,
+    participantName: dto.participant_name,
+    reason: dto.reason,
+    status: dto.status,
+    adminReason: dto.admin_reason,
+    auditRefs: dto.audit_refs || [],
+    createdAt: dto.created_at,
+    updatedAt: dto.updated_at
+  }
+}
+
+function toContextChatRequest(dto: ContextChatRequestDto): ContextChatRequest {
+  return {
+    id: dto.id,
+    status: dto.status,
+    conversationId: dto.conversation_id || undefined,
+    sourceType: dto.source_type,
+    sourceId: dto.source_id || undefined,
+    sourceSummary: dto.source_summary,
+    rateLimit: dto.rate_limit
+  }
+}
+
+function toContextChatConversation(dto: ContextChatConversationDto): ContextChatConversation {
+  return {
+    id: dto.id,
+    status: dto.status,
+    sourceType: dto.source_type,
+    sourceId: dto.source_id || undefined,
+    sourceSummary: dto.source_summary,
+    participants: dto.participants,
+    friendshipState: dto.friendship_state,
+    expiresAt: dto.expires_at || undefined,
+    lastMessage: dto.last_message || undefined,
+    rateLimit: dto.rate_limit,
+    riskState: dto.risk_state,
+    reportState: dto.report_state,
+    messages: dto.messages.map((message) => ({
+      id: message.id,
+      senderId: message.sender_id,
+      contentType: message.content_type,
+      content: message.content,
+      status: message.status,
+      createdAt: message.created_at
+    })),
+    auditRefs: dto.audit_refs
   }
 }
 
@@ -377,7 +536,7 @@ function toUserProfile(dto: UserProfileDto): UserProfile {
     id: dto.id,
     nickname: dto.nickname,
     avatarText: dto.avatar_text,
-    avatarUrl: dto.avatar_url,
+    avatarUrl: resolveAvatarUrl(dto.avatar_url, dto.id),
     platform: dto.platform,
     isVip: dto.is_vip,
     vipLevel: dto.vip_level,
@@ -389,6 +548,36 @@ function toUserProfile(dto: UserProfileDto): UserProfile {
     faceVerified: dto.face_verified,
     genderVerified: dto.gender_verified,
     charmValue: dto.charm_value
+  }
+}
+
+function toNearbyUser(item: NearbyUserDto): NearbyUser {
+  return {
+    id: item.id,
+    nickname: item.nickname,
+    iconText: item.icon_text,
+    iconUrl: resolveAvatarUrl(item.icon_url, item.id),
+    gender: item.gender,
+    verified: item.verified,
+    ageRange: item.age_range,
+    city: item.city,
+    distanceKm: item.distance_km,
+    distanceText: item.distance_text,
+    signature: item.signature,
+    isVip: item.is_vip,
+    online: item.online
+  }
+}
+
+function toQuotaItem(item: QuotaItemDto): GameRandomMatch['quota'] {
+  return {
+    type: item.type,
+    label: item.label,
+    base: item.base,
+    vipBonus: item.vip_bonus,
+    adBonus: item.ad_bonus,
+    used: item.used,
+    remaining: item.remaining
   }
 }
 
@@ -449,9 +638,21 @@ export const businessApi = {
   },
 
   async reportBottle(id: string, reason: string) {
+    return this.reportContent('bottle', id, reason)
+  },
+
+  async reportPlazaPost(id: string, reason: string) {
+    return this.reportContent('plaza', id, reason)
+  },
+
+  async reportUser(id: string, reason: string) {
+    return this.reportContent('user', id, reason)
+  },
+
+  async reportContent(targetType: ReportableTargetType, id: string, reason: string) {
     return requestJson<{ id: string }>(`/reports`, {
       method: 'POST',
-      body: JSON.stringify({ target_type: 'bottle', target_id: id, reason })
+      body: JSON.stringify({ target_type: targetType, target_id: id, reason })
     })
   },
 
@@ -510,9 +711,33 @@ export const businessApi = {
     return requestJson<{ status: string }>('/messages/read-all', { method: 'POST' })
   },
 
+  async markMessageRead(messageId: string): Promise<MessageItem> {
+    const item = await requestJson<MessageDto>(`/messages/${messageId}/read`, { method: 'POST' })
+    return {
+      id: item.id,
+      title: item.title,
+      body: item.body,
+      createdAt: item.created_at,
+      unread: item.unread,
+      businessType: item.business_type,
+      businessId: item.business_id
+    }
+  },
+
   async listConversationThreads() {
     const rows = await requestJson<ConversationThreadDto[]>('/conversations')
     return rows.map(toThread)
+  },
+
+  async markConversationRead(threadId: string) {
+    return toThread(await requestJson<ConversationThreadDto>(`/conversations/${threadId}/read`, { method: 'POST' }))
+  },
+
+  async createChatAppeal(threadId: string, reason: string) {
+    return toChatAppeal(await requestJson<ChatAppealDto>(`/conversations/${threadId}/appeal`, {
+      method: 'POST',
+      body: JSON.stringify({ reason })
+    }))
   },
 
   async sendConversationTurn(threadId: string, payload: Pick<ConversationTurn, 'body' | 'type' | 'mediaUrl' | 'mediaDuration'>) {
@@ -537,6 +762,84 @@ export const businessApi = {
       body: JSON.stringify({ mode })
     })
     return { roomId: result.room_id, thread: toThread(result.thread) }
+  },
+
+  async createContextChatRequest(payload: ContextChatRequestPayload) {
+    return toContextChatRequest(await requestJson<ContextChatRequestDto>('/chat/context-requests', {
+      method: 'POST',
+      body: JSON.stringify({
+        target_user_id: payload.targetUserId,
+        source_type: payload.sourceType,
+        source_id: payload.sourceId,
+        reply_id: payload.replyId,
+        initiator_action: payload.initiatorAction,
+        evidence_id: payload.evidenceId
+      })
+    }))
+  },
+
+  async listContextChatRequests() {
+    const rows = await requestJson<ContextChatRequestDto[]>('/chat/context-requests')
+    return rows.map(toContextChatRequest)
+  },
+
+  async createMatchExpandContextRequest(targetUserId: string): Promise<MatchExpandContextResponse> {
+    const result = await requestJson<MatchExpandContextResponseDto>('/chat/match-expand-requests', {
+      method: 'POST',
+      body: JSON.stringify({
+        target_user_id: targetUserId
+      })
+    })
+    return {
+      request: toContextChatRequest(result.request),
+      gate: result.gate,
+      costCoins: result.cost_coins,
+      remainingDriftCoins: result.remaining_drift_coins,
+      user: toUserProfile(result.user),
+      threadId: result.thread_id || undefined
+    }
+  },
+
+  async acceptContextChatRequest(requestId: string, payload: ContextChatRequestAcceptPayload) {
+    return toContextChatRequest(await requestJson<ContextChatRequestDto>(`/chat/context-requests/${requestId}/accept`, {
+      method: 'POST',
+      body: JSON.stringify({
+        confirm_action: payload.confirmAction,
+        evidence_id: payload.evidenceId
+      })
+    }))
+  },
+
+  async rejectContextChatRequest(requestId: string, reason: string) {
+    return toContextChatRequest(await requestJson<ContextChatRequestDto>(`/chat/context-requests/${requestId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({
+        reason
+      })
+    }))
+  },
+
+  async getContextConversation(conversationId: string) {
+    return toContextChatConversation(await requestJson<ContextChatConversationDto>(`/chat/conversations/${conversationId}`))
+  },
+
+  async sendContextConversationMessage(conversationId: string, content: string) {
+    const result = await requestJson<{ message_id: string; status: ContextChatConversation['messages'][number]['status']; risk_labels: string[]; audit_id: string }>(
+      `/chat/conversations/${conversationId}/messages`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          content_type: 'text',
+          content
+        })
+      }
+    )
+    return {
+      messageId: result.message_id,
+      status: result.status,
+      riskLabels: result.risk_labels,
+      auditId: result.audit_id
+    }
   },
 
   async getWallet() {
@@ -603,6 +906,12 @@ export const businessApi = {
       priceCoins: item.price_coins,
       blurred: item.blurred ?? !item.purchased,
       status: item.status,
+      reviewStatus: item.review_status,
+      riskLevel: item.risk_level,
+      revenueState: item.revenue_state,
+      modelLabels: item.model_labels,
+      modelConfidence: item.model_confidence,
+      auditNote: item.audit_note,
       purchased: item.purchased
     }))
   },
@@ -622,6 +931,12 @@ export const businessApi = {
         priceCoins: result.photo.price_coins,
         blurred: result.photo.blurred ?? !result.photo.purchased,
         status: result.photo.status,
+        reviewStatus: result.photo.review_status,
+        riskLevel: result.photo.risk_level,
+        revenueState: result.photo.revenue_state,
+        modelLabels: result.photo.model_labels,
+        modelConfidence: result.photo.model_confidence,
+        auditNote: result.photo.audit_note,
         purchased: result.photo.purchased
       },
       wallet: toWallet(result.wallet)
@@ -700,6 +1015,30 @@ export const businessApi = {
     }
   },
 
+  async startGameRandomMatch(payload: { mode: GameRandomMatchMode; gender: BottleTargetGender; ageRange?: string; clientMatchId: string }) {
+    const result = await requestJson<GameRandomMatchDto>('/game/random-match', {
+      method: 'POST',
+      body: JSON.stringify({
+        mode: payload.mode,
+        gender: payload.gender,
+        age_range: payload.ageRange,
+        client_match_id: payload.clientMatchId
+      })
+    })
+    return {
+      matchId: result.match_id,
+      roomId: result.room_id,
+      mode: result.mode,
+      status: result.status,
+      targetUser: toNearbyUser(result.target_user),
+      quota: toQuotaItem(result.quota),
+      sourceType: result.source_type,
+      sourceId: result.source_id,
+      evidenceId: result.evidence_id,
+      nextAction: result.next_action
+    }
+  },
+
   async listMembershipProducts() {
     const rows = await requestJson<MembershipProductDto[]>('/membership/products')
     return rows.map((item) => ({
@@ -737,24 +1076,13 @@ export const businessApi = {
 
   async listNearbyUsers(filters: BottleFilterOptions & { distanceKm?: number } = {}) {
     const params = new URLSearchParams()
+    if (filters.city) params.set('city', filters.city)
     if (filters.gender) params.set('gender', filters.gender)
     if (filters.ageRange) params.set('age_range', filters.ageRange)
     if (filters.distanceKm) params.set('distance_km', String(filters.distanceKm))
     const query = params.toString()
     const rows = await requestJson<NearbyUserDto[]>(`/nearby/users${query ? `?${query}` : ''}`)
-    return rows.map((item) => ({
-      id: item.id,
-      nickname: item.nickname,
-      iconText: item.icon_text,
-      gender: item.gender,
-      verified: item.verified,
-      ageRange: item.age_range,
-      distanceKm: item.distance_km,
-      distanceText: item.distance_text,
-      signature: item.signature,
-      isVip: item.is_vip,
-      online: item.online
-    }))
+    return rows.map(toNearbyUser)
   },
 
   async listBlacklist() {

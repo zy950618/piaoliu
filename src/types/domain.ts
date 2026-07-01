@@ -38,6 +38,16 @@ export interface AdRewardState {
   cooldownMinutes: number
   rewardPerQuota: number
   activeSessionId?: string
+  displayType: 'video' | 'image' | 'link'
+  provider: string
+  placementId: string
+  title: string
+  description: string
+  mediaUrl?: string
+  clickUrl?: string
+  countdownSeconds: number
+  miniProgramAppId?: string
+  miniProgramPath?: string
 }
 
 export interface CheckinState {
@@ -162,6 +172,8 @@ export interface ConversationTurn {
 export interface ConversationThread {
   id: string
   bottleId: string
+  status: 'active' | 'risk_frozen'
+  frozenNotice?: string | null
   participantUserId: string
   participantName: string
   participantAvatarText?: string
@@ -172,6 +184,97 @@ export interface ConversationThread {
   updatedAt: string
   unreadCount: number
   turns: ConversationTurn[]
+}
+
+export interface ChatAppeal {
+  id: string
+  threadId: string
+  userId: string
+  userName?: string | null
+  participantName?: string | null
+  reason: string
+  status: 'pending' | 'approved' | 'rejected'
+  adminReason?: string | null
+  auditRefs: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+export type ContextChatSourceType = 'bottle_reply' | 'plaza_comment' | 'treehole_comment' | 'game_room' | 'private_room' | 'match_expand' | 'friend'
+export type ContextChatRequestStatus = 'pending' | 'active' | 'muted' | 'blocked' | 'expired' | 'reported' | 'risk_frozen'
+
+export interface ContextChatRequest {
+  id: string
+  status: ContextChatRequestStatus
+  conversationId?: string
+  sourceType: ContextChatSourceType
+  sourceId?: string
+  sourceSummary: Record<string, string>
+  rateLimit: Record<string, number | string>
+}
+
+export interface MatchExpandContextResponse {
+  request: ContextChatRequest
+  gate: 'vip' | 'drift_coins'
+  costCoins: number
+  remainingDriftCoins: number
+  user: UserProfile
+  threadId?: string
+}
+
+export type GameRandomMatchMode = 'truth' | 'dare'
+
+export interface GameRandomMatch {
+  matchId: string
+  roomId: string
+  mode: GameRandomMatchMode
+  status: 'matched'
+  targetUser: NearbyUser
+  quota: QuotaItem
+  sourceType: 'game_room'
+  sourceId: string
+  evidenceId: string
+  nextAction: 'wait_confirm'
+}
+
+export interface ContextChatRequestPayload {
+  targetUserId: string
+  sourceType: ContextChatSourceType
+  sourceId: string
+  replyId?: string
+  initiatorAction: 'reply' | 'continue_chat' | 'private_chat' | 'room_confirm'
+  evidenceId?: string
+}
+
+export interface ContextChatRequestAcceptPayload {
+  confirmAction: 'reply' | 'continue_chat' | 'private_chat' | 'room_confirm'
+  evidenceId: string
+}
+
+export interface ContextChatMessage {
+  id: string
+  senderId: string
+  contentType: 'text' | 'image' | 'voice' | 'system_source_card'
+  content: string
+  status: 'sent' | 'risk_pending' | 'blocked'
+  createdAt: string
+}
+
+export interface ContextChatConversation {
+  id: string
+  status: ContextChatRequestStatus
+  sourceType: ContextChatSourceType
+  sourceId?: string
+  sourceSummary: Record<string, string>
+  participants: string[]
+  friendshipState: 'none' | 'friend'
+  expiresAt?: string
+  lastMessage?: string
+  rateLimit: Record<string, number | string>
+  riskState: 'clear' | 'reported' | 'risk_frozen' | 'blocked'
+  reportState: 'none' | 'reported'
+  messages: ContextChatMessage[]
+  auditRefs: string[]
 }
 
 export interface AdminSummary {
@@ -201,6 +304,16 @@ export interface AdminRewardConfig {
   adReward: string
   checkinRewards: number[]
   quotaNames: Record<QuotaType, string>
+  adDisplayType: 'video' | 'image' | 'link'
+  adProvider: string
+  adPlacementId: string
+  adTitle: string
+  adDescription: string
+  adMediaUrl?: string
+  adClickUrl?: string
+  adCountdownSeconds: number
+  miniProgramAppId?: string
+  miniProgramPath?: string
 }
 
 export interface AdminRewardConfigDraft {
@@ -208,6 +321,16 @@ export interface AdminRewardConfigDraft {
   adCooldownMinutes: number
   adRewardPerQuota: number
   checkinRewards: number[]
+  adDisplayType: 'video' | 'image' | 'link'
+  adProvider: string
+  adPlacementId: string
+  adTitle: string
+  adDescription: string
+  adMediaUrl?: string
+  adClickUrl?: string
+  adCountdownSeconds: number
+  miniProgramAppId?: string
+  miniProgramPath?: string
 }
 
 export interface AdminUserSummary {
@@ -275,8 +398,43 @@ export interface AdminChatReviewItem {
   updatedAt: string
 }
 
+export interface AdminContextChatRequestItem {
+  id: string
+  status: 'pending' | 'active' | 'muted' | 'blocked' | 'expired' | 'reported' | 'risk_frozen'
+  conversationId?: string | null
+  sourceType: 'bottle_reply' | 'plaza_comment' | 'treehole_comment' | 'game_room' | 'private_room' | 'match_expand' | 'friend'
+  sourceId?: string | null
+  sourceTitle: string
+  participantSummary: string
+  rateLimitText: string
+}
+
+export interface AdminPrivatePhotoReviewItem {
+  id: string
+  photoId: string
+  userId: string
+  reviewStatus: 'ai_pending' | 'ai_approved' | 'manual_required' | 'manual_approved' | 'rejected' | 'frozen' | 'appeal_pending'
+  riskLevel: 'low_risk' | 'medium_risk' | 'high_risk'
+  modelLabels: string[]
+  confidence: number
+  autoAction: 'approve' | 'manual_review' | 'reject' | 'freeze'
+  reportCount: number
+  revenueState: 'frozen' | 'eligible' | 'ineligible'
+  assignedAdminId?: string | null
+  updatedAt: string
+}
+
+export interface AdminPrivatePhotoRiskSummary {
+  lowRisk: number
+  mediumRisk: number
+  highRisk: number
+  manualRequired: number
+  frozen: number
+}
+
 export interface AdminReportItem {
   id: string
+  reporterId?: string
   reporterName: string
   targetType: 'user' | 'bottle' | 'treehole' | 'reply' | 'chat' | 'plaza' | 'private_photo'
   targetId: string
@@ -289,6 +447,8 @@ export interface AdminReportItem {
   status: 'pending' | 'reviewing' | 'resolved'
   priority: 'normal' | 'high'
   createdAt: string
+  evidenceRefs: string[]
+  auditRefs: string[]
 }
 
 export interface AdminAdRewardRecord {
@@ -342,6 +502,10 @@ export interface AdminDashboard {
   users: AdminUserSummary[]
   contentReviews: AdminContentReviewItem[]
   chatReviews: AdminChatReviewItem[]
+  chatAppeals: ChatAppeal[]
+  contextChatRequests: AdminContextChatRequestItem[]
+  privatePhotoReviews: AdminPrivatePhotoReviewItem[]
+  privatePhotoRiskSummary: AdminPrivatePhotoRiskSummary
   reports: AdminReportItem[]
   adRewardRecords: AdminAdRewardRecord[]
   orders: AdminOrderRecord[]
@@ -390,6 +554,12 @@ export interface PrivatePhoto {
   priceCoins: number
   blurred: boolean
   status: ContentStatus
+  reviewStatus?: 'ai_pending' | 'ai_approved' | 'manual_required' | 'manual_approved' | 'rejected' | 'frozen' | 'appeal_pending'
+  riskLevel?: 'low_risk' | 'medium_risk' | 'high_risk'
+  revenueState?: 'frozen' | 'eligible' | 'ineligible'
+  modelLabels?: string[]
+  modelConfidence?: number
+  auditNote?: string
   purchased: boolean
 }
 
@@ -484,9 +654,11 @@ export interface NearbyUser {
   id: string
   nickname: string
   iconText: string
+  iconUrl?: string
   gender: 'female' | 'male' | 'unknown'
   verified: boolean
   ageRange?: string
+  city?: string
   distanceKm?: number
   distanceText: string
   signature: string

@@ -84,6 +84,38 @@
 - 验收：
   - 举报能关闭、维持观察或触发内容/用户处罚。
 
+### 上下文私聊审核
+
+- 接口范围：
+  - `GET /admin/chat/context-requests`
+  - `GET /admin/chat/conversations/{id}`
+  - `POST /admin/chat/conversations/{id}/resolve-report`
+- 后台管理入口：
+  - 上下文私聊审核队列。
+  - 举报聊天详情。
+  - 会话来源跳转和来源卡片。
+- 验收：
+  - 会话必须展示 `source_type`、`source_id`、双向回应/确认证据、参与人、状态和风险标签。
+  - 举报处理必须填写原因，并写入审计日志。
+  - 拉黑、举报、风控冻结后不能继续发送消息。
+
+### 私密照片智能审核
+
+- 接口范围：
+  - `GET /admin/private-photos/reviews`
+  - `GET /admin/private-photos/reviews/{id}`
+  - `POST /admin/private-photos/reviews/{id}/review`
+  - `GET /admin/private-photos/risk-summary`
+- 后台管理入口：
+  - 私密照片 AI 审核结果页。
+  - 人工复核工作台。
+  - 风险等级筛选和收益冻结/解冻处理。
+- 验收：
+  - 展示模型标签、置信度、风险等级、自动动作、人工复核记录和审计记录。
+  - 低风险高置信内容可自动通过；中风险进入人工复核；高风险拒绝或冻结。
+  - 审核中、拒绝、冻结、申诉待处理内容不得产生收益。
+  - 每次人工复核必须填写原因，并记录操作人、时间、前后状态和收益动作。
+
 ### 奖励配置
 
 - 接口范围：

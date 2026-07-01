@@ -1088,3 +1088,3845 @@
   - H5 5173 已重启。
   - `http://localhost:5173/#/pages/plaza/comments?postId=plaza_001` 返回 200。
   - `http://localhost:5173/static/icons/send-paper-plane.png` 返回 200，大小 822 bytes。
+
+## 2026-06-29 LOOP-0 规则读取与差异分析
+
+- 处理范围：`AGENTS.md`、`README.md`、`docs/product-rules.md`、`docs/api-contract.md`、`docs/design-system.md`、`docs/backend-interface-admin-plan.md`、`docs/multi-agent-workbench.md`、`docs/requirements-ledger.md`、`docs/completed-checklist.md`、`docs/detail-optimization-inbox.md`、`docs/work-history.md`、`docs/enterprise-loop-v2/*.md`、`docs/enterprise-loop-v2/patches/*.md`。
+- 用户要求：按持续 LOOP 执行，先做规则读取与差异分析，再进入文档规则纠偏和接口契约设计；每轮最多 1 个 P0 或 2 个 P1，不一次性大改。
+- 差异结论：
+  - 旧版“好友是私聊唯一门槛”的规则残留在 `docs/product-rules.md`、`docs/api-contract.md`、`docs/completed-checklist.md`、`docs/enterprise-loop-v2/00_CODEX_MASTER_PROMPT_ENTERPRISE_LOOP_V2.md`、`docs/enterprise-loop-v2/04_PRODUCTION_ACCEPTANCE_GATES.md`、`docs/enterprise-loop-v2/07_USER_EXPERIENCE_AND_COMMERCIAL_GROWTH_ROADMAP.md`、`docs/enterprise-loop-v2/CODEX_COPY_PROMPT_SHORT_V2.md`、`docs/enterprise-loop-v2/ENTERPRISE_LOOP_ACCEPTANCE_CHECKLIST_DETAILED_V2.md`。
+  - 旧版“私密照片全量先审后展/人工先审”的规则残留在 `docs/product-rules.md`、`docs/completed-checklist.md`、`docs/enterprise-loop-v2/00_CODEX_MASTER_PROMPT_ENTERPRISE_LOOP_V2.md`、`docs/enterprise-loop-v2/04_PRODUCTION_ACCEPTANCE_GATES.md`、`docs/enterprise-loop-v2/08_MONITORING_SLO_SECURITY_ACCESSIBILITY.md`、`docs/enterprise-loop-v2/CODEX_COPY_PROMPT_SHORT_V2.md`、`docs/enterprise-loop-v2/ENTERPRISE_LOOP_ACCEPTANCE_CHECKLIST_DETAILED_V2.md`。
+  - `docs/enterprise-loop-v2/patches/*` 中的旧规则表述属于补丁覆盖说明，不作为当前规则残留删除。
+- 验证记录：
+  - `Get-ChildItem -File -Recurse docs/enterprise-loop-v2,docs/enterprise-loop-v2/patches` 已列出规则包和补丁规则。
+  - `Select-String` 已定位旧规则残留位置。
+- 结论：通过。
+
+## 2026-06-29 LOOP-1 文档规则纠偏
+
+- 处理范围：`docs/product-rules.md`、`docs/backend-interface-admin-plan.md`、`docs/multi-agent-workbench.md`、`docs/requirements-ledger.md`、`docs/completed-checklist.md`、`docs/detail-optimization-inbox.md`、`docs/work-history.md`、`docs/enterprise-loop-v2/*.md`、`docs/enterprise-loop-v2/patches/CODEX_RULE_PATCH_CHAT_PHOTO_V3.md`。
+- 处理动作：
+  - 产品规则改为：禁止无上下文冷启动骚扰；允许明确互动上下文内的陌生人私聊；好友关系不是私聊唯一门槛。
+  - 增加上下文私聊必要证据：`source_type`、`source_id`、双向回应/确认、频控、拉黑、举报、风控和审计。
+  - 私密照片规则改为：AI 智能审核优先、风险分级、人工复核兜底。
+  - 增加收益规则：收益只允许来自审核通过且未冻结内容；审核中、拒绝、冻结、申诉待处理内容不得产生收益。
+  - 后台计划补充上下文私聊审核队列、举报聊天详情、私密照片 AI 审核页、人工复核、风险筛选和收益冻结/解冻。
+  - 已完成清单只标记“规则纠偏完成”，未声明功能完成。
+  - 后续入口新增 O-011、O-012，承接代码实现。
+- 验证记录：
+  - 旧规则搜索剩余命中仅位于补丁废弃说明或“无上下文禁止”验收项。
+  - `git diff --stat` 已确认本轮只改文档和规则包。
+- 当前边界：
+  - 本轮未改业务代码、未改数据库、未改 UI。
+  - 接口和页面仍需 LOOP-3 以后实现和真实冒烟。
+- 结论：通过。
+
+## 2026-06-29 LOOP-2 接口契约与状态机设计
+
+- 处理范围：`docs/api-contract.md`、`docs/backend-interface-admin-plan.md`、`docs/requirements-ledger.md`、`docs/detail-optimization-inbox.md`。
+- 处理动作：
+  - 新增上下文私聊接口契约：`POST /chat/context-requests`、`POST /chat/context-requests/{id}/accept`、`POST /chat/context-requests/{id}/reject`、`GET /chat/conversations`、`GET /chat/conversations/{id}`、`POST /chat/conversations/{id}/messages`、`POST /chat/conversations/{id}/report`、`POST /chat/conversations/{id}/block`。
+  - 新增来源枚举：`bottle_reply`、`plaza_comment`、`treehole_comment`、`game_room`、`private_room`、`match_expand`、`friend`。
+  - 新增会话状态：`pending`、`active`、`muted`、`blocked`、`expired`、`reported`、`risk_frozen`。
+  - 新增私密照片接口契约：`POST /private-photos`、`GET /private-photos`、`GET /private-photos/{id}`、`POST /private-photos/{id}/unlock`、`GET /admin/private-photos/reviews`、`GET /admin/private-photos/reviews/{id}`、`POST /admin/private-photos/reviews/{id}/review`、`GET /admin/private-photos/risk-summary`。
+  - 新增审核状态：`ai_pending`、`ai_approved`、`manual_required`、`manual_approved`、`rejected`、`frozen`、`appeal_pending`。
+  - 新增上下文私聊和私密照片审核错误码。
+  - 需求台账新增 R-007、R-008。
+- 验证记录：
+  - `Select-String` 已检查 `docs/api-contract.md` 包含指定接口、来源枚举、状态枚举和后台入口。
+  - `npm run typecheck` 通过。
+  - `npm run test:frontend` 通过，18 passed。
+  - `npm run build:h5` 通过。
+  - `npm run build:admin` 通过。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q` 通过，38 passed。
+  - FastAPI TestClient 实现边界探测：`POST /chat/context-requests -> 404 {"detail":"Not Found"}`；`GET /chat/conversations -> 404 {"detail":"Not Found"}`；`POST /private-photos -> 405 {"detail":"Method Not Allowed"}`；`GET /admin/private-photos/reviews -> 404 {"detail":"Not Found"}`。
+  - 本轮是契约设计，不声明后端接口已实现；真实接口成功响应需要 LOOP-3 后端最小闭环补齐。
+- 后续入口：
+  - LOOP-3 优先实现 O-011 与 O-012 的后端最小闭环、测试和接口冒烟。
+- 结论：通过。
+
+## 2026-06-29 LOOP-3 上下文私聊后端最小闭环
+
+- 本轮目标：
+  - 只处理 1 个 P0：O-011 上下文私聊最小闭环实现。
+  - 不处理私密照片 AI 审核代码、不做 admin-web 页面、不做用户端 UI、不做数据库迁移。
+- 已读取文件：
+  - `AGENTS.md`
+  - `docs/product-rules.md`
+  - `docs/api-contract.md`
+  - `docs/backend-interface-admin-plan.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+  - `backend/app/schemas.py`
+  - `backend/app/main.py`
+  - `backend/app/routes/messages.py`
+  - `backend/app/routes/bottle.py`
+  - `backend/app/routes/admin.py`
+  - `backend/app/errors.py`
+  - `backend/app/audit.py`
+  - `backend/app/db_business.py`
+  - `backend/tests/test_api_contract.py`
+- 多子 Agent 分工：
+  - Product Rules Agent：确认本轮只落地 R-007，不改 R-008 私密照片规则。
+  - API Contract Agent：按 LOOP-2 契约落地 `/chat/context-requests`、`/chat/conversations`、消息、举报、拉黑和管理员查看接口。
+  - Backend Agent：新增 `backend/app/chat_store.py` 与 `backend/app/routes/chat.py`，在 `main.py` 挂载路由。
+  - Admin Web Agent：本轮仅提供后台接口 `/admin/chat/context-requests` 和 `/admin/chat/conversations/{id}`，不改 `admin-web/`。
+  - User Frontend Agent：本轮不改用户端 UI，入口留到 LOOP-5。
+  - QA Agent：新增 4 条后端契约测试，覆盖无上下文失败、确认激活、举报后台可见、拉黑后禁止发消息。
+  - Security & Risk Agent：保留 `source_type/source_id`、双向证据、频控摘要、拉黑、举报、风险词状态和审计 ID。
+  - Docs Agent：同步更新 `work-history.md`、`requirements-ledger.md`、`completed-checklist.md`、`detail-optimization-inbox.md`。
+- 修改文件：
+  - `backend/app/schemas.py`
+  - `backend/app/chat_store.py`
+  - `backend/app/routes/chat.py`
+  - `backend/app/main.py`
+  - `backend/tests/test_api_contract.py`
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 实现说明：
+  - 新增上下文私聊内存 store，先满足最小可验证闭环，不做数据库迁移。
+  - 无 `source_type/source_id` 的非好友上下文申请返回 `CHAT_CONTEXT_REQUIRED`。
+  - 申请创建为 `pending`，对方确认后创建 `active` 会话。
+  - 会话消息写入审计 ID；举报后状态为 `reported`；拉黑后状态为 `blocked`，继续发消息返回 `CHAT_BLOCKED`。
+  - 管理员可查看上下文申请队列和会话详情。
+- 验证命令：
+  - `python -m compileall -q backend\app backend\tests` 通过。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q` 通过，42 passed。
+  - `npm run typecheck` 通过。
+  - `npm run test:frontend` 通过，18 passed。
+  - `npm run build:admin` 通过。
+  - `npm run build:h5` 通过。
+- 接口冒烟：
+  - `POST /chat/context-requests` 缺少 `source_id`：403，`CHAT_CONTEXT_REQUIRED`。
+  - `POST /chat/context-requests` 带 `source_type=bottle_reply`、`source_id=bottle_smoke_001`：200，`status=pending`。
+  - `POST /chat/context-requests/{id}/accept`：200，`status=active`，返回 `conversation_id`。
+  - `POST /chat/conversations/{id}/messages`：200，`status=sent`，返回 `message_id=msg_smoke_001`。
+  - `POST /chat/conversations/{id}/report`：200，`conversation_status=reported`。
+  - `GET /admin/chat/conversations/{id}`：200，`status=reported`，`report_state=reported`。
+  - `POST /chat/conversations/{id}/block`：200，`conversation_status=blocked`。
+  - 拉黑后再次 `POST /chat/conversations/{id}/messages`：403，`CHAT_BLOCKED`。
+- 截图证据：
+  - 本轮无 UI 改动，不需要截图。
+- 风险与回滚：
+  - 当前上下文私聊使用内存 store，仅适合最小闭环和测试；生产化需迁移到数据库。
+  - 未重写旧 `/conversations` 消息线程，避免破坏现有用户端消息测试。
+  - 回滚范围为本轮新增 `chat_store.py`、`routes/chat.py`、schema、main include 和测试。
+- 文档回写：
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 本轮结论：通过。
+- 下一轮 LOOP：
+  - LOOP-3B 私密照片 AI 审核后端最小闭环，只处理 1 个 P0：O-012。
+
+## 2026-06-29 LOOP-3B 私密照片 AI 审核后端最小闭环
+
+- 本轮目标：
+  - 只处理 1 个 P0：O-012 私密照片 AI 审核最小闭环实现。
+  - 不处理 admin-web 页面、不处理用户端 UI、不做真实 AI 服务接入、不做数据库迁移。
+- 已读取文件：
+  - `AGENTS.md`
+  - `docs/api-contract.md`
+  - `docs/requirements-ledger.md`
+  - `docs/detail-optimization-inbox.md`
+  - `backend/app/routes/wallet.py`
+  - `backend/app/db_business.py`
+  - `backend/app/schemas.py`
+  - `backend/tests/test_api_contract.py`
+- 多子 Agent 分工：
+  - Product Rules Agent：确认本轮只落地 R-008，不改上下文私聊 UI 和后台页面。
+  - API Contract Agent：按 LOOP-2 契约落地私密照片上传、详情、按 ID 解锁、后台审核、复核和风险汇总接口。
+  - Backend Agent：新增 `backend/app/private_photo_review_store.py`，在 `backend/app/routes/wallet.py` 补新端点；保留旧 `/private-photos` 默认列表和 `/private-photos/unlock` 兼容接口。
+  - Admin Web Agent：本轮仅提供后台接口，不改 `admin-web/` 页面。
+  - User Frontend Agent：本轮不改用户端 UI，入口留到 LOOP-5。
+  - QA Agent：新增 4 条后端契约测试，覆盖低风险自动通过、中风险人工复核、高风险冻结、后台筛选和风险汇总。
+  - Security & Risk Agent：保留模型标签、置信度、风险等级、自动动作、人工复核记录、收益状态和审计 ID。
+  - Docs Agent：同步更新 `work-history.md`、`requirements-ledger.md`、`completed-checklist.md`、`detail-optimization-inbox.md`。
+- 修改文件：
+  - `backend/app/schemas.py`
+  - `backend/app/private_photo_review_store.py`
+  - `backend/app/routes/wallet.py`
+  - `backend/tests/test_api_contract.py`
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 实现说明：
+  - 新增私密照片 AI 审核内存 store，用 `file_id/upload_token/caption` 中的测试关键词模拟风险分级。
+  - 低风险自动 `ai_approved`，`risk_level=low_risk`，`revenue_state=eligible`。
+  - 中风险自动 `manual_required`，`risk_level=medium_risk`，`revenue_state=frozen`。
+  - 高风险自动 `rejected` 或 `frozen`，`risk_level=high_risk`，`revenue_state=ineligible`。
+  - 解锁只允许审核通过且未冻结内容；人工复核可放行、拒绝、冻结、解冻和处理收益状态。
+  - 后台可按风险等级、状态、用户筛选，并查看风险汇总。
+- 验证命令：
+  - `python -m compileall -q backend\app backend\tests` 通过。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q` 通过，46 passed。
+  - `npm run typecheck` 通过。
+  - `npm run test:frontend` 通过，18 passed。
+  - `npm run build:admin` 通过。
+  - `npm run build:h5` 通过。
+- 接口冒烟：
+  - `POST /private-photos` 低风险：200，`review_status=ai_approved`，`risk_level=low_risk`，`revenue_state=eligible`。
+  - `POST /private-photos/{id}/unlock` 低风险：200，返回 `unlock_id`。
+  - `POST /private-photos` 中风险：200，`review_status=manual_required`，`risk_level=medium_risk`，`revenue_state=frozen`。
+  - 中风险复核前 `POST /private-photos/{id}/unlock`：409，`PHOTO_REVIEW_PENDING`。
+  - `POST /admin/private-photos/reviews/{id}/review` 放行中风险：200，`after_status=manual_approved`，`after_revenue_state=eligible`。
+  - 复核放行后 `POST /private-photos/{id}/unlock`：200，返回 `unlock_id`。
+  - `POST /private-photos` 高风险：200，`review_status=frozen`，`risk_level=high_risk`，`revenue_state=ineligible`。
+  - 高风险 `POST /private-photos/{id}/unlock`：409，`PHOTO_FROZEN`。
+  - `GET /admin/private-photos/reviews?risk_level=medium_risk`：200，返回 1 条中风险审核记录。
+  - `GET /admin/private-photos/risk-summary`：200，返回 `low_risk=1`、`medium_risk=1`、`high_risk=1`、`frozen=1`。
+- 截图证据：
+  - 本轮无 UI 改动，不需要截图。
+- 风险与回滚：
+  - 当前私密照片审核使用内存 store 和关键词 mock，只适合最小闭环和测试；生产化需迁移到数据库、真实模型服务、真实审核记录、收益流水和申诉记录。
+  - 保留旧 `/private-photos` 默认展示接口和旧 `/private-photos/unlock`，避免破坏现有钱包测试与用户端展示。
+  - 回滚范围为本轮新增 `private_photo_review_store.py`、schema、wallet 路由和测试。
+- 文档回写：
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 本轮结论：通过。
+- 下一轮 LOOP：
+  - LOOP-4 admin-web 后台管理实现，范围只处理上下文私聊审核队列和私密照片审核列表/详情的最小可视闭环，不写回用户端 `src/pages/**`。
+
+## 2026-06-29 LOOP-4 admin-web 后台管理最小可视闭环
+
+- 本轮目标：
+  - 在 `admin-web/` 内补上下文私聊审核队列、私密照片审核列表/复核详情和审计日志证据。
+  - 不写回用户端 `src/pages/**`，不改用户端 `pages.json`，不做真实数据库迁移。
+- 已读取文件：
+  - `admin-web/src/AdminApp.vue`
+  - `admin-web/src/styles.css`
+  - `src/services/adminApi.ts`
+  - `src/services/mockApi.ts`
+  - `src/types/domain.ts`
+  - `docs/requirements-ledger.md`
+  - `docs/detail-optimization-inbox.md`
+  - `docs/completed-checklist.md`
+- 多子 Agent 分工：
+  - Product Rules Agent：确认后台仍独立在 `admin-web/`，不进入用户端页面。
+  - API Contract Agent：对齐 `/admin/chat/context-requests`、`/admin/private-photos/reviews`、`/admin/private-photos/risk-summary` 字段。
+  - Backend Agent：本轮不改后端业务，只复用 LOOP-3/3B 已实现接口。
+  - Admin Web Agent：新增“上下文私聊”和“照片审核”两个后台 tab，列表和详情同屏展示。
+  - User Frontend Agent：本轮不改用户端 UI。
+  - QA Agent：运行类型检查、前后端测试、H5/admin 构建和 Playwright 截图。
+  - Security & Risk Agent：页面展示来源、状态、频控、模型标签、置信度、收益状态和审计要求。
+  - Docs Agent：同步更新 work-history、requirements-ledger、completed-checklist、detail-optimization-inbox。
+- 修改文件：
+  - `admin-web/src/AdminApp.vue`
+  - `admin-web/src/styles.css`
+  - `src/services/adminApi.ts`
+  - `src/services/mockApi.ts`
+  - `src/types/domain.ts`
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 实现说明：
+  - `admin-web` 新增 `?tab=` 初始 tab 支持，方便直接定位审核页面和截图。
+  - “上下文私聊”页展示申请列表、来源类型、来源 ID、状态、频控和详情证据。
+  - “照片审核”页展示低/中/高风险汇总、审核列表、模型标签、置信度、自动动作、收益状态和复核详情。
+  - `adminApi` 读取新后台接口；无真实数据时使用最小 mock 行保证后台工作台不空白。
+- 验证命令：
+  - `npm run typecheck` 通过。
+  - `npm run test:frontend` 通过，18 passed。
+  - `npm run build:admin` 通过。
+  - `npm run build:h5` 通过。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q` 通过，46 passed。
+  - `python -m compileall -q backend\app backend\tests` 通过。
+- 接口冒烟：
+  - `GET http://127.0.0.1:8100/admin/summary` 返回 200。
+  - 页面通过 `adminApi` 调用 `/admin/chat/context-requests`、`/admin/private-photos/reviews`、`/admin/private-photos/risk-summary`；无真实行时进入最小 mock 展示。
+- 截图证据：
+  - `output/playwright/admin-context-chat-review.png`
+  - `output/playwright/admin-private-photo-review.png`
+  - `output/playwright/admin-audit-log.png`
+- 风险与回滚：
+  - 当前后台页面存在最小 mock fallback；生产化需要去掉 fallback 或改成真实空状态。
+  - 回滚范围为 admin-web 页面、前端类型、adminApi/mockApi 映射和文档。
+- 文档回写：
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 本轮结论：通过。
+- 下一轮 LOOP：
+  - LOOP-5 用户端体验最小闭环，范围只处理“继续聊/私聊”入口与私密照片审核状态反馈，不触碰底部 5 个 tab。
+
+## 2026-06-29 LOOP-5 用户端体验最小闭环
+
+- 本轮目标：
+  - 在用户端补“基于本次互动继续聊”的最小可见路径。
+  - 在钱包页补私密照片 AI 审核状态、人工复核、冻结/拒绝和收益状态反馈。
+  - 纠偏底部 tab：保持 `瓶子 / 广场 / 游戏 / 树洞 / 我的`。
+  - 不实现完整真实聊天发起流程，不改后台到 `src/pages/**`，不做数据库迁移。
+- 已读取文件：
+  - `src/pages.json`
+  - `src/pages/bottle/index.vue`
+  - `src/pages/plaza/comments.vue`
+  - `src/pages/wallet/index.vue`
+  - `src/stores/content.ts`
+  - `src/types/domain.ts`
+  - `src/services/businessApi.ts`
+  - `src/services/mockState.ts`
+  - `backend/app/schemas.py`
+  - `backend/app/routes/chat.py`
+  - `backend/app/chat_store.py`
+  - `backend/app/private_photo_review_store.py`
+- 差异报告：
+  - `src/pages.json` 第四个 tab 为 `消息`，与强约束要求的 `树洞` 不一致；本轮已改为 `pages/treehole/index` / `树洞`。
+  - 前端旧 `businessApi.unlockPrivatePhoto` 仍保留 `/private-photos/unlock` 兼容旧链路；LOOP-2/3 新契约 `/private-photos/{id}/unlock` 已在后端存在，前端真实接入需后续单独处理。
+- 多子 Agent 分工：
+  - Product Rules Agent：确认继续聊入口必须基于瓶子回应或广场留言上下文，不开放无上下文陌生私聊。
+  - API Contract Agent：复核 `initiator_action`、`confirm_action`、`evidence_id`、私密照片审核状态字段和收益状态字段。
+  - Backend Agent：本轮不改后端业务，只用当前 FastAPI 应用做接口冒烟。
+  - Admin Web Agent：本轮不改 `admin-web/`，只复验 `build:admin`。
+  - User Frontend Agent：新增瓶子回应提示、广场留言“继续聊”入口、钱包私密照片审核状态卡。
+  - QA Agent：运行类型检查、前端测试、H5/admin 构建、后端测试和 Chrome 截图。
+  - Security & Risk Agent：保留举报/拉黑提示，展示来源确认、风险等级、收益冻结/不可结算。
+  - Docs Agent：同步更新 work-history、requirements-ledger、completed-checklist、detail-optimization-inbox。
+- 修改文件：
+  - `src/pages.json`
+  - `src/pages/bottle/index.vue`
+  - `src/pages/plaza/comments.vue`
+  - `src/pages/wallet/index.vue`
+  - `src/stores/content.ts`
+  - `src/types/domain.ts`
+  - `src/services/businessApi.ts`
+  - `src/services/mockState.ts`
+  - `output/playwright/capture-loop5.cjs`
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 实现说明：
+  - 瓶子捞取回应弹窗新增“回应后可基于这个瓶子继续聊”说明，并更新回应成功提示。
+  - 广场留言详情页每条留言标题行新增“继续聊”入口，提示等待发帖人回复或确认。
+  - 钱包页新增私密照片审核状态卡，展示 AI 自动通过、人工复核、已冻结、风险等级和收益状态。
+  - `PrivatePhoto` 类型补可选 `reviewStatus/riskLevel/revenueState/modelLabels/modelConfidence/auditNote`，兼容旧响应。
+  - `content` store 暴露 `loadPrivatePhotos()` 给钱包页加载审核状态。
+- 验证命令：
+  - `npm run typecheck` 通过。
+  - `npm run test:frontend` 通过，18 passed。
+  - `npm run build:h5` 通过。
+  - `npm run build:admin` 通过。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q` 通过，46 passed。
+  - `python -m compileall -q backend\app backend\tests` 通过。
+- 接口冒烟：
+  - `POST /chat/context-requests` 缺少 `source_id`：403，`CHAT_CONTEXT_REQUIRED`。
+  - `POST /chat/context-requests` 带 `source_type=bottle_reply/source_id=bottle_reply_001`：200，返回 `pending` 和频控 `messages_per_minute=6`。
+  - `POST /chat/context-requests/{id}/accept`：200，返回 `active` 和 `conversation_id`。
+  - `POST /private-photos` 带 `file_id=file_medium_risk_001`：200，返回 `review_status=ai_approved`、`risk_level=low_risk`、`revenue_state=eligible`。
+- 截图证据：
+  - `output/playwright/user-bottle-continue-chat.png`
+  - `output/playwright/user-plaza-comment-continue-chat.png`
+  - `output/playwright/user-wallet-private-photo-review.png`
+  - `output/playwright/user-treehole-tab.png`
+- 风险与回滚：
+  - 用户端“继续聊”当前为可见入口和说明，不等同于完整真实发起 `/chat/context-requests` 的业务流。
+  - 钱包页兼容旧 `/private-photos` 响应；当后端未返回新审核字段时使用 UI 降级映射展示复核/冻结状态，真实上传接入需后续处理。
+  - 回滚范围为本轮用户端页面、类型映射、mock 数据和截图脚本。
+- 文档回写：
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 本轮结论：通过。
+- 下一轮 LOOP：
+  - LOOP-6 生产级验收与回归，范围检查旧规则残留、接口契约、后台独立性、用户端入口、截图证据、测试命令和未完成项归档。
+
+## 2026-06-29 LOOP-6 生产级验收与回归
+
+- 本轮目标：
+  - 对照企业级验收门禁做生产级回归。
+  - 检查旧规则残留、接口契约、后台独立性、用户端底部 tab、上下文私聊防骚扰、私密照片风险分级、拉黑/举报/审计、截图和文档同步。
+  - 不新增大功能，只修复验收中发现的旧规则残留文案。
+- 已读取文件：
+  - `docs/api-contract.md`
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+  - `src/pages.json`
+  - `src/pages/nearby/index.vue`
+  - `backend/app/routes/chat.py`
+  - `backend/app/chat_store.py`
+  - `backend/app/private_photo_review_store.py`
+  - `output/playwright/*.png`
+- 多子 Agent 分工：
+  - Product Rules Agent：搜索旧规则残留，确认补丁文档中的旧句均为“旧规则废弃/验收无上下文失败”上下文。
+  - API Contract Agent：确认 `docs/api-contract.md` 仍包含上下文私聊、私密照片审核、状态枚举和错误码。
+  - Backend Agent：执行 FastAPI TestClient 接口回归，覆盖上下文失败、确认、举报、拉黑、照片低/中/高风险。
+  - Admin Web Agent：确认 `src/pages.json` 无 admin/后台，`npm run build:admin` 通过。
+  - User Frontend Agent：确认底部 tab 为 `瓶子 / 广场 / 游戏 / 树洞 / 我的`，并修复附近的人旧聊天门槛 toast。
+  - QA Agent：运行全量命令、截图文件存在性检查和残留搜索。
+  - Security & Risk Agent：确认无上下文私聊失败、拉黑后发消息失败、照片冻结/不可结算状态可见。
+  - Docs Agent：同步更新 work-history、requirements-ledger、completed-checklist、detail-optimization-inbox。
+- 修改文件：
+  - `src/pages/nearby/index.vue`
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 差异处理：
+  - 发现 `src/pages/nearby/index.vue` 存在旧规则已废弃文案 `好友申请已发送，对方同意后才能聊天`。
+  - 已改为 `好友申请已发送；明确互动后也可基于上下文继续聊`，避免把好友关系写成聊天唯一门槛。
+- 验证命令：
+  - 旧规则残留搜索：业务代码无旧规则残留；补丁文档中的旧句保留为废弃规则说明或“无上下文不能私聊”验收项。
+  - `src/pages.json` 搜索 `admin|后台`：无命中。
+  - `src/pages.json` tabBar：`瓶子 / 广场 / 游戏 / 树洞 / 我的`。
+  - 截图文件存在性检查：7 张截图均存在且非空。
+  - `npm run typecheck` 通过。
+  - `npm run test:frontend` 通过，18 passed。
+  - `npm run build:h5` 通过。
+  - `npm run build:admin` 通过。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q` 通过，46 passed。
+  - `python -m compileall -q backend\app backend\tests` 通过。
+- 接口冒烟：
+  - `POST /chat/context-requests` 无 `source_id`：403，`CHAT_CONTEXT_REQUIRED`。
+  - `POST /chat/context-requests` 来源 `plaza_comment/comment_001`：200，`pending`。
+  - `POST /chat/context-requests/{id}/accept`：200，`active`，返回 `conversation_id`。
+  - `POST /chat/conversations/{id}/messages`：200，`sent`。
+  - `POST /chat/conversations/{id}/report`：200，`conversation_status=reported`。
+  - `POST /chat/conversations/{id}/block`：200，`conversation_status=blocked`。
+  - 拉黑后再 `POST /chat/conversations/{id}/messages`：403，`CHAT_BLOCKED`。
+  - `POST /private-photos` 低风险：200，`ai_approved/low_risk/eligible`。
+  - `POST /private-photos` 中风险：200，`manual_required/medium_risk/frozen`。
+  - `POST /private-photos` 高风险：200，`frozen/high_risk/ineligible`。
+- 截图证据：
+  - `output/playwright/admin-context-chat-review.png`
+  - `output/playwright/admin-private-photo-review.png`
+  - `output/playwright/admin-audit-log.png`
+  - `output/playwright/user-bottle-continue-chat.png`
+  - `output/playwright/user-plaza-comment-continue-chat.png`
+  - `output/playwright/user-wallet-private-photo-review.png`
+  - `output/playwright/user-treehole-tab.png`
+- 风险与回滚：
+  - 当前最小闭环仍有内存 store、mock/fallback 和用户端未真实发起接口的边界；这些未作为生产完成项。
+  - 回滚范围为本轮附近的人 toast 文案和文档记录。
+- 文档回写：
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 本轮结论：通过。
+- 下一轮 LOOP：
+  - 已连续执行 3 轮（LOOP-4、LOOP-5、LOOP-6），按用户要求先总结。下一轮建议进入 P1：用户端继续聊真实接口接入，范围只处理瓶子/广场两个入口调用 `/chat/context-requests` 与 pending/active 状态反馈。
+
+## 2026-06-29 总结点二次验证
+
+- 本轮目标：
+  - 在不进入 LOOP-7 的前提下，复验 LOOP-4/5/6 的企业级门禁、管理后台证据、用户端证据和接口实际响应。
+  - 只有二次验证通过，才允许后续进入 LOOP-7。
+- 二次验证修正：
+  - 将历史记录中旧聊天门槛文案标注为“旧规则已废弃文案”，避免旧规则残留搜索被误判为未废弃规则。
+- 验证命令：
+  - 旧规则残留搜索：业务代码无旧规则残留；命中文档均为旧规则已废弃、补丁覆盖或“无上下文不能私聊”验收语义。
+  - `src/pages.json` 搜索 `admin|后台`：无命中。
+  - `src/pages.json` tabBar：`瓶子 / 广场 / 游戏 / 树洞 / 我的`。
+  - `npm run typecheck` 通过。
+  - `npm run test:frontend` 通过，18 passed。
+  - `npm run build:h5` 通过。
+  - `npm run build:admin` 通过。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q` 通过，46 passed。
+  - `python -m compileall -q backend\app backend\tests` 通过。
+- 接口二次冒烟：
+  - 无 `source_id` 的上下文私聊：403，`CHAT_CONTEXT_REQUIRED`。
+  - 瓶子回应来源上下文申请：200，`pending`，`source_type=bottle_reply`。
+  - 接受上下文申请：200，`active`，返回 `conversation_id`。
+  - 发送消息：200，`sent`。
+  - 举报会话：200，`reported`。
+  - 拉黑会话：200，`blocked`。
+  - 拉黑后发消息：403，`CHAT_BLOCKED`。
+  - 私密照片低风险：200，`ai_approved / low_risk / eligible`。
+  - 私密照片中风险：200，`manual_required / medium_risk / frozen`。
+  - 私密照片高风险：200，`frozen / high_risk / ineligible`。
+- 截图二次验证：
+  - 已重新生成 `output/playwright/admin-context-chat-review.png`。
+  - 已重新生成 `output/playwright/admin-private-photo-review.png`。
+  - 已重新生成 `output/playwright/admin-audit-log.png`。
+  - 已重新生成 `output/playwright/user-bottle-continue-chat.png`。
+  - 已重新生成 `output/playwright/user-plaza-comment-continue-chat.png`。
+  - 已重新生成 `output/playwright/user-wallet-private-photo-review.png`。
+  - 已重新生成 `output/playwright/user-treehole-tab.png`。
+- 管理后台二次验证：
+  - 使用 `dist-admin` 静态产物在本地预览并重新截图。
+  - 目检通过：上下文私聊审核页包含来源、状态、频控、详情；私密照片审核页包含低/中/高风险、人工复核、冻结、收益状态。
+- 本轮结论：通过。
+- LOOP-7 门禁：
+  - 允许进入 LOOP-7，但本次总结点未开始 LOOP-7 实现。
+
+## 2026-06-29 LOOP-7 用户端继续聊真实接口接入
+
+- 本轮目标：
+  - 只处理瓶子回应和广场留言两个用户端入口真实调用 `/chat/context-requests`。
+  - 补 pending/active/blocked/expired/risk_frozen/失败状态反馈。
+  - 不做数据库迁移，不扩完整聊天页，不做树洞/游戏入口。
+- 已读取文件：
+  - `src/services/http.ts`
+  - `src/services/businessApi.ts`
+  - `src/stores/content.ts`
+  - `src/types/domain.ts`
+  - `src/pages/bottle/index.vue`
+  - `src/pages/plaza/comments.vue`
+  - `src/services/businessApi.test.ts`
+  - `backend/app/main.py`
+  - `backend/app/settings.py`
+  - `backend/app/routes/plaza.py`
+  - `backend/app/chat_store.py`
+- 多子 Agent 分工：
+  - Product Rules Agent：确认本轮只开放明确互动来源下的继续聊，不开放无上下文陌生私聊。
+  - API Contract Agent：新增前端 `ContextChatRequestPayload` 与 `ContextChatRequest` 类型，字段映射到 `target_user_id/source_type/source_id/reply_id/initiator_action/evidence_id`。
+  - Backend Agent：复用 LOOP-3 的 `/chat/context-requests`，本轮不改后端业务。
+  - Admin Web Agent：本轮不改后台。
+  - User Frontend Agent：瓶子回应后自动发起 `bottle_reply` 上下文申请；广场留言“继续聊”按钮发起 `plaza_comment` 上下文申请。
+  - QA Agent：新增 `businessApi` 单元测试，运行类型、前端测试、H5/admin 构建、后端测试、接口冒烟和截图。
+  - Security & Risk Agent：保留 `CHAT_CONTEXT_REQUIRED` 防骚扰门禁，失败/拉黑/风控状态有用户可见反馈。
+  - Docs Agent：同步更新 work-history、requirements-ledger、completed-checklist、detail-optimization-inbox。
+- 修改文件：
+  - `src/types/domain.ts`
+  - `src/services/businessApi.ts`
+  - `src/stores/content.ts`
+  - `src/pages/bottle/index.vue`
+  - `src/pages/plaza/comments.vue`
+  - `src/services/businessApi.test.ts`
+  - `output/playwright/capture-loop5.cjs`
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 实现说明：
+  - `businessApi.createContextChatRequest()` 已真实调用 `/chat/context-requests` 并把 snake_case 响应转为 camelCase。
+  - `content.createContextChatRequest()` 暴露给页面调用。
+  - 瓶子回应成功后发起 `source_type=bottle_reply` 的继续聊申请，显示“等待对方确认/已开启/拉黑/过期/风控/失败”。
+  - 广场留言“继续聊”按钮发起 `source_type=plaza_comment` 的继续聊申请，按钮显示“发送中/待确认/已开启/重试/已阻止”。
+- 验证命令：
+  - `npm run typecheck` 通过。
+  - `npm run test:frontend` 通过，19 passed。
+  - `npm run build:h5` 通过。
+  - `npm run build:admin` 通过。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q` 通过，46 passed。
+  - `python -m compileall -q backend\app backend\tests` 通过。
+- 接口冒烟：
+  - `POST /chat/context-requests` 缺少 `source_id`：403，`CHAT_CONTEXT_REQUIRED`。
+  - `POST /chat/context-requests` 带 `source_type=bottle_reply/source_id=bottle_loop7_001`：200，返回 `pending`。
+  - `POST /chat/context-requests` 带 `source_type=plaza_comment/source_id=plaza_001:comment_001`：200，返回 `pending`。
+  - `POST /chat/context-requests/{id}/accept`：200，返回 `active` 和 `conversation_id`。
+- 截图证据：
+  - `output/playwright/user-bottle-continue-chat.png`
+  - `output/playwright/user-plaza-comment-continue-chat.png`
+  - `output/playwright/user-wallet-private-photo-review.png`
+  - `output/playwright/user-treehole-tab.png`
+- 浏览器端联调限制：
+  - 8100 当前运行服务不是本轮后端，`/openapi.json` 不包含 `/chat/context-requests`。
+  - 8110 使用当前后端 `APP_ENV=production` 可启动并暴露 `/chat/context-requests`，但广场详情 `/plaza/posts/plaza_001` 仍依赖 PostgreSQL，因本地 PostgreSQL 未运行返回 500。
+  - 因此无法在浏览器同页完成“加载广场详情 -> 点击继续聊 -> 成功 pending”的端到端截图。本轮不伪造成浏览器端全链路通过。
+- 风险与回滚：
+  - 前端接口映射和页面状态已完成，真实浏览器端全链路依赖后端本地数据库运行环境。
+  - 回滚范围为本轮新增前端类型、API 方法、store 方法、两个页面状态和单元测试。
+- 文档回写：
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 本轮结论：部分通过。
+- 下一轮 LOOP：
+  - 暂不进入下一轮。需要先处理本地后端运行环境或数据库依赖，使浏览器端可以连接当前后端并加载广场/瓶子真实页面后，再继续扩展树洞/游戏入口或完整会话跳转。
+
+## 2026-06-29 LOOP-8 当前后端 E2E 环境闭环
+
+- 本轮目标：
+  - 处理本地 PostgreSQL 缺失导致 H5 无法连接同一个当前后端完成继续聊点击验证的问题。
+  - 不安装或要求外部 PostgreSQL，使用本地 SQLite E2E 数据库启动当前 FastAPI。
+  - 让 H5 构建产物连接同一个当前后端实例，并生成瓶子/广场点击继续聊后的 pending 截图。
+- 已读取文件：
+  - `backend/app/db.py`
+  - `backend/app/settings.py`
+  - `backend/app/main.py`
+  - `backend/app/models.py`
+  - `backend/app/routes/plaza.py`
+  - `backend/app/routes/bottle.py`
+  - `package.json`
+  - `backend/requirements.txt`
+  - `output/playwright/capture-loop5.cjs`
+- 多子 Agent 分工：
+  - Product Rules Agent：确认 E2E 环境只用于验证已有瓶子/广场上下文继续聊，不扩业务入口。
+  - API Contract Agent：确认同一后端实例同时暴露 `/plaza/posts/**`、`/bottles/random` 和 `/chat/context-requests`。
+  - Backend Agent：新增 SQLite E2E 启动脚本，使用 `APP_ENV=test`、`DATABASE_URL=sqlite+aiosqlite:///./backend/runtime/e2e.sqlite3`。
+  - Admin Web Agent：本轮不改后台页面，继续跑 `build:admin` 防回归。
+  - User Frontend Agent：新增 H5 E2E 构建脚本，使 `VITE_API_BASE_URL` 指向 8110 当前后端。
+  - QA Agent：启动 8110 当前后端，验证页面数据接口和 chat 接口，重跑截图、构建、测试。
+  - Security & Risk Agent：验证无外部 PostgreSQL 时仍只用当前后端测试库，不影响生产默认配置。
+  - Docs Agent：同步更新 work-history、requirements-ledger、completed-checklist、detail-optimization-inbox。
+- 修改文件：
+  - `scripts/start-e2e-backend.ps1`
+  - `scripts/build-h5-e2e.ps1`
+  - `package.json`
+  - `output/playwright/capture-loop5.cjs`
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 实现说明：
+  - 新增 `scripts/start-e2e-backend.ps1`：启动当前 FastAPI，自动设置 `PYTHONPATH=backend`、`APP_ENV=test`、SQLite `DATABASE_URL`。
+  - 新增 `scripts/build-h5-e2e.ps1` 和 `npm run build:h5:e2e`：构建 H5 并指向 `http://127.0.0.1:8110`。
+  - 更新截图脚本：瓶子页会填入回应并点击“回应”，生成 `user-bottle-context-request-pending.png`；广场页点击“继续聊”，生成 `user-plaza-context-request-pending.png`。
+- 验证命令：
+  - `npm run typecheck` 通过。
+  - `npm run test:frontend` 通过，19 passed。
+  - `npm run build:h5:e2e` 通过。
+  - `npm run build:admin` 通过。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q` 通过，46 passed。
+  - `python -m compileall -q backend\app backend\tests` 通过。
+- 接口冒烟：
+  - `GET http://127.0.0.1:8110/openapi.json`：200，包含 `/chat/context-requests`。
+  - `GET http://127.0.0.1:8110/me/status`：200。
+  - `GET http://127.0.0.1:8110/plaza/posts/plaza_001`：200。
+  - `GET http://127.0.0.1:8110/plaza/posts/plaza_001/comments`：200。
+  - `GET http://127.0.0.1:8110/bottles/random`：200。
+  - `POST /chat/context-requests` with `source_type=plaza_comment`：200，`pending`。
+- 截图证据：
+  - `output/playwright/user-bottle-context-request-pending.png`：瓶子回应后显示“继续聊申请已发出，等待对方确认”。
+  - `output/playwright/user-plaza-context-request-pending.png`：广场留言继续聊按钮显示“待确认”。
+  - `output/playwright/user-bottle-continue-chat.png`
+  - `output/playwright/user-plaza-comment-continue-chat.png`
+- 风险与回滚：
+  - E2E SQLite 数据库只用于本地验证，默认生产 PostgreSQL 配置未改。
+  - 回滚范围为两个 scripts、`package.json` 的 `build:h5:e2e` 脚本、截图脚本和文档记录。
+- 文档回写：
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 本轮结论：通过。
+- 下一轮 LOOP：
+  - 可进入会话跳转最小闭环：当 `/chat/context-requests/{id}/accept` 后前端跳转消息页/临时会话详情；仍限制为 1 个 P1。
+## 2026-06-29 LOOP-9 会话跳转最小闭环与捞瓶文案纠偏
+
+- 本轮目标：
+  - 处理用户反馈：捞到瓶子弹窗不再显示“原漂流瓶”，默认直接展示最开始的漂流瓶正文。
+  - 补齐 `/chat/context-requests/{id}/accept` 返回 active 后进入消息页/临时会话详情的最小闭环。
+  - 不处理树洞/游戏入口，不迁移真实数据库，不扩展后台。
+- 已读取文件：
+  - `AGENTS.md`
+  - `src/pages/bottle/index.vue`
+  - `src/pages/plaza/comments.vue`
+  - `src/pages/messages/chat.vue`
+  - `src/services/businessApi.ts`
+  - `src/stores/content.ts`
+  - `src/types/domain.ts`
+  - `src/services/businessApi.test.ts`
+  - `backend/app/routes/chat.py`
+  - `backend/app/chat_store.py`
+  - `backend/app/schemas.py`
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 多子 Agent 分工：
+  - Product Rules Agent：确认本轮仍只允许明确互动上下文内开启临时会话，不开放无上下文私聊；产物为 active 后进入“临时会话”而不是普通陌生私信。
+  - API Contract Agent：补前端 `acceptContextChatRequest`、`getContextConversation`、`sendContextConversationMessage` 字段映射；证据为 `businessApi.test.ts` 新增测试。
+  - Backend Agent：复用既有 `/chat/context-requests/{id}/accept` 与 `/chat/conversations/{id}`，不改后端业务；证据为接口冒烟。
+  - Admin Web Agent：本轮无后台 UI 改动，继续保持后台只在 `admin-web/`。
+  - User Frontend Agent：消息页新增 `contextConversationId` 分支；瓶子/广场入口在 active+conversationId 时跳转；捞瓶弹窗移除“原漂流瓶”标签。
+  - QA Agent：运行 typecheck、frontend test、H5 E2E build、admin build、backend pytest、接口冒烟、截图。
+  - Security & Risk Agent：临时会话页展示频控/举报/拉黑/审计保护提示，非 active 状态禁止发送。
+  - Docs Agent：同步本文件、requirements-ledger、completed-checklist、detail-optimization-inbox。
+- 修改文件：
+  - `src/types/domain.ts`
+  - `src/services/businessApi.ts`
+  - `src/stores/content.ts`
+  - `src/pages/messages/chat.vue`
+  - `src/pages/bottle/index.vue`
+  - `src/pages/plaza/comments.vue`
+  - `src/services/businessApi.test.ts`
+  - `output/playwright/capture-context-conversation.cjs`
+  - `output/playwright/context-conversation-smoke.json`
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 验证命令：
+  - `npm run typecheck`：通过。
+  - `npm run test:frontend`：通过，4 files / 21 tests。
+  - `npm run build:h5:e2e`：通过。
+  - `npm run build:admin`：通过。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：通过，46 passed。
+  - `Select-String src/pages/bottle/index.vue -Pattern '原漂流瓶|origin-kicker'`：无命中。
+- 接口冒烟：
+  - `POST http://127.0.0.1:8110/chat/context-requests`：200，`status=pending`，`request_id=ctx_dc92e3b4bacb4da9a014313f3b4c47ce`。
+  - `POST http://127.0.0.1:8110/chat/context-requests/{id}/accept`：200，`status=active`，`conversation_id=chat_2de568fb8e454c639fcd22fe961c5f96`。
+  - `GET http://127.0.0.1:8110/chat/conversations/{conversation_id}`：200，`status=active`，`source_type=bottle_reply`。
+  - `POST http://127.0.0.1:8110/chat/conversations/{conversation_id}/messages`：200，`status=sent`。
+  - 响应摘要已写入 `output/playwright/context-conversation-smoke.json`。
+- 截图证据：
+  - `output/playwright/user-context-conversation-detail.png`：显示 `临时会话`、active 状态、来源 `漂流瓶回应`、已发送消息和输入区。
+- 风险与回滚：
+  - 无破坏性数据库变更；后端仅复用既有接口。
+  - 回滚范围集中在本轮新增前端 context conversation 类型/API/store/消息页分支和入口跳转。
+  - 当前临时会话仍基于内存 store，生产持久化仍是后续项。
+- 文档回写：
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 本轮结论：通过。
+- 下一轮 LOOP：
+  - LOOP-10 建议范围：树洞评论继续聊入口真实接入与 active 后跳转复用本轮消息页分支；最多 1 个 P1。
+
+## 2026-06-29 LOOP-10 树洞评论继续聊入口最小闭环
+
+- 本轮目标：
+  - 处理 1 个 P1：树洞回复成功后发起 `source_type=treehole_comment` 的上下文继续聊申请。
+  - 复用现有临时会话详情页；当后续接口返回 `active + conversation_id` 时进入消息页。
+  - 不处理游戏/扩列入口，不做数据库持久化迁移，不改后台页面。
+- 已读取文件：
+  - `AGENTS.md`
+  - `src/pages/treehole/index.vue`
+  - `src/services/businessApi.ts`
+  - `src/stores/content.ts`
+  - `src/types/domain.ts`
+  - `src/services/businessApi.test.ts`
+  - `backend/app/routes/treehole.py`
+  - `backend/app/routes/chat.py`
+  - `backend/app/schemas.py`
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 多子 Agent 分工：
+  - Product Rules Agent：确认树洞必须先有回复上下文，不能无上下文骚扰；产物为基于本次树洞互动的 pending 状态反馈。
+  - API Contract Agent：补 `treehole_comment` 请求字段测试；证据为 `businessApi.test.ts` 新增树洞用例。
+  - Backend Agent：复用 `/treehole/{id}/reply`、`/chat/context-requests`、`/chat/context-requests/{id}/accept`、`/chat/conversations/{id}`，本轮不改后端。
+  - Admin Web Agent：本轮无后台 UI 改动，后台仍仅在 `admin-web/`。
+  - User Frontend Agent：树洞回复成功后创建上下文申请，pending 展示状态，active 时跳转临时会话页。
+  - QA Agent：运行 typecheck、frontend test、H5 E2E build、admin build、backend pytest、compileall、接口冒烟和截图。
+  - Security & Risk Agent：保留必须有 `source_type/source_id/reply_id/evidence_id` 的上下文证据；拉黑、风控、审计仍由聊天接口闭环承接。
+  - Docs Agent：同步本文件、requirements-ledger、completed-checklist、detail-optimization-inbox。
+- 修改文件：
+  - `src/pages/treehole/index.vue`
+  - `src/services/businessApi.test.ts`
+  - `output/playwright/treehole-context-smoke.cjs`
+  - `output/playwright/capture-treehole-context.cjs`
+  - `output/playwright/treehole-context-smoke.json`
+  - `output/playwright/user-treehole-context-request-pending.png`
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 验证命令：
+  - `npm run typecheck`：通过。
+  - `npm run test:frontend`：通过，4 files / 22 tests。
+  - `npm run build:h5:e2e`：通过。
+  - `npm run build:admin`：通过。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：通过，46 passed。
+  - `python -m compileall -q backend\app backend\tests`：通过。
+- 接口冒烟：
+  - `POST http://127.0.0.1:8110/treehole/tree_001/reply`：200，`status=ok`。
+  - `POST http://127.0.0.1:8110/chat/context-requests`：200，`source_type=treehole_comment`，`status=pending`，`request_id=ctx_511661f653a348cc8a3a444a541023b8`。
+  - `POST http://127.0.0.1:8110/chat/context-requests/{id}/accept`：200，`status=active`，`conversation_id=chat_5192228ee29f4ae8b2150b90eb3f0305`。
+  - `GET http://127.0.0.1:8110/chat/conversations/{conversation_id}`：200，`status=active`，`source_type=treehole_comment`。
+  - `POST http://127.0.0.1:8110/chat/conversations/{conversation_id}/messages`：200，`status=sent`。
+  - 响应摘要已写入 `output/playwright/treehole-context-smoke.json`。
+- 截图证据：
+  - `output/playwright/user-treehole-context-request-pending.png`：显示树洞回复后 `继续聊申请已发出，等待对方确认`。
+- 风险与回滚：
+  - 无数据库迁移，无破坏性变更；回滚范围集中在树洞页回复成功后的上下文申请逻辑和测试/证据脚本。
+  - 当前树洞入口复用内存 chat store，生产持久化仍是后续项。
+- 文档回写：
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 本轮结论：通过。
+- 下一轮 LOOP：
+  - LOOP-11 建议范围：游戏/房间或扩列匹配的上下文确认入口；先确认已有 UI 明确互动点，再接入 `game_room` 或 `match_expand`，最多 1 个 P1。
+
+## 2026-06-29 LOOP-11 游戏房间上下文确认入口最小闭环
+
+- 本轮目标：
+  - 处理 1 个 P1：已有消息会话内创建游戏房间后，以 `source_type=game_room` 和 `initiator_action=room_confirm` 发起上下文继续聊申请。
+  - 不在游戏页冷启动陌生私聊；游戏页 1v1 概念入口仍只跳转消息页。
+  - 不处理扩列匹配，不做数据库持久化迁移，不改后台页面。
+- 已读取文件：
+  - `AGENTS.md`
+  - `src/pages/game/index.vue`
+  - `src/pages/messages/chat.vue`
+  - `src/services/businessApi.ts`
+  - `src/stores/content.ts`
+  - `src/types/domain.ts`
+  - `src/services/businessApi.test.ts`
+  - `backend/app/routes/messages.py`
+  - `backend/app/routes/game.py`
+  - `backend/app/db_business.py`
+  - `backend/app/schemas.py`
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 多子 Agent 分工：
+  - Product Rules Agent：确认本轮只能在已有消息会话和房间创建动作后申请继续聊，不开放游戏页陌生人冷启动。
+  - API Contract Agent：补 `game_room` + `room_confirm` 请求字段测试；证据为 `businessApi.test.ts` 新增用例。
+  - Backend Agent：复用 `/conversations/{thread_id}/rooms` 和 `/chat/context-requests`，本轮不改后端。
+  - Admin Web Agent：本轮无后台 UI 改动，后台仍仅在 `admin-web/`。
+  - User Frontend Agent：消息页房间面板创建房间后显示 pending 状态；active 分支复用临时会话跳转。
+  - QA Agent：运行 typecheck、frontend test、H5 E2E build、admin build、backend pytest、compileall、接口冒烟和截图。
+  - Security & Risk Agent：继续要求 `target_user_id/source_id/reply_id/evidence_id`，来源为真实房间 ID，避免无上下文私聊。
+  - Docs Agent：同步本文件、requirements-ledger、completed-checklist、detail-optimization-inbox。
+- 修改文件：
+  - `src/pages/messages/chat.vue`
+  - `src/services/businessApi.test.ts`
+  - `output/playwright/game-room-context-smoke.cjs`
+  - `output/playwright/capture-game-room-context.cjs`
+  - `output/playwright/game-room-context-smoke.json`
+  - `output/playwright/user-game-room-context-request-pending.png`
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 验证命令：
+  - `npm run typecheck`：通过。
+  - `npm run test:frontend`：通过，4 files / 23 tests。
+  - `npm run build:h5:e2e`：通过。
+  - `npm run build:admin`：通过。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：通过，46 passed。
+  - `python -m compileall -q backend\app backend\tests`：通过。
+- 接口冒烟：
+  - `GET http://127.0.0.1:8110/conversations`：200，选择 `thread_747fc60009aebaf9`。
+  - `POST http://127.0.0.1:8110/conversations/{thread_id}/rooms`：200，`room_id=room_879d86a1e2e9431094e38a29e9d84931`，最后一条 turn 为 `game_room`。
+  - `POST http://127.0.0.1:8110/chat/context-requests`：200，`source_type=game_room`，`status=pending`，`request_id=ctx_4534335b00a945c7b2f5a3430d0873a0`。
+  - `POST http://127.0.0.1:8110/chat/context-requests/{id}/accept`：200，`status=active`，`conversation_id=chat_e677221f1abd4b49836f58e18f5900af`。
+  - `GET http://127.0.0.1:8110/chat/conversations/{conversation_id}`：200，`status=active`，`source_type=game_room`。
+  - `POST http://127.0.0.1:8110/chat/conversations/{conversation_id}/messages`：200，`status=sent`。
+  - 响应摘要已写入 `output/playwright/game-room-context-smoke.json`。
+- 截图证据：
+  - `output/playwright/user-game-room-context-request-pending.png`：显示消息页房间面板和 `房间已创建，继续聊申请等待对方确认`。
+- 风险与回滚：
+  - 无数据库迁移，无破坏性变更；回滚范围集中在消息页 `createRoom()` 后续申请逻辑和测试/证据脚本。
+  - 当前上下文会话仍复用内存 chat store，生产持久化仍是后续项。
+- 文档回写：
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 本轮结论：通过。
+- 下一轮 LOOP：
+  - LOOP-12 建议范围：扩列/附近的人匹配入口差异分析与最小确认入口；若没有明确匹配/确认 UI，则不得接入私聊，转入生产持久化 P1。
+
+## 2026-06-29 LOOP-12 附近的人好友规则残留纠偏与扩列入口判定
+
+- 本轮目标：
+  - 处理 1 个 P1：附近的人/好友申请链路旧规则残留纠偏。
+  - 读取并判定是否存在可安全接入 `match_expand` 的双方匹配/确认动作。
+  - 不新增无上下文私聊入口；不创造不存在的扩列匹配业务。
+- 已读取文件：
+  - `AGENTS.md`
+  - `src/pages/nearby/index.vue`
+  - `src/services/businessApi.ts`
+  - `src/services/mockApi.ts`
+  - `src/stores/content.ts`
+  - `src/types/domain.ts`
+  - `backend/app/db_business.py`
+  - `backend/app/schemas.py`
+  - `backend/tests/test_api_contract.py`
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 多子 Agent 分工：
+  - Product Rules Agent：确认附近的人当前只有关注/好友申请，没有双方匹配或确认动作，因此不得接入 `match_expand` 私聊。
+  - API Contract Agent：保留既有 `/relations/friend-request`，新增测试验证通知不再表达旧好友门槛。
+  - Backend Agent：纠偏好友申请通知文案，避免“好友通过后才打开私信”的旧规则。
+  - Admin Web Agent：本轮无后台 UI 改动，后台仍仅在 `admin-web/`。
+  - User Frontend Agent：附近页申请好友后展示“好友用于长期关系沉淀，明确互动上下文内仍可继续聊”的状态。
+  - QA Agent：运行 typecheck、frontend test、H5 E2E build、admin build、backend pytest、compileall、接口冒烟、旧规则搜索和截图。
+  - Security & Risk Agent：明确禁止在附近的人页直接开放陌生私聊；`match_expand` 需先有匹配/确认证据。
+  - Docs Agent：同步本文件、requirements-ledger、completed-checklist、detail-optimization-inbox。
+- 修改文件：
+  - `backend/app/db_business.py`
+  - `backend/tests/test_api_contract.py`
+  - `src/services/mockApi.ts`
+  - `src/pages/nearby/index.vue`
+  - `output/playwright/nearby-friend-rule-smoke.cjs`
+  - `output/playwright/capture-nearby-friend-rule.cjs`
+  - `output/playwright/nearby-friend-rule-smoke.json`
+  - `output/playwright/user-nearby-friend-context-rule.png`
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 验证命令：
+  - `npm run typecheck`：通过。
+  - `npm run test:frontend`：通过，4 files / 23 tests。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：通过，47 passed。
+  - `npm run build:h5:e2e`：通过。
+  - `npm run build:admin`：通过。
+  - `python -m compileall -q backend\app backend\tests`：通过。
+  - `Select-String backend\app,src -Pattern '通过后才会打开私信|同意后才能聊天|好友申请通过后才|不能直接私聊|陌生人不能直接私聊'`：无命中。
+- 接口冒烟：
+  - 已重启 8110 当前后端：`GET http://127.0.0.1:8110/me/status` 返回 200。
+  - `POST http://127.0.0.1:8110/relations/friend-request`：200，`status=requested`，`target_user_id=200000000007`。
+  - `GET http://127.0.0.1:8110/messages`：200，最新好友申请通知为 `好友用于长期关系沉淀；明确互动上下文内仍可按规则继续聊。`，`old_rule_present=false`。
+  - 响应摘要已写入 `output/playwright/nearby-friend-rule-smoke.json`。
+- 截图证据：
+  - `output/playwright/user-nearby-friend-context-rule.png`：附近的人申请好友后显示新规则状态，未出现直接私聊入口。
+- 风险与回滚：
+  - 无数据库迁移，无破坏性变更；回滚范围为好友申请通知文案、附近页状态提示、测试和证据脚本。
+  - `match_expand` 未接入是有意安全边界：当前缺少双方匹配/确认 UI。
+- 文档回写：
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 本轮结论：通过。
+- 下一轮 LOOP：
+  - LOOP-13 建议范围：上下文会话生产持久化设计或私密照片真实上传/申诉入口二选一；若继续 `match_expand`，需先补产品级匹配/确认动作。
+
+## 2026-06-30 LOOP-13 附近的人 VIP/5积分继续聊门槛
+
+- 本轮目标：
+  - 处理 1 个 P1：附近的人新增“继续聊”申请入口，但只允许 VIP 免费发起，或非 VIP 消耗 5 积分发起。
+  - 继续保持防骚扰边界：发起后只创建 `source_type=match_expand` 的 pending 上下文申请，必须等待对方确认后才会开启临时会话。
+  - 不改关注/申请好友原有业务，不引入无上下文直接私聊，不做数据库迁移。
+- 已读取文件：
+  - `AGENTS.md`
+  - `src/pages/nearby/index.vue`
+  - `src/services/businessApi.ts`
+  - `src/stores/content.ts`
+  - `src/types/domain.ts`
+  - `src/services/businessApi.test.ts`
+  - `backend/app/routes/chat.py`
+  - `backend/app/db_business.py`
+  - `backend/app/schemas.py`
+  - `backend/tests/test_api_contract.py`
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 多子 Agent 分工：
+  - Product Rules Agent：确认附近的人入口不是直接聊天，发起后仍需对方确认；VIP/积分只是发起申请门槛。
+  - API Contract Agent：补 `POST /chat/match-expand-requests` 的请求、响应映射和前端契约测试。
+  - Backend Agent：新增 VIP 免费或非 VIP 扣 5 积分的 `match_expand` 上下文申请闭环。
+  - Admin Web Agent：本轮无后台 UI 改动，后台仍只允许在 `admin-web/` 后续优化。
+  - User Frontend Agent：附近的人卡片新增“继续聊”按钮、VIP/积分提示、pending 状态反馈。
+  - QA Agent：运行 typecheck、frontend test、H5 E2E build、admin build、backend pytest、compileall、接口冒烟和 H5 截图。
+  - Security & Risk Agent：验证无直接私聊；请求保留 `source_type/source_id/reply_id/evidence_id`，且 pending 等待对方确认。
+  - Docs Agent：同步本文件、requirements-ledger、completed-checklist、detail-optimization-inbox。
+- 修改文件：
+  - `backend/app/schemas.py`
+  - `backend/app/db_business.py`
+  - `backend/app/routes/chat.py`
+  - `backend/tests/test_api_contract.py`
+  - `src/types/domain.ts`
+  - `src/services/businessApi.ts`
+  - `src/services/businessApi.test.ts`
+  - `src/stores/content.ts`
+  - `src/pages/nearby/index.vue`
+  - `output/playwright/match-expand-gate-smoke.cjs`
+  - `output/playwright/match-expand-gate-smoke.json`
+  - `output/playwright/capture-nearby-match-expand.cjs`
+  - `output/playwright/user-nearby-match-expand-pending.png`
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 验证命令：
+  - `npm run typecheck`：通过。
+  - `npm run test:frontend`：通过，4 files / 24 tests。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：通过，49 passed。
+  - `npm run build:h5:e2e`：通过。
+  - `npm run build:admin`：通过。
+  - `python -m compileall -q backend\app backend\tests`：通过。
+- 接口冒烟：
+  - 已重启 8110 当前后端：`GET http://127.0.0.1:8110/me/status` 返回 200。
+  - VIP 用户 `POST http://127.0.0.1:8110/chat/match-expand-requests`：200，`gate=vip`，`cost_coins=0`，`before_drift_coins=260`，`after_drift_coins=260`，`request_status=pending`，`source_type=match_expand`。
+  - 非 VIP 用户 `POST http://127.0.0.1:8110/chat/match-expand-requests`：200，`gate=drift_coins`，`cost_coins=5`，`before_drift_coins=80`，`after_drift_coins=75`，`request_status=pending`，`source_type=match_expand`。
+  - 响应摘要已写入 `output/playwright/match-expand-gate-smoke.json`。
+- 截图证据：
+  - `output/playwright/user-nearby-match-expand-pending.png`：附近的人卡片显示“继续聊”入口，点击后展示“VIP免费，继续聊申请已发出，等待对方确认”。
+- 风险与回滚：
+  - 无数据库迁移，无破坏性变更；回滚范围为 `POST /chat/match-expand-requests`、附近页继续聊入口、前端 API/store 映射、测试和证据脚本。
+  - 当前上下文申请仍复用内存 chat store，生产持久化仍是后续 P1。
+- 文档回写：
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 本轮结论：通过。
+- 下一轮 LOOP：
+  - LOOP-14 建议范围：上下文会话生产持久化，将 context request/conversation/message/report/block/audit refs 从内存 store 迁移到数据库，并补重启后仍可读取的测试与接口冒烟。
+
+## 2026-06-30 LOOP-14 附近的人与消息界面压缩优化
+
+- 本轮目标：
+  - 处理 2 个 P1：附近的人页面按参考图改为深色同城列表、筛选入口、搜索栏和紧凑用户卡；消息页面按参考图改为三入口和真实私聊列表。
+  - 聊天详情页做轻量深色压缩优化，并把普通会话来源标签从“原漂流瓶”改为“互动来源”。
+  - 不改底部 5 个 tab，不改后端接口契约，不改 VIP/5积分继续聊规则。
+- 已读取文件：
+  - `src/pages/nearby/index.vue`
+  - `src/pages/messages/index.vue`
+  - `src/pages/messages/chat.vue`
+  - `src/types/domain.ts`
+  - `src/stores/content.ts`
+  - `src/services/businessApi.ts`
+  - `src/pages.json`
+  - 用户提供的两张参考图
+- 多子 Agent 分工：
+  - Product Rules Agent：确认 UI 优化不改变上下文私聊门槛，附近的人仍只发起 pending 申请。
+  - API Contract Agent：确认本轮不改接口字段和状态机。
+  - Backend Agent：本轮无后端代码改动；跑后端测试确认未破坏现有契约。
+  - Admin Web Agent：本轮无 admin-web UI 改动；执行 `npm run build:admin` 验证后台仍可构建。
+  - User Frontend Agent：完成附近的人、消息列表、聊天详情三个页面的压缩和深色风格调整。
+  - QA Agent：执行 typecheck、frontend test、H5 E2E build、admin build、backend pytest、接口健康检查和截图。
+  - Security & Risk Agent：确认没有新增无上下文直接私聊入口。
+  - Docs Agent：同步本文件、requirements-ledger、completed-checklist、detail-optimization-inbox。
+- 修改文件：
+  - `src/pages/nearby/index.vue`
+  - `src/pages/messages/index.vue`
+  - `src/pages/messages/chat.vue`
+  - `output/playwright/capture-nearby-messages-redesign.cjs`
+  - `output/playwright/user-nearby-redesign-filters.png`
+  - `output/playwright/user-messages-redesign-list.png`
+  - `output/playwright/user-chat-redesign-detail.png`
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 验证命令：
+  - `npm run typecheck`：通过。
+  - `npm run test:frontend`：通过，4 files / 24 tests。
+  - `npm run build:h5:e2e`：通过。
+  - `npm run build:admin`：通过。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：通过，49 passed。
+- 接口冒烟：
+  - `GET http://127.0.0.1:8110/me/status`：200。
+  - `GET http://127.0.0.1:5175/#/pages/nearby/index`：200。
+- 截图证据：
+  - `output/playwright/user-nearby-redesign-filters.png`：附近的人深色同城列表、筛选展开、搜索栏和开聊按钮。
+  - `output/playwright/user-messages-redesign-list.png`：消息页三入口和真实私聊列表。
+  - `output/playwright/user-chat-redesign-detail.png`：聊天详情页深色压缩布局、互动来源、气泡和输入栏。
+- 风险与回滚：
+  - 无数据库迁移，无后端契约变更；回滚范围为三个 Vue 页面和截图脚本。
+  - 已知后续细节：非 VIP 重复发起同一附近继续聊申请会重复扣 5 积分，需后续加 pending 复用、幂等键和频控。
+- 文档回写：
+  - `docs/work-history.md`
+  - `docs/requirements-ledger.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 本轮结论：通过。
+- 下一轮 LOOP：
+  - LOOP-15 建议范围：修复附近的人继续聊重复点击/重复发起导致重复扣积分，补幂等键、已有 pending 复用、前端禁用反馈和接口测试。
+
+## 2026-06-30 LOOP-15 新需求规则更新与实施拆分
+
+- 本轮目标：
+  - 处理 1 个 P0：用户明确要求删除树洞功能，改造底部导航和消息位置，并先更新 LOOP 与需求规则。
+  - 同步拆分后续 P1：游戏随机匹配、附近的人城市/年龄筛选、头像池与资料同步、消息邀请卡片。
+  - 本轮只更新规则和实施计划，不直接删除页面或改业务代码，避免一次性大改。
+- 已读取文件：
+  - `src/pages.json`
+  - `src/pages/game/index.vue`
+  - `src/pages/nearby/index.vue`
+  - `src/pages/messages/index.vue`
+  - `docs/product-rules.md`
+  - `docs/api-contract.md`
+  - `docs/requirements-ledger.md`
+  - `docs/work-history.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+  - Unsplash License 官方页面
+  - Pexels License 官方页面
+- 差异分析：
+  - 旧规则：底部导航保留 `树洞`；新规则：删除树洞，底部第 4 个 tab 改为 `消息`。
+  - 旧实现：游戏页存在树洞入口；新规则：游戏页删除树洞入口，新增随机匹配入口。
+  - 旧实现：附近的人年龄为 chip，且有距离筛选；新规则：年龄改双端进度条，删除距离筛选，新增统一城市筛选。
+  - 旧实现：附近的人和消息仍有文字头像兜底；新规则：所有头像必须显示图片，用户头像优先，未设置则系统随机头像。
+  - 旧实现：消息邀请不是卡片化同意/取消闭环；新规则：邀请卡片支持同意、取消，同意后二次点击直接跳转房间/会话。
+- 多子 Agent 分工：
+  - Product Rules Agent：确认删除树洞为最高新规则，旧树洞记录只保留历史。
+  - API Contract Agent：补城市、头像、随机匹配、消息邀请卡片接口草案。
+  - Backend Agent：后续负责消息假数据、头像池、邀请状态和匹配次数的测试数据库数据源。
+  - Admin Web Agent：本轮无后台代码改动；后续如消息假数据需要后台配置，再进入 admin-web。
+  - User Frontend Agent：后续分轮处理 tab、游戏、附近的人、消息卡片和头像。
+  - QA Agent：本轮用文档搜索验证规则落点；后续每轮补 H5 截图、接口冒烟和测试。
+  - Security & Risk Agent：确保随机匹配和附近的人仍不能绕过上下文确认直接陌生私聊。
+  - Docs Agent：同步 product-rules、api-contract、requirements-ledger、work-history、completed-checklist、detail-optimization-inbox。
+- 修改文件：
+  - `docs/product-rules.md`
+  - `docs/api-contract.md`
+  - `docs/requirements-ledger.md`
+  - `docs/work-history.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 验证命令：
+  - `Select-String docs\product-rules.md,docs\api-contract.md,docs\requirements-ledger.md,docs\work-history.md,docs\completed-checklist.md,docs\detail-optimization-inbox.md -Pattern '删除树洞|随机匹配|双端进度条|头像|消息邀请|LOOP-15|R-019|R-020|R-021|R-022|O-023|O-024|O-025|O-026|O-027'`：通过。
+- 接口冒烟：
+  - 本轮为规则更新，无接口改动，不需要接口冒烟。
+- 截图证据：
+  - 本轮为规则更新，无 UI 改动，不需要新增截图。
+- 风险与回滚：
+  - 删除树洞与旧 AGENTS 强约束冲突，但这是用户本轮明确的新规则；已先进入文档规则纠偏。
+  - 后续代码删除必须分轮执行，避免同时改 tab、路由、后端数据和消息交互造成不可回滚的大改。
+- 文档回写：
+  - `docs/product-rules.md`
+  - `docs/api-contract.md`
+  - `docs/requirements-ledger.md`
+  - `docs/work-history.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 本轮结论：通过。
+- 下一轮 LOOP：
+  - LOOP-16 建议范围：执行删除树洞与消息承接最小闭环，最多处理 1 个 P0：改底部 tab 为消息、移除游戏树洞入口、消息页替代树洞位置，并补 H5 截图与构建验证。
+
+## 2026-06-30 LOOP-16 删除树洞与消息承接最小闭环
+
+- 本轮目标：
+  - 处理 1 个 P0：删除用户端树洞入口并由消息页承接底部第 4 个 tab。
+  - 本轮只做最小闭环：改 tab、移除游戏树洞入口、清理用户端树洞跳转、展示层清洗历史树洞文案、补 H5 构建/截图/路由验证。
+  - 不处理随机匹配、城市筛选、头像池、消息邀请卡片同意/取消，这些已按新排队编号拆入 LOOP-17 到 LOOP-20。
+- 已读取文件：
+  - `AGENTS.md`
+  - `src/pages.json`
+  - `src/pages/game/index.vue`
+  - `src/pages/messages/index.vue`
+  - `src/pages/messages/chat.vue`
+  - `src/pages/home/index.vue`
+  - `src/pages/profile/index.vue`
+  - `src/pages/profile/records.vue`
+  - `src/manifest.json`
+  - `docs/requirements-ledger.md`
+  - `docs/work-history.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 多子 Agent 分工：
+  - Product Rules Agent：确认用户新规则覆盖旧 tab 约束，树洞不再作为用户端入口，历史数据只做消息承接。
+  - API Contract Agent：确认本轮不新增接口，不改变上下文私聊契约；消息邀请卡片接口拆入 LOOP-20。
+  - Backend Agent：本轮无后端代码变更；用当前 8110 后端验证 `GET /messages` 可返回消息数据。
+  - Admin Web Agent：本轮无 admin-web 改动；执行 `npm run build:admin` 确认后台仍可构建。
+  - User Frontend Agent：更新底部 tab、游戏页入口、消息页跳转和历史 treehole 展示承接。
+  - QA Agent：执行 typecheck、frontend test、H5 E2E build、admin build、backend pytest、compileall、路由/API 冒烟和 Playwright 截图。
+  - Security & Risk Agent：确认没有新增无上下文陌生私聊入口；历史 treehole 仅展示为消息/留言承接，不恢复树洞交互入口。
+  - Docs Agent：同步 requirements-ledger、work-history、completed-checklist、detail-optimization-inbox。
+- 修改文件：
+  - `src/pages.json`
+  - `src/pages/game/index.vue`
+  - `src/pages/messages/index.vue`
+  - `src/pages/messages/chat.vue`
+  - `src/pages/home/index.vue`
+  - `src/pages/profile/index.vue`
+  - `src/pages/profile/records.vue`
+  - `src/manifest.json`
+  - `output/playwright/capture-loop16-treehole-removal.cjs`
+  - `output/playwright/loop16-treehole-removal-smoke.json`
+  - `output/playwright/loop16-messages-tab.png`
+  - `output/playwright/loop16-game-no-treehole.png`
+  - `docs/requirements-ledger.md`
+  - `docs/work-history.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 验证命令：
+  - `npm run typecheck`：通过。
+  - `npm run test:frontend`：通过，4 files / 24 tests。
+  - `npm run build:h5:e2e`：通过。
+  - `npm run build:admin`：通过。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：通过，49 passed。
+  - `python -m compileall -q backend\app backend\tests`：通过。
+  - `node output/playwright/capture-loop16-treehole-removal.cjs`：通过，断言 `pagesJsonHasTreeholeRoute=false`、`pagesJsonHasMessagesTab=true`、消息页和游戏页均不含“树洞”展示文案。
+- 接口冒烟：
+  - `GET http://127.0.0.1:5175/#/pages/messages/index`：200。
+  - `GET http://127.0.0.1:5175/#/pages/game/index`：200。
+  - `GET http://127.0.0.1:8110/me/status`：200。
+  - `GET http://127.0.0.1:8110/messages`：200，响应长度 2404，消息列表可加载。
+- 截图证据：
+  - `output/playwright/loop16-messages-tab.png`：底部 tab 显示 `瓶子 / 广场 / 游戏 / 消息 / 我的`，消息页展示私聊列表且无树洞文案。
+  - `output/playwright/loop16-game-no-treehole.png`：游戏页无树洞入口，底部 tab 第 4 项为消息。
+- 风险与回滚：
+  - 无数据库迁移，无后端契约变更，无 admin-web 结构变更。
+  - 为避免一次性破坏历史文件，本轮保留 `src/pages/treehole/index.vue` 作为未注册的历史 orphan；官方路由、tab 和用户端跳转已清理。
+  - 回滚范围为 `src/pages.json`、游戏页入口块、消息页承接逻辑和展示层文案清洗。
+- 文档回写：
+  - `docs/requirements-ledger.md`：更新排队编号并记录 LOOP-16 证据。
+  - `docs/work-history.md`：追加本轮完整 LOOP 记录。
+  - `docs/completed-checklist.md`：追加 LOOP-16 完成清单。
+  - `docs/detail-optimization-inbox.md`：O-023 标记完成，O-027/LOOP-20 继续承接消息邀请卡片。
+- 本轮结论：通过。
+- 下一轮 LOOP：
+  - LOOP-17：游戏随机匹配入口与筛选。范围建议只处理 1 个 P1：游戏页新增随机匹配入口、点击跳转/打开匹配面板、性别与年龄筛选、次数读取与现有 quota 对齐，并补接口冒烟、H5 截图和文档回写。
+
+## 2026-06-30 LOOP-17 游戏随机匹配入口与筛选
+
+- 本轮目标：
+  - 处理 1 个 P1：游戏页新增随机匹配入口，点击进入随机匹配页。
+  - 本轮只做最小闭环：性别筛选、年龄区间筛选、次数读取与 `truth/dare` quota 对齐、匹配成功生成 `game_room` 来源房间证据。
+  - 不处理统一城市筛选、不处理全站头像池、不处理消息邀请卡片同意/取消；这些继续按 LOOP-18 到 LOOP-20 排队。
+- 已读取文件：
+  - `AGENTS.md`
+  - `src/pages/game/index.vue`
+  - `src/pages/game/match.vue`
+  - `src/pages.json`
+  - `src/services/businessApi.ts`
+  - `src/services/businessApi.test.ts`
+  - `src/stores/content.ts`
+  - `src/stores/app.ts`
+  - `src/types/domain.ts`
+  - `backend/app/routes/game.py`
+  - `backend/app/db_business.py`
+  - `backend/app/schemas.py`
+  - `backend/tests/test_api_contract.py`
+  - `docs/requirements-ledger.md`
+  - `docs/work-history.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 多子 Agent 分工：
+  - Product Rules Agent：确认随机匹配只生成游戏房间上下文证据，不绕过“明确互动/确认后才可上下文私聊”的防骚扰边界。
+  - API Contract Agent：补 `POST /game/random-match` 入参、响应、`source_type=game_room`、`evidence_id` 和 `next_action=wait_confirm`。
+  - Backend Agent：实现随机匹配服务，复用附近的人假数据和 `truth/dare` quota，成功匹配创建 `GameRoom`。
+  - Admin Web Agent：本轮不改 admin-web；执行 `npm run build:admin` 确认后台构建未受影响。
+  - User Frontend Agent：在游戏页新增随机匹配入口，新增匹配页、筛选状态、次数展示和结果卡。
+  - QA Agent：补前端参数映射测试、后端契约测试、接口冒烟、H5 截图和构建验证。
+  - Security & Risk Agent：确认匹配成功只返回 `wait_confirm`，没有直接打开陌生私聊。
+  - Docs Agent：同步 requirements-ledger、work-history、completed-checklist、detail-optimization-inbox。
+- 修改文件：
+  - `backend/app/schemas.py`
+  - `backend/app/db_business.py`
+  - `backend/app/routes/game.py`
+  - `backend/tests/test_api_contract.py`
+  - `src/types/domain.ts`
+  - `src/services/businessApi.ts`
+  - `src/services/businessApi.test.ts`
+  - `src/stores/content.ts`
+  - `src/pages/game/index.vue`
+  - `src/pages/game/match.vue`
+  - `src/pages.json`
+  - `output/playwright/game-random-match-smoke.cjs`
+  - `output/playwright/capture-loop17-game-random-match.cjs`
+  - `output/playwright/game-random-match-smoke.json`
+  - `output/playwright/loop17-game-random-match-ui.json`
+  - `output/playwright/loop17-game-random-entry.png`
+  - `output/playwright/loop17-game-random-filter.png`
+  - `output/playwright/loop17-game-random-result.png`
+  - `docs/requirements-ledger.md`
+  - `docs/work-history.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 验证命令：
+  - `npm run typecheck`：通过。
+  - `npm run test:frontend`：通过，4 files / 25 tests。
+  - `npm run build:h5:e2e`：通过。
+  - `npm run build:admin`：通过。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：通过，51 passed。
+  - `python -m compileall -q backend\app backend\tests`：通过。
+  - `npx --version`：通过，11.12.1。
+  - `node output/playwright/game-random-match-smoke.cjs`：通过。
+  - `node output/playwright/capture-loop17-game-random-match.cjs`：通过。
+- 接口冒烟：
+  - `GET http://127.0.0.1:8110/me/status`：200，本轮重启后端后健康检查通过。
+  - `POST http://127.0.0.1:8110/game/random-match`，请求 `mode=truth, gender=female, age_range=25-30`：200，返回 `source_type=game_room`、`source_id=room_id`、`next_action=wait_confirm`、目标用户 `female/25-30`，真心话次数 `10 -> 9`。
+  - `POST http://127.0.0.1:8110/game/random-match`，请求 `mode=dare, gender=female, age_range=77-88`：404，未匹配且大冒险次数 `10 -> 10`。
+- 截图证据：
+  - `output/playwright/loop17-game-random-entry.png`：游戏页显示随机匹配入口。
+  - `output/playwright/loop17-game-random-filter.png`：匹配页显示玩法次数、性别筛选和年龄筛选。
+  - `output/playwright/loop17-game-random-result.png`：匹配结果显示房间、`game_room` 来源和剩余次数，头像无文字兜底。
+- 风险与回滚：
+  - 无数据库迁移，使用现有 `GameRoom`、`QuotaBalance` 和测试数据库。
+  - 新接口只新增 `/game/random-match`，不改变既有真心话/大冒险/消息接口。
+  - 回滚范围为随机匹配页面、游戏页入口、新 API 方法和后端新路由/服务函数。
+- 文档回写：
+  - `docs/requirements-ledger.md`：R-020 标记 LOOP-17 最小闭环完成，城市筛选保留到 R-021/LOOP-18。
+  - `docs/work-history.md`：追加本轮完整 LOOP 记录。
+  - `docs/completed-checklist.md`：追加 LOOP-17 完成清单。
+  - `docs/detail-optimization-inbox.md`：O-024 标记完成最小闭环，并保留 O-025 承接城市/双端年龄滑条。
+- 本轮结论：通过。
+- 下一轮 LOOP：
+  - LOOP-18：统一城市筛选与附近的人年龄双端滑条。范围建议只处理 1 个 P1：附近的人删除距离筛选、年龄改双端进度条、城市筛选默认 `全国 / 北京 / 上海 / 广州 / 深圳 / 全部` 并支持展开更多城市，必要时抽同一数据源供随机匹配后续复用。
+
+## 2026-06-30 LOOP-18 统一城市筛选与附近的人年龄双端滑条
+
+- 本轮目标：
+  - 处理 1 个 P1：附近的人筛选体验改造。
+  - 本轮只做最小闭环：删除附近的人距离筛选、增加统一城市筛选数据源、城市 `全部` 展开更多城市、年龄改为双端滑条、接口返回并筛选城市字段。
+  - 不处理全站头像池、不处理消息邀请卡片、不把广场和随机匹配城市筛选一起重构。
+- 已读取文件：
+  - `AGENTS.md`
+  - `src/pages/nearby/index.vue`
+  - `src/components/ExploreFilters.vue`
+  - `src/constants/product.ts`
+  - `src/services/businessApi.ts`
+  - `src/services/businessApi.test.ts`
+  - `src/stores/content.ts`
+  - `src/types/domain.ts`
+  - `backend/app/routes/plaza.py`
+  - `backend/app/db_business.py`
+  - `backend/app/schemas.py`
+  - `backend/tests/test_api_contract.py`
+  - `docs/requirements-ledger.md`
+  - `docs/work-history.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 多子 Agent 分工：
+  - Product Rules Agent：确认本轮只改附近的人筛选，城市规则默认 `全国 / 北京 / 上海 / 广州 / 深圳 / 全部`，不恢复距离筛选。
+  - API Contract Agent：补 `GET /nearby/users?city=&gender=&age_range=` 语义，返回 `city` 字段，年龄区间按重叠匹配。
+  - Backend Agent：实现 nearby city 过滤、`city` 输出字段和动态年龄区间重叠过滤。
+  - Admin Web Agent：本轮无 admin-web 代码改动；执行 `npm run build:admin` 确认后台构建未受影响。
+  - User Frontend Agent：附近的人筛选面板改为城市、性别、双端年龄滑条；列表城市使用接口字段。
+  - QA Agent：补前端参数映射测试、后端契约测试、接口冒烟、H5 截图与构建验证。
+  - Security & Risk Agent：确认本轮未新增陌生人冷启动私聊入口，附近开聊仍走原 `match_expand` 申请门槛。
+  - Docs Agent：同步 requirements-ledger、work-history、completed-checklist、detail-optimization-inbox。
+- 修改文件：
+  - `backend/app/schemas.py`
+  - `backend/app/db_business.py`
+  - `backend/app/routes/plaza.py`
+  - `backend/tests/test_api_contract.py`
+  - `src/constants/product.ts`
+  - `src/types/domain.ts`
+  - `src/services/businessApi.ts`
+  - `src/services/businessApi.test.ts`
+  - `src/stores/content.ts`
+  - `src/pages/nearby/index.vue`
+  - `output/playwright/nearby-city-age-smoke.cjs`
+  - `output/playwright/capture-loop18-nearby-city-age.cjs`
+  - `output/playwright/nearby-city-age-smoke.json`
+  - `output/playwright/loop18-nearby-city-age-ui.json`
+  - `output/playwright/loop18-nearby-city-age-filter.png`
+  - `output/playwright/loop18-nearby-city-expanded-age-drag.png`
+  - `docs/requirements-ledger.md`
+  - `docs/work-history.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 验证命令：
+  - `npm run typecheck`：通过。
+  - `npm run test:frontend`：通过，4 files / 26 tests。
+  - `npm run build:h5:e2e`：通过。
+  - `npm run build:admin`：通过。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：通过，51 passed。
+  - `python -m compileall -q backend\app backend\tests`：通过。
+  - `npx --version`：通过，11.12.1。
+  - `node output/playwright/nearby-city-age-smoke.cjs`：通过。
+  - `$env:H5_BASE_URL='http://127.0.0.1:5176'; node output/playwright/capture-loop18-nearby-city-age.cjs`：通过。
+- 接口冒烟：
+  - `GET http://127.0.0.1:8110/me/status`：200，本轮重启后端后健康检查通过。
+  - `GET http://127.0.0.1:8110/nearby/users?city=杭州&gender=女&age_range=24-31`：200，返回 2 条，城市均为杭州，性别均为 female，年龄区间与 24-31 重叠。
+  - `GET http://127.0.0.1:8110/nearby/users?city=全国`：200，返回 9 条，覆盖更大集合。
+- 截图证据：
+  - `output/playwright/loop18-nearby-city-age-filter.png`：附近的人显示城市、性别、双端年龄滑条，不显示距离筛选。
+  - `output/playwright/loop18-nearby-city-expanded-age-drag.png`：城市 `全部` 展开更多城市，年龄滑条交互后值改变，仍不显示距离筛选。
+- 风险与回滚：
+  - 无数据库迁移，无 admin-web 结构变更。
+  - `NearbyUser` 响应新增可选 `city` 字段，为向后兼容新增字段。
+  - 回滚范围为 nearby city 参数、`city` 响应字段、共享城市常量和附近的人筛选 UI。
+- 文档回写：
+  - `docs/requirements-ledger.md`：R-021 标记 LOOP-18 最小闭环完成。
+  - `docs/work-history.md`：追加本轮完整 LOOP 记录。
+  - `docs/completed-checklist.md`：追加 LOOP-18 完成清单。
+  - `docs/detail-optimization-inbox.md`：O-025 标记完成最小闭环。
+- 本轮结论：通过。
+- 下一轮 LOOP：
+  - LOOP-19：头像资源与用户资料同步。范围建议只处理 1 个 P1：全站头像不再显示字体，用户 `avatar_url` 优先，否则使用系统随机头像池，并补附近的人、消息列表、聊天详情截图和资料更新同步验证。
+
+## 2026-06-30 LOOP-19 头像资源与用户资料同步
+
+- 本轮目标：
+  - 处理 1 个 P1：系统头像资源池与核心 H5 资料同步。
+  - 本轮只做最小闭环：附近的人、消息列表、聊天详情、当前用户资料和后端假数据统一使用图片头像；不处理消息邀请卡片和上下文会话生产持久化。
+- 已读取文件：
+  - `AGENTS.md`
+  - `src/pages/nearby/index.vue`
+  - `src/pages/messages/index.vue`
+  - `src/pages/messages/chat.vue`
+  - `src/pages/profile/settings.vue`
+  - `src/types/domain.ts`
+  - `src/services/businessApi.ts`
+  - `src/services/meApi.ts`
+  - `src/stores/content.ts`
+  - `src/stores/app.ts`
+  - `src/stores/content.test.ts`
+  - `backend/app/schemas.py`
+  - `backend/app/db_business.py`
+  - `backend/app/routes/me.py`
+  - `backend/app/routes/messages.py`
+  - `backend/tests/test_api_contract.py`
+  - `docs/requirements-ledger.md`
+  - `docs/work-history.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 多子 Agent 分工：
+  - Product Rules Agent：确认头像规则为用户 `avatar_url` 优先、无头像使用系统图片头像，不再显示昵称首字。
+  - API Contract Agent：补 `NearbyUser.icon_url`，确认会话参与者头像和用户资料头像均返回 URL。
+  - Backend Agent：增加系统头像 seed、后端头像 URL 解析和种子用户兜底头像。
+  - Admin Web Agent：本轮不改 admin-web；执行 `npm run build:admin` 确认后台构建未受影响。
+  - User Frontend Agent：附近的人、消息列表、聊天详情改为图片头像或无文字图形占位。
+  - QA Agent：补前端映射测试、后端契约测试、接口冒烟、H5 截图和 UI 断言。
+  - Security & Risk Agent：确认没有新增陌生人冷启动私聊入口，只改头像资源与资料同步。
+  - Docs Agent：同步 requirements-ledger、work-history、completed-checklist、detail-optimization-inbox。
+- 修改文件：
+  - `src/utils/avatar.ts`
+  - `src/types/domain.ts`
+  - `src/services/businessApi.ts`
+  - `src/services/meApi.ts`
+  - `src/stores/content.ts`
+  - `src/pages/nearby/index.vue`
+  - `src/pages/messages/index.vue`
+  - `src/pages/messages/chat.vue`
+  - `src/services/businessApi.test.ts`
+  - `backend/app/schemas.py`
+  - `backend/app/db_business.py`
+  - `backend/tests/test_api_contract.py`
+  - `output/playwright/avatar-url-smoke.cjs`
+  - `output/playwright/capture-loop19-avatars.cjs`
+  - `output/playwright/avatar-url-smoke.json`
+  - `output/playwright/loop19-avatar-ui.json`
+  - `output/playwright/loop19-nearby-image-avatars.png`
+  - `output/playwright/loop19-messages-image-avatars.png`
+  - `output/playwright/loop19-chat-image-avatar.png`
+  - `docs/requirements-ledger.md`
+  - `docs/work-history.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 验证命令：
+  - `npm run typecheck`：通过。
+  - `npm run test:frontend`：通过，4 files / 26 tests。
+  - `npm run build:h5:e2e`：通过。
+  - `npm run build:admin`：通过。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：通过，51 passed。
+  - `python -m compileall -q backend\app backend\tests`：通过。
+  - `node output\playwright\avatar-url-smoke.cjs`：通过。
+  - `$env:H5_BASE_URL='http://127.0.0.1:5176'; node output\playwright\capture-loop19-avatars.cjs`：通过。
+- 接口冒烟：
+  - `GET http://127.0.0.1:8110/me/status`：200，未设置头像时返回 DiceBear 图片头像 URL。
+  - `GET http://127.0.0.1:8110/nearby/users?city=全国`：200，返回 9 条，样本 `icon_url` 均为 DiceBear 图片头像 URL。
+  - `GET http://127.0.0.1:8110/conversations`：200，返回 5 条，样本 `participant_avatar_url` 均为 DiceBear 图片头像 URL。
+  - `POST http://127.0.0.1:8110/me/profile`：200，显式写入 `avatar_url=https://api.dicebear.com/9.x/open-peeps/svg?...` 后，`GET /me/profile` 与 `GET /me/status` 均保留该 URL。
+- 截图证据：
+  - `output/playwright/loop19-nearby-image-avatars.png`：附近的人头像为图片，断言 9/9。
+  - `output/playwright/loop19-messages-image-avatars.png`：消息列表头像为图片，断言 5/5。
+  - `output/playwright/loop19-chat-image-avatar.png`：聊天详情头像为图片，断言 1/1。
+- 风险与回滚：
+  - 无数据库迁移；新增的是头像 URL 派生和可选响应字段，回滚范围为 `src/utils/avatar.ts`、头像映射、页面头像渲染和后端头像兜底函数。
+  - 历史未注册页面、后台管理页和旧 mock 命名中仍可能保留 `avatarText/iconText` 字段，本轮不把它们声明为全站完成，后续按 P2 清理。
+- 文档回写：
+  - `docs/requirements-ledger.md`：R-022 标记 LOOP-19 核心 H5 最小闭环完成并写入证据。
+  - `docs/work-history.md`：追加本轮完整 LOOP 记录。
+  - `docs/completed-checklist.md`：追加 LOOP-19 完成清单。
+  - `docs/detail-optimization-inbox.md`：O-026 标记核心闭环完成并保留后续 P2 清理项。
+- 本轮结论：通过。
+- 下一轮 LOOP：
+  - LOOP-20：消息邀请卡片同意/取消与二次跳转。范围建议只处理 1 个 P1：消息页卡片化展示邀请、支持同意/取消、同意后再次点击直接跳转房间或会话详情，并补接口冒烟、H5 截图和文档回写。
+
+## 2026-06-30 LOOP-20 消息邀请卡片同意/取消与二次跳转
+
+- 本轮目标：
+  - 处理 1 个 P1：消息邀请卡片最小闭环。
+  - 本轮只做消息页邀请列表、同意、取消、同意后二次点击跳转；不处理上下文会话数据库持久化、重复扣费幂等和全量邀请来源重构。
+- 已读取文件：
+  - `AGENTS.md`
+  - `src/pages/messages/index.vue`
+  - `src/pages/messages/chat.vue`
+  - `src/types/domain.ts`
+  - `src/services/businessApi.ts`
+  - `src/services/businessApi.test.ts`
+  - `src/stores/content.ts`
+  - `backend/app/chat_store.py`
+  - `backend/app/routes/chat.py`
+  - `backend/app/schemas.py`
+  - `backend/tests/test_api_contract.py`
+  - `docs/requirements-ledger.md`
+  - `docs/work-history.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 多子 Agent 分工：
+  - Product Rules Agent：确认邀请卡片只承接已有明确互动上下文，不新增陌生人冷启动私聊。
+  - API Contract Agent：新增用户侧 `GET /chat/context-requests`，复用 accept/reject 和 conversation detail 契约。
+  - Backend Agent：生成稳定测试邀请，维护 pending/active/expired 状态和 active `conversation_id`。
+  - Admin Web Agent：本轮不改 admin-web；执行 `npm run build:admin` 确认后台构建未受影响。
+  - User Frontend Agent：消息页展示邀请卡片，同意/取消，active 卡片二次点击直达临时会话。
+  - QA Agent：补前端 API 测试、后端契约测试、接口冒烟、H5 点击截图和 UI 断言。
+  - Security & Risk Agent：确认同意后仍进入上下文临时会话，受频控、举报、拉黑和审计保护。
+  - Docs Agent：同步 requirements-ledger、work-history、completed-checklist、detail-optimization-inbox。
+- 修改文件：
+  - `backend/app/chat_store.py`
+  - `backend/app/routes/chat.py`
+  - `backend/tests/test_api_contract.py`
+  - `src/services/businessApi.ts`
+  - `src/services/businessApi.test.ts`
+  - `src/stores/content.ts`
+  - `src/pages/messages/index.vue`
+  - `output/playwright/message-invitation-smoke.cjs`
+  - `output/playwright/capture-loop20-message-invites.cjs`
+  - `output/playwright/message-invitation-smoke.json`
+  - `output/playwright/loop20-message-invite-ui.json`
+  - `output/playwright/loop20-message-invite-card-pending.png`
+  - `output/playwright/loop20-message-invite-accepted-chat.png`
+  - `output/playwright/loop20-message-invite-card-active.png`
+  - `docs/requirements-ledger.md`
+  - `docs/work-history.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 验证命令：
+  - `npm run typecheck`：通过。
+  - `npm run test:frontend`：通过，4 files / 27 tests。
+  - `npm run build:h5:e2e`：通过。
+  - `npm run build:admin`：通过。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：通过，52 passed。
+  - `python -m compileall -q backend\app backend\tests`：通过。
+  - `node output\playwright\message-invitation-smoke.cjs`：通过。
+  - `$env:H5_BASE_URL='http://127.0.0.1:5176'; node output\playwright\capture-loop20-message-invites.cjs`：通过。
+- 接口冒烟：
+  - `GET http://127.0.0.1:8110/chat/context-requests`：200，返回 pending `game_room` 邀请卡片，标题为“游戏房间邀请”。
+  - `POST http://127.0.0.1:8110/chat/context-requests/{id}/accept`：200，返回 `active + conversation_id`。
+  - `GET http://127.0.0.1:8110/chat/context-requests` 二次读取：200，同一邀请保持 active 且保留同一 `conversation_id`。
+  - `GET http://127.0.0.1:8110/chat/conversations/{conversation_id}`：200，返回 active `game_room` 临时会话。
+  - `POST http://127.0.0.1:8110/chat/context-requests/{id}/reject`：200，返回 `expired`。
+- 截图证据：
+  - `output/playwright/loop20-message-invite-card-pending.png`：pending 邀请卡片显示“同意/取消”。
+  - `output/playwright/loop20-message-invite-accepted-chat.png`：同意后进入临时会话详情。
+  - `output/playwright/loop20-message-invite-card-active.png`：active 卡片显示“进入会话”，二次点击直达同一会话。
+- 风险与回滚：
+  - 无数据库迁移；邀请数据仍使用当前内存 store，生产持久化按 LOOP-21 处理。
+  - 回滚范围为 `GET /chat/context-requests`、消息页邀请卡片 UI、businessApi/store 新方法和两条测试。
+- 文档回写：
+  - `docs/requirements-ledger.md`：R-023 标记 LOOP-20 最小闭环完成并写入证据。
+  - `docs/work-history.md`：追加本轮完整 LOOP 记录。
+  - `docs/completed-checklist.md`：追加 LOOP-20 完成清单。
+  - `docs/detail-optimization-inbox.md`：O-027 标记最小闭环完成，生产持久化/幂等保护保留到 O-020/O-021。
+- 本轮结论：通过。
+- 下一轮 LOOP：
+  - LOOP-21：上下文会话生产持久化。范围建议只处理 1 个 P1：把 context request / conversation / message / report / block / audit refs 从内存 store 迁移到数据库，并补“服务重启后仍可读取会话”的测试、接口冒烟和文档回写。
+
+## 2026-06-30 LOOP-21 上下文会话生产持久化
+
+- 本轮目标：
+  - 处理 1 个 P1：上下文会话生产持久化。
+  - 本轮只迁移 context request / conversation / message / report / block / audit refs 到数据库；不处理附近的人重复扣费幂等、全量风控策略或 UI 重构。
+- 已读取文件：
+  - `AGENTS.md`
+  - `backend/app/models.py`
+  - `backend/app/db.py`
+  - `backend/app/main.py`
+  - `backend/app/chat_store.py`
+  - `backend/app/routes/chat.py`
+  - `backend/app/db_business.py`
+  - `backend/app/schemas.py`
+  - `backend/tests/test_api_contract.py`
+  - `docs/requirements-ledger.md`
+  - `docs/work-history.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 多子 Agent 分工：
+  - Product Rules Agent：确认持久化不改变上下文私聊规则和防骚扰门槛。
+  - API Contract Agent：确认所有 `/chat/*` 路径和响应字段保持不变。
+  - Backend Agent：新增 SQLAlchemy 模型、迁移文件，替换 `chat_store` 为数据库读写。
+  - Admin Web Agent：本轮不改 admin-web；执行 `npm run build:admin` 确认后台构建未受影响。
+  - User Frontend Agent：本轮不改 UI；通过 H5 截图验证重启后会话详情仍可打开。
+  - QA Agent：补后端重启式测试、真实重启接口冒烟、H5 截图和完整门禁命令。
+  - Security & Risk Agent：确认 block/report/audit refs 已落库，拉黑后消息仍返回 `CHAT_BLOCKED`。
+  - Docs Agent：同步 requirements-ledger、work-history、completed-checklist、detail-optimization-inbox。
+- 修改文件：
+  - `backend/app/models.py`
+  - `backend/app/chat_store.py`
+  - `backend/app/routes/chat.py`
+  - `backend/app/db_business.py`
+  - `backend/tests/test_api_contract.py`
+  - `backend/alembic/versions/0011_context_chat_persistence.py`
+  - `output/playwright/context-persistence-smoke.cjs`
+  - `output/playwright/capture-loop21-persisted-conversation.cjs`
+  - `output/playwright/context-persistence-smoke.json`
+  - `output/playwright/loop21-persisted-conversation-ui.json`
+  - `output/playwright/loop21-persisted-conversation-after-restart.png`
+  - `docs/requirements-ledger.md`
+  - `docs/work-history.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 验证命令：
+  - `npm run typecheck`：通过。
+  - `npm run test:frontend`：通过，4 files / 27 tests。
+  - `npm run build:h5:e2e`：通过。
+  - `npm run build:admin`：通过。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：通过，53 passed。
+  - `python -m compileall -q backend\app backend\tests`：通过。
+  - `node output\playwright\context-persistence-smoke.cjs`：通过。
+  - `$env:H5_BASE_URL='http://127.0.0.1:5176'; node output\playwright\capture-loop21-persisted-conversation.cjs`：通过。
+- 接口冒烟：
+  - `POST /chat/context-requests`：200，创建 `pending + plaza_comment` 上下文申请。
+  - `POST /chat/context-requests/{id}/accept`：200，返回 `active + conversation_id`。
+  - `POST /chat/conversations/{conversation_id}/messages`：200，返回 `sent + message_id`。
+  - 真实重启 8110 后 `GET /chat/conversations/{conversation_id}`：200，仍为 active，消息数量 1。
+  - 真实重启 8110 后 `GET /chat/conversations`：200，仍能找到同一 `conversation_id`。
+- 截图证据：
+  - `output/playwright/loop21-persisted-conversation-after-restart.png`：真实重启后 H5 打开同一临时会话详情，消息仍显示。
+- 风险与回滚：
+  - 新增数据库表，不删除旧业务表；迁移文件包含 downgrade，可回滚新增 `chat_*` 表。
+  - 旧内存 dict 保留为空容器，仅用于兼容测试清空动作，不再承载业务状态。
+  - 附近的人重复扣费幂等仍未处理，按 O-021 进入下一轮。
+- 文档回写：
+  - `docs/requirements-ledger.md`：R-024 标记 LOOP-21 最小持久化闭环完成并写入证据。
+  - `docs/work-history.md`：追加本轮完整 LOOP 记录。
+  - `docs/completed-checklist.md`：追加 LOOP-21 完成清单。
+  - `docs/detail-optimization-inbox.md`：O-020 标记完成，O-021 继续保留重复扣费幂等保护。
+- 本轮结论：通过。
+- 下一轮 LOOP：
+  - LOOP-22：附近的人继续聊重复扣费保护。范围建议只处理 1 个 P1：同一发起人、同一目标、同一 `match_expand` 来源在 pending/active 未终结时复用已有请求/会话，非 VIP 不重复扣 5 积分，并补接口冒烟、H5 状态反馈截图和文档回写。
+
+## 2026-06-30 LOOP-22 附近的人继续聊重复扣费保护
+
+- 本轮目标：
+  - 处理 1 个 P1：附近的人继续聊重复扣费幂等保护。
+  - 本轮只处理同一发起人/目标/source 的 pending/active 复用，不做新的匹配规则、风控频控系统或 UI 大改。
+- 已读取文件：
+  - `AGENTS.md`
+  - `backend/app/db_business.py`
+  - `backend/app/chat_store.py`
+  - `backend/tests/test_api_contract.py`
+  - `src/pages/nearby/index.vue`
+  - `docs/requirements-ledger.md`
+  - `docs/work-history.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 多子 Agent 分工：
+  - Product Rules Agent：确认非 VIP 首次仍扣 5，重复 pending/active 不重复扣。
+  - API Contract Agent：保持 `POST /chat/match-expand-requests` 响应不变，用 `cost_coins=0` 表达复用。
+  - Backend Agent：扣费前查询并复用已有 `match_expand` 请求。
+  - Admin Web Agent：本轮不改 admin-web；执行 `npm run build:admin` 确认后台构建未受影响。
+  - User Frontend Agent：补 `costCoins=0` 的复用文案。
+  - QA Agent：补后端测试、接口冒烟、H5 双击截图和完整门禁命令。
+  - Security & Risk Agent：确认重复发起不会造成重复扣费或重复 pending。
+  - Docs Agent：同步 requirements-ledger、work-history、completed-checklist、detail-optimization-inbox。
+- 修改文件：
+  - `backend/app/db_business.py`
+  - `backend/tests/test_api_contract.py`
+  - `src/pages/nearby/index.vue`
+  - `output/playwright/match-expand-idempotency-smoke.cjs`
+  - `output/playwright/capture-loop22-match-expand-idempotency.cjs`
+  - `output/playwright/match-expand-idempotency-smoke.json`
+  - `output/playwright/loop22-match-expand-idempotency-ui.json`
+  - `output/playwright/loop22-match-expand-idempotency.png`
+  - `docs/requirements-ledger.md`
+  - `docs/work-history.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 验证命令：
+  - `npm run typecheck`：通过。
+  - `npm run test:frontend`：通过，4 files / 27 tests。
+  - `npm run build:h5:e2e`：通过。
+  - `npm run build:admin`：通过。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：通过，54 passed。
+  - `python -m compileall -q backend\app backend\tests`：通过。
+  - `node output\playwright\match-expand-idempotency-smoke.cjs`：通过；二次验证时已修正为脚本自托管 8110 测试后端，并为每次运行准备唯一普通用户，避免历史持久化申请污染“首次扣费”断言。
+  - `$env:H5_BASE_URL='http://127.0.0.1:5176'; node output\playwright\capture-loop22-match-expand-idempotency.cjs`：通过。
+- 接口冒烟：
+  - `GET /me/status`：非 VIP 用户初始积分 80。
+  - 第一次 `POST /chat/match-expand-requests`：200，同一请求进入 pending，`costCoins=5`，积分 80 -> 75。
+  - 第二次 `POST /chat/match-expand-requests`：200，复用同一请求 ID，`costCoins=0`，积分保持 75。
+- 截图证据：
+  - `output/playwright/loop22-match-expand-idempotency.png`：附近的人连续点击同一开聊对象后展示“不重复扣积分”状态。
+- 风险与回滚：
+  - 无数据库迁移；只在现有持久化请求表上增加复用查询逻辑。
+  - 回滚范围为 `create_match_expand_context_request()` 的复用分支和前端复用文案。
+- 文档回写：
+  - `docs/requirements-ledger.md`：新增 R-025 并写入 LOOP-22 证据。
+  - `docs/work-history.md`：追加本轮完整 LOOP 记录。
+  - `docs/completed-checklist.md`：追加 LOOP-22 完成清单。
+  - `docs/detail-optimization-inbox.md`：O-021 标记完成最小幂等闭环。
+- 本轮结论：通过。
+- 下一轮 LOOP：
+  - LOOP-23：可选 P2，清理历史未注册页面、后台管理页和旧 mock 命名中的 `avatarText/iconText`，避免未来误用回文字头像；或进入下一条用户指定 P0/P1。
+## 2026-06-30 LOOP-23 可见头像文字兜底清理
+
+- 本轮目标：
+  - 处理 1 个 P2：清理可见 H5 页面和 admin-web 中的头像文字 fallback。
+  - 本轮只处理可见 UI 渲染，不删除 `avatar_text/icon_text` 数据库字段，不改礼物图标字段，不做 schema 迁移。
+- 已读取文件：
+  - `AGENTS.md`
+  - `docs/requirements-ledger.md`
+  - `docs/detail-optimization-inbox.md`
+  - `docs/completed-checklist.md`
+  - `docs/work-history.md`
+  - `src/utils/avatar.ts`
+  - `src/pages/bottle/index.vue`
+  - `src/pages/plaza/index.vue`
+  - `src/pages/plaza/comments.vue`
+  - `src/pages/home/index.vue`
+  - `src/pages/profile/index.vue`
+  - `src/pages/creator/index.vue`
+  - `src/pages/treehole/index.vue`
+  - `admin-web/src/AdminApp.vue`
+  - `output/playwright/avatar-url-smoke.cjs`
+- 多子 Agent 分工：
+  - Product Rules Agent：确认“头像不显示字体”的要求只约束头像渲染；礼物图标文字不属于头像。
+  - API Contract Agent：确认本轮不改接口字段，保留 `avatar_text/icon_text` 兼容。
+  - Backend Agent：本轮不改后端业务；执行后端测试和 compileall 确认未受影响。
+  - Admin Web Agent：将 admin-web 可见头像 fallback 改为 DiceBear 图片 URL。
+  - User Frontend Agent：将 H5 可见页面头像 fallback 改为 `resolveAvatarUrl()` 图片 URL。
+  - QA Agent：补 LOOP-23 截图脚本，验证 H5 和后台头像 DOM 均为图片且文本为空。
+  - Security & Risk Agent：确认不新增陌生私聊入口、不放宽权限、不删除审计相关字段。
+  - Docs Agent：同步 requirements-ledger、work-history、completed-checklist、detail-optimization-inbox。
+- 修改文件：
+  - `src/pages/bottle/index.vue`
+  - `src/pages/plaza/index.vue`
+  - `src/pages/plaza/comments.vue`
+  - `src/pages/home/index.vue`
+  - `src/pages/profile/index.vue`
+  - `src/pages/creator/index.vue`
+  - `src/pages/treehole/index.vue`
+  - `admin-web/src/AdminApp.vue`
+  - `output/playwright/capture-loop23-avatar-fallbacks.cjs`
+  - `output/playwright/loop23-avatar-fallbacks-ui.json`
+  - `output/playwright/loop23-plaza-avatar-fallbacks.png`
+  - `output/playwright/loop23-plaza-comment-avatar-fallbacks.png`
+  - `output/playwright/loop23-profile-avatar-fallback.png`
+  - `output/playwright/loop23-admin-avatar-fallbacks.png`
+  - `docs/requirements-ledger.md`
+  - `docs/work-history.md`
+  - `docs/completed-checklist.md`
+  - `docs/detail-optimization-inbox.md`
+- 验证命令：
+  - `npm run typecheck`：通过。
+  - `npm run test:frontend`：通过，4 files / 27 tests。
+  - `npm run build:h5:e2e`：通过。
+  - `npm run build:admin`：通过。
+  - `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：通过，54 passed。
+  - `python -m compileall -q backend\app backend\tests`：通过。
+  - `node output\playwright\avatar-url-smoke.cjs`：通过。
+  - `$env:H5_BASE_URL='http://127.0.0.1:5176'; node output\playwright\capture-loop23-avatar-fallbacks.cjs`：通过。
+- 接口冒烟：
+  - `GET /me/status`：200，未设置头像时返回 DiceBear 图片头像 URL。
+  - `GET /nearby/users?city=全国`：200，返回 9 条，样本 `icon_url` 均为 DiceBear 图片头像 URL。
+  - `GET /conversations`：200，返回 5 条，样本 `participant_avatar_url` 均为 DiceBear 图片头像 URL。
+  - `POST /me/profile`：200，显式写入 DiceBear `avatar_url` 后，`GET /me/status` 保留用户设置头像。
+- 截图证据：
+  - `output/playwright/loop23-plaza-avatar-fallbacks.png`：广场列表头像 3/3 为图片，头像节点文本为空。
+  - `output/playwright/loop23-plaza-comment-avatar-fallbacks.png`：广场评论头像 2/2 为图片，头像节点文本为空。
+  - `output/playwright/loop23-profile-avatar-fallback.png`：我的页头像 1/1 为图片，头像节点文本为空。
+  - `output/playwright/loop23-admin-avatar-fallbacks.png`：后台用户页头像 10/10 为图片，头像节点文本为空。
+- 风险与回滚：
+  - 无数据库迁移，无接口字段删除。
+  - 回滚范围为上述 H5 页面头像渲染、admin-web 头像 helper 和 LOOP-23 截图脚本。
+- 文档回写：
+  - `docs/requirements-ledger.md`：新增 R-026。
+  - `docs/detail-optimization-inbox.md`：新增 O-028，承接 O-026 后续 P2。
+  - `docs/completed-checklist.md`：追加 LOOP-23 完成清单。
+  - `docs/work-history.md`：追加本轮完整 LOOP 记录。
+- 本轮结论：通过。
+- 下一轮 LOOP：
+  - LOOP-24：自动 LOOP 总验收。范围建议只处理 1 个 P1：复跑当前企业级门禁，核验 P0/P1 是否仍有未完成真实阻塞，生成最终验证清单；失败则先修复失败项，不进入新功能。
+## 2026-06-30 LOOP-24 自动总验收
+
+### 本轮目标
+
+- 处理范围：1 个 P1，自动复跑当前企业级门禁，失败先修复；若无失败则形成剩余 P0/P1 队列。
+- 不处理范围：不在同一轮实现生产级管理员账号、真实数据库迁移、私密照片真实上传、错误码/审计/高级筛选等多个大项。
+
+### 已读取文件
+
+- `AGENTS.md`
+- `docs/requirements-ledger.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/completed-checklist.md`
+- `docs/work-history.md`
+- `package.json`
+- `src/pages.json`
+- `output/playwright/*.cjs`
+
+### 多子 Agent 分工
+
+- Product Rules Agent：复核旧私聊/好友/私密照片旧规则残留，证据为 Select-String 扫描结果。
+- API Contract Agent：复跑上下文私聊、会话持久化、扩列幂等、附近的人筛选和好友规则接口冒烟。
+- Backend Agent：复跑 `pytest` 和 `compileall`，确认后端路由和持久化链路仍可运行。
+- Admin Web Agent：复跑 `npm run build:admin`，并通过 LOOP-23 后台头像截图确认后台可渲染。
+- User Frontend Agent：复跑 H5 构建和用户端截图脚本，确认消息、附近的人、头像兜底路径可渲染。
+- QA Agent：统一执行类型检查、前端测试、构建、后端测试、接口冒烟、截图复验。
+- Security & Risk Agent：复核后台页面未回到用户端 `pages.json`，旧规则代码侧无命中。
+- Docs Agent：回写 requirements、inbox、completed、work-history。
+
+### 修改文件
+
+- `docs/requirements-ledger.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/completed-checklist.md`
+- `docs/work-history.md`
+
+### 验证命令
+
+- `npm run typecheck`：通过。
+- `npm run test:frontend`：4 个测试文件、27 条测试通过。
+- `npm run build:h5:e2e`：通过。
+- `npm run build:admin`：通过。
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：54 passed。
+- `python -m compileall -q backend\app backend\tests`：通过。
+- 旧规则扫描：`rg` 在当前环境 Access denied，已用 PowerShell `Select-String` 复跑；代码侧无旧规则命中，文档命中均为旧规则废弃/补丁覆盖/验收上下文。
+- 后台隔离扫描：`src/pages.json` 无后台或树洞页面路由。
+- 头像文字兜底扫描：本轮目标页面和后台无 `<text v-else.*avatar`、`userAvatarText(`、`avatarText ||` 等可见兜底命中。
+
+### 接口冒烟
+
+- `node output\playwright\avatar-url-smoke.cjs`：通过，默认 DiceBear 头像和显式头像更新可读回。
+- `node output\playwright\message-invitation-smoke.cjs`：通过，同意后 active，二次点击复用同一 conversation，拒绝后 expired。
+- `node output\playwright\context-persistence-smoke.cjs`：通过，服务重启后会话详情和列表仍可读取。
+- `node output\playwright\match-expand-idempotency-smoke.cjs`：通过，首次扣 5 积分，二次复用不重复扣费。
+- `node output\playwright\nearby-city-age-smoke.cjs`：通过，城市/性别/年龄筛选返回 200。
+- `node output\playwright\nearby-friend-rule-smoke.cjs`：通过，好友申请文案不再包含旧规则。
+- `node output\playwright\game-random-match-smoke.cjs`：通过，随机匹配成功扣对应次数，失败不扣次数。
+
+### 截图证据
+
+- `output/playwright/loop20-message-invite-card-pending.png`
+- `output/playwright/loop20-message-invite-accepted-chat.png`
+- `output/playwright/loop20-message-invite-card-active.png`
+- `output/playwright/loop21-persisted-conversation-after-restart.png`
+- `output/playwright/loop22-match-expand-idempotency.png`
+- `output/playwright/loop18-nearby-city-age-filter.png`
+- `output/playwright/loop18-nearby-city-expanded-age-drag.png`
+- `output/playwright/loop23-plaza-avatar-fallbacks.png`
+- `output/playwright/loop23-plaza-comment-avatar-fallbacks.png`
+- `output/playwright/loop23-profile-avatar-fallback.png`
+- `output/playwright/loop23-admin-avatar-fallbacks.png`
+
+### 风险与回滚
+
+- 本轮只回写文档和运行验证，无业务代码变更。
+- 剩余生产级管理员账号、真实数据库迁移、私密照片真实上传、收益流水和申诉链路均为大范围 P0/P1，必须后续拆轮处理。
+
+### 文档回写
+
+- `docs/requirements-ledger.md`：新增 R-027。
+- `docs/detail-optimization-inbox.md`：新增 O-029。
+- `docs/completed-checklist.md`：追加 LOOP-24 自动总验收。
+- `docs/work-history.md`：追加本记录。
+
+### 本轮结论
+
+通过
+
+### 下一轮 LOOP
+
+- LOOP-25：生产级管理员真实账号与权限矩阵。范围建议只处理 1 个 P0：后端 admin auth 真实账号/角色校验、admin-web 登录态接入、权限失败冒烟和截图；不同时处理真实数据库迁移。
+## 2026-06-30 LOOP-25 管理员真实账号与权限矩阵最小闭环
+
+### 本轮目标
+
+- 处理范围：1 个 P0，补后台真实账号与权限矩阵的最小闭环。
+- 不处理范围：不接真实 PostgreSQL 管理员账号表、不做 MFA、不做完整操作级权限 UI。
+
+### 已读取文件
+
+- `backend/app/routes/admin.py`
+- `backend/app/security.py`
+- `backend/app/dependencies.py`
+- `backend/app/settings.py`
+- `backend/tests/test_api_contract.py`
+- `src/services/adminApi.ts`
+- `admin-web/src/AdminApp.vue`
+- `output/playwright/capture-loop23-avatar-fallbacks.cjs`
+
+### 多子 Agent 分工
+
+- Product Rules Agent：确认本轮只处理后台管理身份，不改变用户端私聊和内容规则。
+- API Contract Agent：补未登录、坏 token、admin、moderator 读取和 forbidden 写操作接口验收。
+- Backend Agent：实现 `ADMIN_ACCOUNTS`、签名 token、admin 查询接口鉴权和角色校验。
+- Admin Web Agent：复跑 admin 构建，并截图确认后台仍能加载。
+- User Frontend Agent：确认不改用户端路由，H5 构建通过。
+- QA Agent：补 `admin-auth-smoke.cjs` 和后端契约测试，执行完整门禁。
+- Security & Risk Agent：确认后台读取不再裸奔，低权限写配置返回 `ADMIN_FORBIDDEN`。
+- Docs Agent：回写 requirements、inbox、completed、work-history。
+
+### 修改文件
+
+- `backend/app/settings.py`
+- `backend/app/security.py`
+- `backend/app/routes/admin.py`
+- `backend/tests/test_api_contract.py`
+- `output/playwright/admin-auth-smoke.cjs`
+- `docs/requirements-ledger.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/completed-checklist.md`
+- `docs/work-history.md`
+
+### 验证命令
+
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests\test_api_contract.py -q`：55 passed。
+- `node output\playwright\admin-auth-smoke.cjs`：通过。
+- `npm run typecheck`：通过。
+- `npm run test:frontend`：4 个测试文件、27 条测试通过。
+- `npm run build:h5:e2e`：通过。
+- `npm run build:admin`：通过。
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：55 passed。
+- `python -m compileall -q backend\app backend\tests`：通过。
+
+### 接口冒烟
+
+- `GET /admin/summary` 无 token：401，`ADMIN_UNAUTHORIZED`。
+- `GET /admin/summary` 坏 token：401，`ADMIN_UNAUTHORIZED`。
+- `POST /admin/auth/login` admin：200，角色 `admin, moderator`。
+- `GET /admin/auth/me` admin token：200。
+- `GET /admin/summary` admin token：200。
+- `POST /admin/auth/login` moderator：200，角色 `moderator`。
+- `GET /admin/summary` moderator token：200。
+- `GET /admin/reward-config` moderator token：200。
+- `PATCH /admin/reward-config` moderator token：403，`ADMIN_FORBIDDEN`。
+
+### 截图证据
+
+- `output/playwright/loop25-admin-auth-dashboard.png`
+
+### 风险与回滚
+
+- 风险：后台读取接口现在必须带 token；旧的无 token 管理调用会被拒绝。
+- 回滚：恢复 `backend/app/routes/admin.py` 中查询接口依赖，恢复 `backend/app/security.py` 固定 token 实现，并删除新增测试和冒烟脚本。
+
+### 文档回写
+
+- `docs/requirements-ledger.md`：新增 R-028。
+- `docs/detail-optimization-inbox.md`：新增 O-030。
+- `docs/completed-checklist.md`：追加 LOOP-25 完成清单。
+- `docs/work-history.md`：追加本记录。
+
+### 本轮结论
+
+通过
+
+### 下一轮 LOOP
+
+- LOOP-26：真实 PostgreSQL/Alembic/Redis 迁移执行验收。范围建议只处理 1 个 P0：测试数据库连接、迁移命令、回滚边界和冒烟；若涉及真实数据破坏风险，按规则暂停确认。
+## 2026-06-30 LOOP-26 真实 PostgreSQL/Alembic/Redis 迁移执行验收
+
+### 本轮目标
+
+- 处理范围：1 个 P0，验证真实 PostgreSQL/Alembic/Redis 迁移执行条件。
+- 不处理范围：不对未知真实数据库执行破坏性迁移，不把 SQLite 验证冒充 PostgreSQL 真实验收。
+
+### 已读取文件
+
+- `backend/alembic.ini`
+- `backend/alembic/env.py`
+- `backend/alembic/versions/*.py`
+- `backend/requirements.txt`
+- `backend/app/models.py`
+- `docs/requirements-ledger.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/completed-checklist.md`
+- `docs/work-history.md`
+
+### 多子 Agent 分工
+
+- Product Rules Agent：确认本轮只处理基础设施验收，不改变产品规则。
+- API Contract Agent：定义后续解除阻塞后的 admin auth 和 context chat 冒烟入口。
+- Backend Agent：检查 Alembic 配置、迁移链和 PostgreSQL/SQLite 执行差异。
+- Admin Web Agent：无 UI 改动，不需要新增后台页面截图。
+- User Frontend Agent：无用户端改动，不触及 H5。
+- QA Agent：执行 Docker/PostgreSQL/Redis 探测、Alembic SQLite 隔离执行、PostgreSQL 离线 SQL 生成。
+- Security & Risk Agent：确认不对未知真实数据库执行迁移，避免破坏真实数据。
+- Docs Agent：记录阻塞证据和解除条件。
+
+### 修改文件
+
+- `docs/requirements-ledger.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/completed-checklist.md`
+- `docs/work-history.md`
+
+### 验证命令
+
+- `Get-Command psql,createdb,dropdb,redis-server,redis-cli,docker`：仅发现 `docker.exe`，未发现 PostgreSQL/Redis CLI。
+- `docker ps --format ...`：失败，Docker Desktop Linux engine pipe 不存在。
+- PostgreSQL 连接探测：失败，`ConnectionRefusedError: [WinError 1225] 远程计算机拒绝网络连接。`
+- Redis 连接探测：失败，`TimeoutError: Timeout connecting to server`。
+- `$env:DATABASE_URL='sqlite+aiosqlite:///./runtime/alembic-loop26.sqlite3'; python -m alembic -c alembic.ini upgrade head`：失败，SQLite 在 `0002_bottle_relation_models` 的 `create_unique_constraint` 不支持 ALTER constraint。
+- `$env:DATABASE_URL='postgresql+asyncpg://drift:drift@localhost:5432/drift_bottle'; python -m alembic -c alembic.ini upgrade head --sql > runtime\loop26-postgres-upgrade.sql`：通过，生成 PostgreSQL 方言离线 SQL，59594 bytes。
+
+### 接口冒烟
+
+- 未执行真实后端 PostgreSQL/Redis 接口冒烟；原因是测试 PostgreSQL/Redis 环境不可用。
+- 可复用解除阻塞后的冒烟脚本：
+  - `node output\playwright\admin-auth-smoke.cjs`
+  - `node output\playwright\context-persistence-smoke.cjs`
+
+### 截图证据
+
+- 无 UI 改动，不需要截图。
+
+### 风险与回滚
+
+- 风险：真实数据库迁移可能破坏现有数据；当前未获得可控测试库，因此未执行。
+- 回滚：本轮未改业务代码；如后续启动容器或测试库，需在迁移前确认数据库名和数据可丢弃。
+
+### 文档回写
+
+- `docs/requirements-ledger.md`：新增 R-029。
+- `docs/detail-optimization-inbox.md`：新增 O-031。
+- `docs/completed-checklist.md`：追加 LOOP-26 阻塞清单。
+- `docs/work-history.md`：追加本记录。
+
+### 本轮结论
+
+阻塞
+
+### 下一轮 LOOP
+
+- 需要先解除 LOOP-26 环境阻塞：启动/提供测试 PostgreSQL 与 Redis，或启动 Docker Desktop 后允许创建临时容器。解除后继续执行迁移、后端启动和接口冒烟；未解除前不进入依赖真实数据库的 LOOP。
+
+## 2026-06-30 LOOP-26 解除阻塞复验
+
+### 本轮目标
+
+- 继续 LOOP-26，使用已启动的 Docker Desktop 创建临时 PostgreSQL/Redis，完成真实迁移和接口冒烟。
+- 不处理范围：不连接远程或生产数据库，不保留长期数据库服务配置。
+
+### 已读取文件
+
+- `backend/app/db_business.py`
+- `backend/alembic.ini`
+- `backend/alembic/env.py`
+- `output/playwright/admin-auth-smoke.cjs`
+- `output/playwright/context-persistence-smoke.cjs`
+
+### 多子 Agent 分工
+
+- Product Rules Agent：确认不改变产品规则，仅验证基础设施。
+- API Contract Agent：复跑 admin auth 和 context chat 持久化接口冒烟。
+- Backend Agent：启动临时 PostgreSQL/Redis，执行 Alembic 真实迁移，修复 PostgreSQL 外键顺序问题。
+- Admin Web Agent：复跑 admin 构建。
+- User Frontend Agent：复跑 H5 构建。
+- QA Agent：执行 pytest、compileall、typecheck、frontend test、H5/admin build。
+- Security & Risk Agent：确认只操作 `drift-loop26-*` 临时容器和 `drift_loop26` 测试库。
+- Docs Agent：更新 requirements、inbox、completed、work-history。
+
+### 修改文件
+
+- `backend/app/db_business.py`
+- `output/playwright/context-persistence-postgres-smoke.cjs`
+- `docs/requirements-ledger.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/completed-checklist.md`
+- `docs/work-history.md`
+
+### 验证命令
+
+- `docker run --name drift-loop26-postgres ... postgres:16-alpine`：通过。
+- `docker run --name drift-loop26-redis ... redis:7-alpine`：通过。
+- `docker exec drift-loop26-postgres pg_isready -U drift -d drift_loop26`：ready。
+- `docker exec drift-loop26-redis redis-cli ping`：`PONG`。
+- `$env:DATABASE_URL='postgresql+asyncpg://drift:drift@127.0.0.1:55432/drift_loop26'; python -m alembic -c alembic.ini upgrade head`：通过。
+- `python -m alembic -c alembic.ini current`：`0011_context_chat_persistence (head)`。
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：55 passed。
+- `python -m compileall -q backend\app backend\tests`：通过。
+- `npm run typecheck`：通过。
+- `npm run test:frontend`：4 个测试文件、27 条测试通过。
+- `npm run build:h5:e2e`：通过。
+- `npm run build:admin`：通过。
+
+### 接口冒烟
+
+- `node output\playwright\admin-auth-smoke.cjs`：通过；未登录 401、坏 token 401、admin 读取 200、moderator 读取 200、moderator 写配置 403。
+- `node output\playwright\context-persistence-postgres-smoke.cjs`：通过；创建 `plaza_comment` 上下文请求、target 同意、发送消息、重启后端后详情 active、消息 1 条、会话列表可找到。
+
+### 截图证据
+
+- 无 UI 改动，不新增截图。
+
+### 风险与回滚
+
+- 只操作 `drift-loop26-postgres`、`drift-loop26-redis` 临时容器和 `drift_loop26` 测试库。
+- 本轮业务代码修复点仅为 PostgreSQL 外键顺序：如需回滚，恢复 `backend/app/db_business.py` 中 `create_seed_plaza` 的 flush 调整，并删除 `context-persistence-postgres-smoke.cjs`。
+
+### 文档回写
+
+- `docs/requirements-ledger.md`：更新 R-029 状态为已解除阻塞并通过。
+- `docs/detail-optimization-inbox.md`：更新 O-031 状态为已解除。
+- `docs/completed-checklist.md`：更新 LOOP-26 未完成项为完成。
+- `docs/work-history.md`：追加本记录。
+
+### 本轮结论
+
+通过
+
+### 下一轮 LOOP
+
+- LOOP-27：私密照片真实上传、收益冻结和申诉最小闭环。范围建议只处理 1 个 P0，不混入新的数据库迁移。
+## 2026-06-30 LOOP-27 私密照片真实上传、收益冻结和申诉最小闭环
+
+### 本轮目标
+
+- 处理范围：1 个 P0，私密照片上传审核结果从内存迁移到数据库，并补收益冻结和申诉最小闭环。
+- 不处理范围：不接真实对象存储、不接真实图片模型、不做复杂申诉后台操作流。
+
+### 已读取文件
+
+- `backend/app/routes/wallet.py`
+- `backend/app/private_photo_review_store.py`
+- `backend/app/schemas.py`
+- `backend/app/models.py`
+- `backend/app/db_business.py`
+- `backend/tests/test_api_contract.py`
+- `src/pages/wallet/index.vue`
+- `admin-web/src/AdminApp.vue`
+
+### 多子 Agent 分工
+
+- Product Rules Agent：确认低/中/高风险审核、收益冻结和申诉前不可解锁规则。
+- API Contract Agent：新增 `POST /private-photos/{id}/appeal`，复核 unlock/admin reviews/risk summary 响应。
+- Backend Agent：新增 `0012_private_photo_reviews` 迁移，改私密照片审核为 DB 持久化。
+- Admin Web Agent：复用照片审核页，截图确认申诉和冻结状态可见。
+- User Frontend Agent：无用户端 UI 改动，复跑 H5 构建。
+- QA Agent：补 PostgreSQL 私密照片冒烟、契约测试和截图脚本。
+- Security & Risk Agent：确认高风险/申诉中内容不可解锁，收益不释放。
+- Docs Agent：回写 requirements、inbox、completed、work-history。
+
+### 修改文件
+
+- `backend/app/models.py`
+- `backend/app/schemas.py`
+- `backend/app/routes/wallet.py`
+- `backend/app/private_photo_review_store.py`
+- `backend/app/db_business.py`
+- `backend/alembic/versions/0012_private_photo_review_persistence.py`
+- `backend/tests/test_api_contract.py`
+- `output/playwright/private-photo-postgres-smoke.cjs`
+- `output/playwright/capture-loop27-private-photo-review.cjs`
+- `docs/requirements-ledger.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/completed-checklist.md`
+- `docs/work-history.md`
+
+### 验证命令
+
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests\test_api_contract.py -q`：56 passed。
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：56 passed。
+- `python -m compileall -q backend\app backend\tests`：通过。
+- `$env:DATABASE_URL='postgresql+asyncpg://drift:drift@127.0.0.1:55432/drift_loop26'; python -m alembic -c alembic.ini upgrade head`：通过。
+- `python -m alembic -c alembic.ini current`：`0012_private_photo_reviews (head)`。
+- `npm run typecheck`：通过。
+- `npm run test:frontend`：4 个测试文件、27 条测试通过。
+- `npm run build:h5:e2e`：通过。
+- `npm run build:admin`：通过。
+
+### 接口冒烟
+
+- `node output\playwright\private-photo-postgres-smoke.cjs`：通过。
+- 低风险上传：`ai_approved`、`eligible`、unlock 200。
+- 高风险上传：`frozen`、`ineligible`。
+- 高风险申诉：`appeal_pending`、`frozen`。
+- 申诉中解锁：409，`PHOTO_REVIEW_PENDING`。
+- Admin 队列：`review_status=appeal_pending` 可查到对应记录。
+- 风险汇总：`high_risk >= 1`。
+
+### 截图证据
+
+- `output/playwright/loop27-private-photo-review-admin.png`
+- `output/playwright/loop27-private-photo-review-admin.json`：`hasAppeal=true`、`hasFrozen=true`、`reviewRows=4`。
+
+### 风险与回滚
+
+- 风险：新增迁移扩展 `private_photo_assets` 表字段；已在 Docker PostgreSQL 测试库通过。
+- 回滚：执行 Alembic downgrade 到 `0011_context_chat_persistence`，恢复 `private_photo_review_store.py` 内存实现，并删除新增 appeal 路由和测试脚本。
+
+### 文档回写
+
+- `docs/requirements-ledger.md`：新增 R-030。
+- `docs/detail-optimization-inbox.md`：新增 O-032。
+- `docs/completed-checklist.md`：追加 LOOP-27 完成清单。
+- `docs/work-history.md`：追加本记录。
+
+### 本轮结论
+
+通过
+
+### 下一轮 LOOP
+
+- LOOP-28：字段级错误码、审计链路和后台高级筛选。范围建议最多处理 2 个 P1。
+
+## 2026-06-30 LOOP-28 字段级错误码与审计链路收口
+
+### 本轮目标
+
+- 处理范围：最多 2 个 P1，补字段级校验错误码与私密照片审计链路持久化；后台高级筛选只验收已有最小能力，不在本轮扩大成新筛选系统。
+- 不处理范围：不重做全站错误码体系，不改动聊天审计全量模型，不新增后台复杂组合筛选页面。
+
+### 已读取文件
+
+- `backend/app/errors.py`
+- `backend/app/audit.py`
+- `backend/app/private_photo_review_store.py`
+- `backend/app/routes/admin.py`
+- `backend/app/db_business.py`
+- `backend/tests/test_api_contract.py`
+- `src/services/adminApi.ts`
+- `admin-web/src/AdminApp.vue`
+
+### 多子 Agent 分工
+
+- Product Rules Agent：确认本轮只做字段错误反馈和审计可追踪，不改产品门槛。
+- API Contract Agent：补 `VALIDATION_ERROR.details.field_errors[]`，保留 `raw_errors` 兼容旧客户端。
+- Backend Agent：让私密照片 AI 审核、解锁、申诉、人工复核写入 `admin_audit_logs`，并让 `audit_refs` 引用同一个审计 ID。
+- Admin Web Agent：补私密照片审计动作和目标类型标签，后台审计页可读出“私密照片申诉/冻结”。
+- User Frontend Agent：无 H5 业务 UI 改动，只复跑 H5 构建。
+- QA Agent：补后端契约测试、接口冒烟和后台审计截图断言。
+- Security & Risk Agent：确认申诉中/冻结内容仍不可解锁，审计链路可由后台追踪。
+- Docs Agent：回写 requirements、inbox、completed、work-history。
+
+### 修改文件
+
+- `backend/app/errors.py`
+- `backend/app/audit.py`
+- `backend/app/private_photo_review_store.py`
+- `backend/app/routes/admin.py`
+- `backend/tests/test_api_contract.py`
+- `src/services/adminApi.ts`
+- `output/playwright/loop28-error-audit-smoke.cjs`
+- `output/playwright/capture-loop28-admin-audit.cjs`
+- `docs/requirements-ledger.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/completed-checklist.md`
+- `docs/work-history.md`
+
+### 验证命令
+
+- `python -m compileall -q backend\app backend\tests`：通过。
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests\test_api_contract.py -q`：57 passed。
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：57 passed。
+- `npm run typecheck`：通过。
+- `npm run test:frontend`：4 个测试文件、27 条测试通过。
+- `npm run build:h5:e2e`：通过。
+- `npm run build:admin`：通过。
+- `$env:DATABASE_URL='postgresql+asyncpg://drift:drift@127.0.0.1:55432/drift_loop26'; python -m alembic -c alembic.ini current`：`0012_private_photo_reviews (head)`。
+
+### 接口冒烟
+
+- `node output\playwright\loop28-error-audit-smoke.cjs`：通过。
+- 422 校验响应：`error.code=VALIDATION_ERROR`，`details.field_errors[0].field=body.reason`，`code=FIELD_TOO_SHORT`。
+- 私密照片申诉：`review_status=appeal_pending`，用户详情 `audit_refs` 包含申诉 `audit_id`。
+- 后台审计：`GET /admin/audit` 返回同一个 `audit_id`，`action=private_photo_appeal`，`target_id=photo_review_...`。
+
+### 截图证据
+
+- `output/playwright/loop28-admin-audit.png`
+- `output/playwright/loop28-admin-audit.json`：`hasAppeal=true`、`hasTarget=true`、`auditRows=4`。
+
+### 风险与回滚
+
+- 风险：`/admin/audit` 现在合并数据库审计和内存审计，展示顺序以数据库时间倒序优先；旧内存审计仍保留兼容。
+- 回滚：恢复 `backend/app/errors.py` 的旧 validation details，恢复私密照片 store 中 `record_admin_audit` 直写内存，并恢复 `/admin/audit` 只读 `list_admin_audit_logs()`。
+
+### 文档回写
+
+- `docs/requirements-ledger.md`：新增 R-031。
+- `docs/detail-optimization-inbox.md`：新增 O-033。
+- `docs/completed-checklist.md`：新增 LOOP-28 完成清单。
+- `docs/work-history.md`：追加本轮记录。
+
+### 本轮结论
+
+通过
+
+### 下一轮 LOOP
+
+- 当前 P0/P1 LOOP 队列已完成到 LOOP-28；门禁通过后本轮作为全部 LOOP 收口。后续仅保留 P2/生产增强项，不自动进入 LOOP-29。
+## 2026-06-30 LOOP-29 小程序桥接与广告激励视频配置最小闭环
+
+### 本轮目标
+
+- 范围控制为 2 个 P1：用户端小程序桥接入口 + 后台可配置广告激励视频最小闭环。
+- 不处理真实广告联盟 SDK、服务端广告回调验签、复杂反作弊报表和全量投放系统。
+
+### 已读取文件
+
+- `AGENTS.md`
+- `backend/app/schemas.py`
+- `backend/app/models.py`
+- `backend/app/db_business.py`
+- `backend/app/routes/ads.py`
+- `backend/app/routes/admin.py`
+- `backend/tests/test_api_contract.py`
+- `src/pages/home/index.vue`
+- `src/pages/profile/checkin.vue`
+- `src/services/meApi.ts`
+- `src/stores/app.ts`
+- `admin-web/src/AdminApp.vue`
+
+### 多子 Agent 分工
+
+- Product Rules Agent：确认广告激励只作为次数补充，不改变现有聊天、VIP、积分门槛。
+- API Contract Agent：补充广告配置、prepare/commit 响应字段和小程序桥接字段。
+- Backend Agent：新增 `app_configs` 持久化配置、广告准备与发奖读取后台配置。
+- Admin Web Agent：新增“广告配置”页，支持广告联盟、广告位、倒计时、素材与小程序路径。
+- User Frontend Agent：新增激励视频页，首页/签到页进入广告页后再倒计时领奖。
+- QA Agent：补后端契约测试、接口冒烟、H5/后台截图和构建门禁。
+- Security & Risk Agent：保留冷却时间、广告会话归属校验和后台审计；真实回调验签列后续。
+- Docs Agent：回写 work-history、completed-checklist、requirements-ledger、detail-optimization-inbox。
+
+### 修改文件
+
+- `backend/app/schemas.py`
+- `backend/app/models.py`
+- `backend/app/db_business.py`
+- `backend/app/routes/ads.py`
+- `backend/app/routes/admin.py`
+- `backend/alembic/versions/0013_app_configs_ad_reward.py`
+- `backend/tests/test_api_contract.py`
+- `src/types/domain.ts`
+- `src/services/meApi.ts`
+- `src/services/rewardVideoAd.ts`
+- `src/stores/app.ts`
+- `src/pages/ad/reward.vue`
+- `src/pages/home/index.vue`
+- `src/pages/profile/checkin.vue`
+- `src/pages.json`
+- `src/services/adminApi.ts`
+- `src/services/mockApi.ts`
+- `src/services/mockState.ts`
+- `admin-web/src/AdminApp.vue`
+- `admin-web/src/styles.css`
+- `output/playwright/loop29-ad-bridge-smoke.cjs`
+- `output/playwright/capture-loop29-ad-pages.cjs`
+- `docs/requirements-ledger.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/completed-checklist.md`
+- `docs/work-history.md`
+
+### 验证命令
+
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：58 passed。
+- `npm run typecheck`：通过。
+- `npm run test:frontend`：4 files / 27 tests passed。
+- `npm run build:h5:e2e`：通过。
+- `npm run build:admin`：通过。
+- `workdir=backend; $env:DATABASE_URL='postgresql+asyncpg://drift:drift@127.0.0.1:55432/drift_loop26'; python -m alembic -c alembic.ini current`：`0013_app_configs_ad_reward (head)`。
+
+### 接口冒烟
+
+- `node output\playwright\loop29-ad-bridge-smoke.cjs`：通过。
+- 后台配置响应：provider=`loop29_alliance`，placement=`loop29_reward_video`，countdown=3，miniProgramPath=`pages/ad/reward`。
+- `POST /ads/reward/prepare`：200，返回 `rewardSessionId`、`rewardPerQuota=3`、provider 和 placement。
+- `POST /ads/reward/commit`：200，`fishBottleDelta=3`。
+
+### 截图证据
+
+- `output/playwright/loop29-h5-reward-ad.png`
+- `output/playwright/loop29-admin-ad-config.png`
+- UI 断言：`output/playwright/loop29-ad-pages.json`。
+
+### 风险与回滚
+
+- 风险：当前是广告联盟桥接配置和 mock 倒计时完成奖励，尚未接入真实广告 SDK 和服务端回调验签。
+- 回滚：Alembic 可 downgrade 到 `0012_private_photo_reviews`；移除 `pages/ad/reward` 路由并恢复首页/签到页旧广告入口；后台移除 `adConfig` tab。
+
+### 文档回写
+
+- `docs/requirements-ledger.md`：新增 R-032。
+- `docs/completed-checklist.md`：新增 LOOP-29 完成项。
+- `docs/detail-optimization-inbox.md`：新增 O-034。
+- `docs/work-history.md`：追加本轮记录。
+
+### 本轮结论
+
+通过
+
+### 下一轮 LOOP
+
+- LOOP-30 建议范围：真实广告联盟 SDK/回调验签/反作弊计费，控制为 1 个 P1；若继续做 UI，则先处理 H5 广告视频黑屏素材兜底和小程序端真实跳转。
+## 2026-06-30 LOOP-30 前台聊天输入状态机与发布弹窗 UI 纠偏
+
+### 本轮目标
+
+- 范围控制为 2 个 P1：聊天输入区状态机与发布弹窗媒体入口。
+- 不处理范围：未读域拆分、头像点击边界、后台审核详情、举报证据链、游戏入口重构。
+
+### 已读取文件
+
+- `AGENTS.md`
+- `C:\Users\Administrator\.codex\attachments\47b28023-5c85-4983-9865-3773de60fe66\pasted-text.txt`
+- `src/pages/messages/chat.vue`
+- `src/pages/messages/index.vue`
+- `src/pages/plaza/index.vue`
+- `src/stores/content.ts`
+- `src/types/domain.ts`
+- `src/components/ExploreFilters.vue`
+- `scripts/build-h5-e2e.ps1`
+
+### 多子 Agent 分工
+
+- 总控 Agent：按本轮截图和任务要求收敛为 2 个 P1，不混入后台大项。
+- 前台移动端 UI Agent：调整聊天输入区和发布弹窗布局。
+- 前台业务状态机 Agent：补充麦克风/加号/输入/发送状态切换。
+- 后端接口 Agent：确认本轮无需改后端接口，回归后端测试防止破坏。
+- 后台管理 Agent：本轮仅截图确认后台可访问，详情闭环进入后续 LOOP。
+- 测试验收 Agent：新增 CDP 冒烟脚本和 PowerShell 一键验收脚本。
+- Docs Agent：回写 requirements、completed、inbox、work-history。
+
+### 修改文件
+
+- `src/pages/messages/chat.vue`
+- `src/pages/plaza/index.vue`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+- `scripts/run-ui-message-admin-loop.ps1`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+
+### 验证命令
+
+- `node --check scripts\ui-message-admin-loop-smoke.cjs`：通过。
+- `.\scripts\run-ui-message-admin-loop.ps1`：通过。
+- `npm run typecheck`：通过。
+- `npm run test:frontend`：4 files / 27 tests passed。
+- `npm run build:h5:e2e`：通过。
+- `npm run build:admin`：通过。
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：58 passed。
+- `python -m compileall -q backend\app backend\tests`：通过。
+
+### 接口冒烟
+
+- 本轮无新增后端接口。
+- H5 行为冒烟记录：`reports/ui-message-admin-loop/e2e-results.json`。
+- 关键响应摘要：消息页进入真实私聊通过；聊天背景点击位移 `0`；加号面板高度 `140.0625`；发布弹窗媒体入口 `2` 个、旧 `media-option` 为 `0`、底部动作按钮 `2` 个。
+
+### 截图证据
+
+- `reports/ui-message-admin-loop/screenshots/mobile-390-messages.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-default.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-plus-panel.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-voice.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-publish-modal.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-360-messages.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-414-plaza.png`
+- `reports/ui-message-admin-loop/screenshots/admin-1366-overview.png`
+
+### 风险与回滚
+
+- 风险：聊天加号面板布局调整可能影响历史截图基线，但没有改接口和数据结构。
+- 回滚：恢复 `src/pages/messages/chat.vue` 的旧 composer 结构，恢复 `src/pages/plaza/index.vue` 的旧 media-row；删除两个新增验收脚本和 reports 产物。
+
+### 文档回写
+
+- `docs/requirements-ledger.md`：新增 R-033。
+- `docs/completed-checklist.md`：新增 LOOP-30 完成项。
+- `docs/detail-optimization-inbox.md`：新增 O-035。
+- `docs/work-history.md`：追加本轮记录。
+
+### 本轮结论
+
+通过
+
+### 下一轮 LOOP
+
+- LOOP-31：消息域分离与未读清除规则，范围控制为 1 个 P1；覆盖私聊、留言、系统通知、漂流瓶角标和进入详情才清未读。
+## 2026-06-30 LOOP-31 消息页信息架构纠偏与发现入口移除
+
+### 本轮目标
+
+- 范围控制为 1 个 P1：消息页只承接消息域，不再混入附近的人/发现/匹配入口。
+- 不处理范围：未读清除状态机、消息页双标题栏视觉冗余、后台审核证据链详情、游戏入口重构。
+
+### 已读取文件
+
+- `AGENTS.md`
+- `C:\Users\Administrator\.codex\attachments\47b28023-5c85-4983-9865-3773de60fe66\pasted-text.txt`
+- `src/pages/messages/index.vue`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+- `scripts/run-ui-message-admin-loop.ps1`
+- `docs/work-history.md`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+
+### 多子 Agent 分工
+
+- Product Rules Agent：确认消息页定位为私聊、留言消息、系统消息承接，不放发现/匹配入口。
+- API Contract Agent：确认本轮无新增后端接口，不改变已有消息、会话、邀请契约。
+- Backend Agent：通过后端 pytest 和 compileall 回归确认无接口侧破坏。
+- Admin Web Agent：通过 admin 构建和后台截图确认本轮未影响后台可访问性。
+- User Frontend Agent：移除消息页 `精准查找` 入口、`openNearby()` 跳转和 target 图标样式。
+- QA Agent：补 UI 冒烟断言，验证 quick-action 数量和发现入口不存在。
+- Security & Risk Agent：确认没有新增陌生人冷启动私聊入口，消息域仍通过上下文会话和通知承接。
+- Docs Agent：回写 requirements、completed、inbox、work-history。
+
+### 修改文件
+
+- `src/pages/messages/index.vue`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+
+### 验证命令
+
+- `node --check scripts\ui-message-admin-loop-smoke.cjs`：通过。
+- `Select-String -Path 'src/pages/messages/index.vue' -Pattern 'openNearby|quick-action target|target \.quick-icon|精准查找' -SimpleMatch`：无残留。
+- `.\scripts\run-ui-message-admin-loop.ps1`：通过。
+- `npm run typecheck`：通过。
+- `npm run test:frontend`：4 files / 27 tests passed。
+- `npm run build:h5:e2e`：通过。
+- `npm run build:admin`：通过。
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：58 passed。
+- `python -m compileall -q backend\app backend\tests`：通过。
+
+### 接口冒烟
+
+- 本轮无新增后端接口。
+- H5 UI 冒烟结果：`reports/ui-message-admin-loop/e2e-results.json`。
+- 关键响应摘要：`消息页不混入发现或匹配入口` 通过，`quickActionCount=2`、`hasMailEntry=true`、`hasSystemEntry=true`、`hasDiscoveryEntry=false`。
+- 其他回归：消息页进入真实私聊、聊天背景连续点击不抖动、加号面板压缩、麦克风语音模式、发布弹窗媒体入口、后台页面访问均通过。
+
+### 截图证据
+
+- `reports/ui-message-admin-loop/screenshots/mobile-390-messages.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-360-messages.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-default.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-plus-panel.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-voice.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-publish-modal.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-414-plaza.png`
+- `reports/ui-message-admin-loop/screenshots/admin-1366-overview.png`
+
+### 风险与回滚
+
+- 风险：移除消息页发现入口后，用户需从同城/附近的人所属页面进入筛选与匹配，不再从消息页绕行。
+- 回滚：恢复 `src/pages/messages/index.vue` 中 target quick-action、`openNearby()` 和 `.target .quick-icon` 样式，同时移除 UI 冒烟中的本轮断言。
+
+### 文档回写
+
+- `docs/requirements-ledger.md`：新增 R-034。
+- `docs/completed-checklist.md`：新增 LOOP-31 完成项。
+- `docs/detail-optimization-inbox.md`：新增 O-036。
+- `docs/work-history.md`：追加本轮记录。
+
+### 本轮结论
+
+通过
+
+### 下一轮 LOOP
+
+- LOOP-32：消息页标题栏冗余与未读清除状态机，范围控制为 1 个 P1；验收需要覆盖进入留言消息、系统消息、私聊详情后的未读数变化和截图。
+## 2026-06-30 LOOP-32 消息页标题栏冗余与未读清除状态机
+
+### 本轮目标
+
+- 范围控制为 1 个 P1：消息页标题栏冗余和私聊会话未读清除状态机。
+- 不处理范围：留言消息/系统消息单条已读持久化、邀请卡片未读分区、后台证据链详情。
+
+### 已读取文件
+
+- `src/pages.json`
+- `src/pages/messages/index.vue`
+- `src/pages/messages/chat.vue`
+- `src/stores/content.ts`
+- `src/services/businessApi.ts`
+- `src/services/http.ts`
+- `backend/app/routes/messages.py`
+- `backend/app/db_business.py`
+- `backend/tests/test_api_contract.py`
+- `src/services/businessApi.test.ts`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+- `scripts/run-ui-message-admin-loop.ps1`
+
+### 多子 Agent 分工
+
+- Product Rules Agent：确认消息页不混入发现入口后，继续优化消息域标题和未读反馈。
+- API Contract Agent：新增最小会话已读接口 `POST /conversations/{thread_id}/read`，返回现有 `ConversationThreadOut`。
+- Backend Agent：实现当前用户归属校验和 `unread_count=0` 持久化。
+- Admin Web Agent：确认本轮不修改后台业务，仅通过 admin 构建和截图回归。
+- User Frontend Agent：消息页改自定义导航；进入会话前等待已读接口完成再跳转。
+- QA Agent：补前后端契约测试、UI 冒烟等待列表渲染、自绘标题和未读清除断言。
+- Security & Risk Agent：后端已限制只能清除当前用户自己的 thread，避免跨用户状态篡改。
+- Docs Agent：回写 requirements、completed、inbox、work-history。
+
+### 修改文件
+
+- `src/pages.json`
+- `src/pages/messages/index.vue`
+- `src/stores/content.ts`
+- `src/services/businessApi.ts`
+- `src/services/businessApi.test.ts`
+- `backend/app/db_business.py`
+- `backend/app/routes/messages.py`
+- `backend/tests/test_api_contract.py`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+
+### 验证命令
+
+- `node --check scripts\ui-message-admin-loop-smoke.cjs`：通过。
+- `npm run typecheck`：通过。
+- `npm run test:frontend`：4 files / 28 tests passed。
+- `npm run build:h5:e2e`：通过。
+- `npm run build:admin`：通过。
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：59 passed。
+- `python -m compileall -q backend\app backend\tests`：通过。
+- `.\scripts\run-ui-message-admin-loop.ps1`：通过，失败用例 0。
+
+### 接口冒烟
+
+- `POST http://127.0.0.1:8110/conversations/{thread_id}/read`：直连接口验证 `before=2`、`after=0`。
+- H5 UI 冒烟：`reports/ui-message-admin-loop/e2e-results.json`。
+- 关键响应摘要：
+  - `消息页使用自绘标题且无系统标题栏空隙`：`pageTop=0`、`hasNativeGap=false`。
+  - `进入未读私聊后返回列表会清除该会话未读`：`badge=2 -> 0`。
+
+### 截图证据
+
+- `reports/ui-message-admin-loop/screenshots/mobile-390-messages.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-360-messages.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-default.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-plus-panel.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-voice.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-publish-modal.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-414-plaza.png`
+- `reports/ui-message-admin-loop/screenshots/admin-1366-overview.png`
+
+### 失败修复记录
+
+- 第一次 UI 冒烟失败：前端本地清零后返回列表重新从后端加载，未读恢复为 2。修复：补 `POST /conversations/{thread_id}/read` 持久化接口。
+- 第二次 UI 冒烟失败：测试库已被前一次清零，冒烟用例不幂等。修复：用例改为有未读时验证点击清零，无未读时验证无残留徽标。
+- 第三次 UI 冒烟失败：列表尚未渲染时读取未读状态。修复：增加 `waitForSelector('.thread-card')`。
+- 第四次 UI 冒烟失败：5173 H5 dev server 实际连接 8100 旧后端，而本轮先重启的是 8110。修复：重启 8100 当前后端，并把端口一致性写入 O-037。
+
+### 风险与回滚
+
+- 风险：进入会话前等待已读接口会增加一次网络请求；接口失败时保留本地清零，刷新后以后端状态为准。
+- 回滚：移除 `/conversations/{thread_id}/read` 路由和前端 `markConversationRead()` 持久化调用；恢复 `pages/messages/index` 的系统导航栏配置。
+
+### 文档回写
+
+- `docs/requirements-ledger.md`：新增 R-035。
+- `docs/completed-checklist.md`：新增 LOOP-32 完成项。
+- `docs/detail-optimization-inbox.md`：更新 O-036，新增 O-037。
+- `docs/work-history.md`：追加本轮记录。
+
+### 本轮结论
+
+通过
+
+### 下一轮 LOOP
+
+- LOOP-33：H5/API E2E 服务端口一致性与一键验收脚本自愈，范围控制为 1 个 P1；目标是让 5173 dev server、H5 构建和后端 E2E API base 始终一致，并自动重启旧后端进程。
+## 2026-06-30 LOOP-33 H5/API E2E 服务端口一致性与一键验收脚本自愈
+
+### 本轮目标
+
+- 范围控制为 1 个 P1：让 `scripts/run-ui-message-admin-loop.ps1` 自动管理 H5 和后端 E2E 服务，保证运行态与构建态 API base 一致。
+- 不处理范围：PostgreSQL/Redis 容器编排、端口池自动选择、长期 CI 部署。
+
+### 已读取文件
+
+- `scripts/run-ui-message-admin-loop.ps1`
+- `scripts/build-h5-e2e.ps1`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+- `src/services/http.ts`
+- `reports/ui-message-admin-loop/e2e-results.json`
+- `reports/ui-message-admin-loop/failed-cases.md`
+
+### 多子 Agent 分工
+
+- Product Rules Agent：确认本轮只修验收环境一致性，不改变用户业务规则。
+- API Contract Agent：确认 H5 构建和运行态都使用同一后端端口。
+- Backend Agent：把 E2E 后端启动/重启纳入一键验收脚本。
+- Admin Web Agent：保持 admin server 现有按需启动逻辑，并通过 build/admin 截图回归。
+- User Frontend Agent：H5 dev server 启动时注入 `VITE_API_BASE_URL`。
+- QA Agent：复跑一键验收，确认 UI 冒烟失败用例为 0。
+- Security & Risk Agent：仅停止指定端口监听进程，避免影响无关服务。
+- Docs Agent：回写 requirements、completed、inbox、work-history。
+
+### 修改文件
+
+- `scripts/run-ui-message-admin-loop.ps1`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+
+### 验证命令
+
+- `.\scripts\run-ui-message-admin-loop.ps1`：通过。
+- `npm run typecheck`：通过。
+- `npm run test:frontend`：4 files / 28 tests passed。
+- `scripts\build-h5-e2e.ps1 -Port 8100`：通过。
+- `npm run build:admin`：通过。
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：59 passed。
+- `python -m compileall -q backend\app backend\tests`：通过。
+
+### 接口冒烟
+
+- 一键脚本重启 8100 E2E 后端并等待 `http://127.0.0.1:8100/me/status` 可用。
+- 一键脚本重启 5173 H5 dev server 并注入 `VITE_API_BASE_URL=http://127.0.0.1:8100`。
+- UI 冒烟结果：`reports/ui-message-admin-loop/e2e-results.json`，`failed=[]`。
+- 未读清除仍通过：`badge=1 -> 0`。
+
+### 截图证据
+
+- `reports/ui-message-admin-loop/screenshots/mobile-390-messages.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-360-messages.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-default.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-plus-panel.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-voice.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-publish-modal.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-414-plaza.png`
+- `reports/ui-message-admin-loop/screenshots/admin-1366-overview.png`
+
+### 风险与回滚
+
+- 风险：一键验收会重启 8100 和 5173 端口上的监听进程；这是 E2E 验收脚本的预期自愈行为，不应用于生产端口。
+- 回滚：恢复脚本为仅在服务不可访问时启动 H5/admin，并用手工方式管理后端进程。
+
+### 文档回写
+
+- `docs/requirements-ledger.md`：新增 R-036。
+- `docs/completed-checklist.md`：新增 LOOP-33 完成项。
+- `docs/detail-optimization-inbox.md`：更新 O-037 状态。
+- `docs/work-history.md`：追加本轮记录。
+
+### 本轮结论
+
+通过
+
+### 下一轮 LOOP
+
+- LOOP-34：留言消息/系统消息单条已读持久化与邀请卡片未读分区，范围控制为 1 个 P1；验收需覆盖消息通知单条点击后 unread 清零、系统消息分区不误清私聊、邀请卡片 pending 数量变化。
+
+## 2026-06-30 LOOP-34 留言消息/系统消息单条已读持久化与邀请卡片未读分区
+
+### 本轮目标
+
+- 范围控制为 1 个 P1：把留言消息/系统消息从前端本地已读改为后端单条持久化，并把邀请卡片从系统消息分区隔离。
+- 不处理范围：后台通知模板配置、跨端 read receipt、批量已读、真实消息推送。
+
+### 已读取文件
+
+- `AGENTS.md`
+- `docs/api-contract.md`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+- `backend/app/db_business.py`
+- `backend/app/routes/messages.py`
+- `backend/tests/test_api_contract.py`
+- `src/services/businessApi.ts`
+- `src/services/businessApi.test.ts`
+- `src/stores/content.ts`
+- `src/pages/messages/index.vue`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+- `scripts/run-ui-message-admin-loop.ps1`
+- `reports/ui-message-admin-loop/failed-cases.md`
+
+### 多子 Agent 分工
+
+- Product Rules Agent：确认消息页只承接私聊、留言、邀请和系统通知，不恢复发现/匹配入口。
+- API Contract Agent：补 `POST /messages/{message_id}/read` 字段级契约、权限边界和错误码。
+- Backend Agent：实现单条消息通知已读落库，限制只能操作当前用户消息。
+- Admin Web Agent：本轮无后台 UI 改动，仅通过 admin build 和截图回归确认未受影响。
+- User Frontend Agent：接入消息通知已读接口，拆分留言消息和系统消息未读角标，补邀请卡片分区。
+- QA Agent：新增后端契约测试、前端 API 测试和 UI 冒烟断言；失败后修复分区返回私聊列表的复位问题。
+- Security & Risk Agent：确认单条已读接口不允许跨用户消息操作，系统消息分区不泄漏邀请上下文。
+- Docs Agent：回写 API 契约、requirements、completed、inbox 和 work-history。
+
+### 修改文件
+
+- `backend/app/db_business.py`
+- `backend/app/routes/messages.py`
+- `backend/tests/test_api_contract.py`
+- `src/services/businessApi.ts`
+- `src/services/businessApi.test.ts`
+- `src/stores/content.ts`
+- `src/pages/messages/index.vue`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+- `docs/api-contract.md`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+
+### 验证命令
+
+- `node --check scripts\ui-message-admin-loop-smoke.cjs`：通过。
+- `.\scripts\run-ui-message-admin-loop.ps1`：通过，失败用例 0。
+- `npm run typecheck`：通过。
+- `npm run test:frontend`：4 files / 29 tests passed。
+- `npm run build:h5`：通过。
+- `npm run build:admin`：通过。
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：60 passed。
+- `python -m compileall -q backend\app backend\tests`：通过。
+
+### 接口冒烟
+
+- `GET http://127.0.0.1:8100/messages`：返回消息通知列表。
+- `POST http://127.0.0.1:8100/messages/{message_id}/read`：通过。
+- 响应摘要：`{"messageId":"msg_7813056a11dc4ff0a3b2846741a543cf","beforeUnread":true,"markedUnread":false,"afterUnread":false,"otherUnreadCount":6}`。
+- UI 冒烟摘要：`单条留言或系统通知已读接口只清除目标通知` 通过，目标消息 `unread=false`，其他未读仍保留。
+
+### 截图证据
+
+- `reports/ui-message-admin-loop/screenshots/mobile-390-messages.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-message-notices.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-system-notices.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-default.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-plus-panel.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-voice.png`
+- `reports/ui-message-admin-loop/screenshots/admin-1366-overview.png`
+
+### 风险与回滚
+
+- 风险：消息通知已读接口会改变 E2E 数据库中目标通知的 unread 状态；仅影响当前用户目标消息。
+- 风险：UI 冒烟脚本会重启 8100/5173 E2E 服务，这是验收脚本预期行为。
+- 回滚：移除 `POST /messages/{message_id}/read` 路由和前端 `markMessageRead()` 接口调用，恢复前端本地已读；保留分区 UI 可独立回滚。
+
+### 文档回写
+
+- `docs/api-contract.md`：新增消息通知单条已读契约。
+- `docs/requirements-ledger.md`：新增 R-037。
+- `docs/completed-checklist.md`：新增 LOOP-34 完成项。
+- `docs/detail-optimization-inbox.md`：新增 O-038。
+- `docs/work-history.md`：追加本轮记录。
+
+### 本轮结论
+
+通过
+
+### 下一轮 LOOP
+
+- LOOP-35：后台通知/举报/证据链检索增强或用户侧隐私照片文案降级二选一，范围继续控制为 1 个 P1；进入前需按当前最新用户优先级确认队列编号。
+
+## 2026-06-30 LOOP-35 后台举报证据链检索与详情可视化
+
+### 本轮目标
+
+- 范围控制为 1 个 P1：增强后台举报检索和证据链详情，不做举报处置动作、处罚联动和批量操作。
+- 不处理范围：`POST /admin/reports/{id}/resolve`、内容/用户处罚联动、审计日志独立详情页。
+
+### 已读取文件
+
+- `AGENTS.md`
+- `docs/api-contract.md`
+- `docs/backend-interface-admin-plan.md`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+- `backend/app/routes/admin.py`
+- `backend/app/db_business.py`
+- `backend/app/schemas.py`
+- `backend/app/models.py`
+- `backend/tests/test_api_contract.py`
+- `src/services/adminApi.ts`
+- `src/services/mockApi.ts`
+- `src/services/mockState.ts`
+- `src/types/domain.ts`
+- `admin-web/src/AdminApp.vue`
+- `admin-web/src/styles.css`
+- `scripts/run-ui-message-admin-loop.ps1`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+- `reports/ui-message-admin-loop/failed-cases.md`
+- `reports/ui-message-admin-loop/backend-8100.log`
+
+### 多子 Agent 分工
+
+- Product Rules Agent：确认本轮只增强后台证据链检索，不改变用户侧私聊/举报规则。
+- API Contract Agent：补 `GET /admin/reports` 查询参数、证据字段和审计字段。
+- Backend Agent：实现 `status`、`target_type`、`q` 筛选，并生成 `evidence_refs`、`audit_refs`。
+- Admin Web Agent：在 `admin-web/` 举报处置页增加关键词搜索、选中行和证据详情面板。
+- User Frontend Agent：本轮不改用户端页面，仅通过 H5 回归确认无破坏。
+- QA Agent：补后端契约测试、UI smoke 断言、直接接口冒烟和截图。
+- Security & Risk Agent：确认后台接口仍要求管理员 bearer token；证据链只在 admin-web 展示。
+- Docs Agent：回写 API 契约、requirements、completed、inbox 和 work-history。
+
+### 修改文件
+
+- `backend/app/routes/admin.py`
+- `backend/app/db_business.py`
+- `backend/app/schemas.py`
+- `backend/tests/test_api_contract.py`
+- `src/services/adminApi.ts`
+- `src/services/mockApi.ts`
+- `src/services/mockState.ts`
+- `src/types/domain.ts`
+- `admin-web/src/AdminApp.vue`
+- `admin-web/src/styles.css`
+- `scripts/run-ui-message-admin-loop.ps1`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+- `docs/api-contract.md`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+
+### 验证命令
+
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests\test_api_contract.py::test_admin_reports_support_evidence_search_filters -q`：1 passed。
+- `npm run typecheck`：通过。
+- `node --check scripts\ui-message-admin-loop-smoke.cjs`：通过。
+- `python -m compileall -q backend\app backend\tests`：通过。
+- `npm run test:frontend`：4 files / 29 tests passed。
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：61 passed。
+- `npm run build:h5`：通过。
+- `npm run build:admin`：通过。
+- `.\scripts\run-ui-message-admin-loop.ps1`：通过，失败用例 0。
+
+### 接口冒烟
+
+- `POST http://127.0.0.1:8100/admin/auth/login`：返回管理员 session token。
+- `GET http://127.0.0.1:8100/admin/reports?target_type=chat&q=thread`：通过。
+- 响应摘要：`{"count":2,"id":"report_2c6beebe43b9ddda","target_type":"chat","status":"reviewing","evidence_refs":["report:report_2c6beebe43b9ddda","chat:thread_2c6beebe43b9ddda","reporter:1782800217162129288","conversation:thread_2c6beebe43b9ddda","thread_status:active"],"audit_refs":[]}`。
+
+### 截图证据
+
+- `reports/ui-message-admin-loop/screenshots/admin-1366-reports.png`
+- `reports/ui-message-admin-loop/screenshots/admin-1366-overview.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-messages.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-default.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-publish-modal.png`
+
+### 风险与回滚
+
+- 风险：`GET /admin/reports` 响应新增字段，旧调用方可忽略；不删除旧字段。
+- 风险：一键验收现在默认使用唯一隔离 SQLite 文件，避免旧 schema 污染；该行为仅限 E2E 验收脚本。
+- 回滚：移除新增查询参数消费和证据字段映射，后台举报页恢复表格展示；一键脚本恢复固定 `backend/runtime/e2e.sqlite3`。
+
+### 文档回写
+
+- `docs/api-contract.md`：新增后台举报证据链检索契约。
+- `docs/requirements-ledger.md`：新增 R-038。
+- `docs/completed-checklist.md`：新增 LOOP-35 完成项。
+- `docs/detail-optimization-inbox.md`：新增 O-039。
+- `docs/work-history.md`：追加本轮记录。
+
+### 本轮结论
+
+通过
+
+### 下一轮 LOOP
+
+- LOOP-36：建议进入举报处置动作与审计落库最小闭环，范围控制为 1 个 P1：实现 `POST /admin/reports/{id}/resolve`，要求处理原因、前后状态、审计记录和后台按钮/UI 冒烟。
+
+## 2026-06-30 LOOP-36 举报处置动作与审计落库最小闭环
+
+### 本轮目标
+
+- 范围控制为 1 个 P1：实现单条举报处置动作、处理原因、前后状态、审计落库和后台按钮/UI 冒烟。
+- 不处理处罚联动、批量关闭、冻结收益、独立审计详情页，避免超过本轮范围。
+
+### 已读取文件
+
+- `AGENTS.md`
+- `docs/api-contract.md`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+- `backend/app/routes/admin.py`
+- `backend/app/db_business.py`
+- `backend/app/schemas.py`
+- `backend/tests/test_api_contract.py`
+- `src/services/adminApi.ts`
+- `src/services/mockApi.ts`
+- `admin-web/src/AdminApp.vue`
+- `admin-web/src/styles.css`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+- `scripts/run-ui-message-admin-loop.ps1`
+- `reports/ui-message-admin-loop/failed-cases.md`
+
+### 多子 Agent 分工
+
+- Product Rules Agent：确认本轮仅补后台举报处置，不改变用户侧举报、拉黑或私聊策略。
+- API Contract Agent：补 `POST /admin/reports/{id}/resolve` 字段、状态、错误码和审计要求。
+- Backend Agent：实现举报状态 `resolved` 更新、前后状态返回和 `AdminAuditLog` 写入。
+- Admin Web Agent：在 `admin-web/` 举报详情面板增加处理原因输入和处置按钮。
+- User Frontend Agent：本轮不改用户端页面，仅通过 H5 回归确认无破坏。
+- QA Agent：补后端契约测试、接口冒烟和 UI smoke 处置按钮断言。
+- Security & Risk Agent：确认处置接口仍要求 `admin` 或 `moderator` 权限。
+- Docs Agent：回写 API 契约、requirements、completed、inbox 和 work-history。
+
+### 修改文件
+
+- `backend/app/routes/admin.py`
+- `backend/app/db_business.py`
+- `backend/app/schemas.py`
+- `backend/tests/test_api_contract.py`
+- `src/services/adminApi.ts`
+- `src/services/mockApi.ts`
+- `admin-web/src/AdminApp.vue`
+- `admin-web/src/styles.css`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+- `docs/api-contract.md`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+
+### 验证命令
+
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests\test_api_contract.py::test_admin_report_resolve_updates_status_and_writes_audit -q`：1 passed。
+- `npm run typecheck`：通过。
+- `node --check scripts\ui-message-admin-loop-smoke.cjs`：通过。
+- `python -m compileall -q backend\app backend\tests`：通过。
+- `npm run test:frontend`：4 files / 29 tests passed。
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：62 passed。
+- `npm run build:admin`：通过。
+- `npm run build:h5`：通过。
+- `.\scripts\run-ui-message-admin-loop.ps1`：通过，失败用例 0。
+
+### 接口冒烟
+
+- `GET http://127.0.0.1:8100/admin/reports`：返回 2 条举报。
+- `POST http://127.0.0.1:8100/admin/reports/report_2c6beebe43b9ddda/resolve`
+  - 请求摘要：`{"action":"resolve","reason":"接口冒烟处置"}`
+  - 响应摘要：`{"report_id":"report_2c6beebe43b9ddda","before_status":"reviewing","after_status":"resolved","audit_id":"audit_85604633180e4c4cb41ec5871d75ff28"}`
+- `GET http://127.0.0.1:8100/admin/reports?q=report_2c6beebe43b9ddda`：复查目标举报 `status=resolved`，`audit_refs` 包含本次 `audit_id`。
+- `GET http://127.0.0.1:8100/admin/audit`：复查存在 `action=report_resolve`、`target_type=report`、`target_id=report_2c6beebe43b9ddda`。
+
+### 截图证据
+
+- `reports/ui-message-admin-loop/screenshots/admin-1366-reports.png`
+- `reports/ui-message-admin-loop/screenshots/admin-1366-overview.png`
+
+### 风险与回滚
+
+- 风险：当前仅把举报标记为已处理并记录审计，不自动处罚用户或冻结收益，避免误伤业务状态。
+- 风险：UI smoke 点击辅助增加 `scrollIntoView`，只影响测试脚本稳定性，不影响业务代码。
+- 回滚：移除 `resolveReport` API 调用、后台按钮和后端路由即可恢复到仅展示举报证据链状态。
+
+### 文档回写
+
+- `docs/api-contract.md`：新增后台举报处置落库契约。
+- `docs/requirements-ledger.md`：新增 R-039。
+- `docs/completed-checklist.md`：新增 LOOP-36 完成项。
+- `docs/detail-optimization-inbox.md`：更新 O-039，新增 O-040。
+- `docs/work-history.md`：追加本轮记录。
+
+### 本轮结论
+
+通过
+
+### 下一轮 LOOP
+
+- LOOP-37：建议进入举报处罚联动和审计详情页最小闭环，范围控制为 1 个 P1：在 `POST /admin/reports/{id}/resolve` 基础上增加一个可选处置动作（如冻结聊天或限制用户二选一）、审计详情展示，并补接口/UI 冒烟。
+
+## 2026-06-30 LOOP-37 举报处罚联动和审计详情页最小闭环
+
+### 本轮目标
+
+- 范围控制为 1 个 P1：在举报处置接口基础上增加一个可选处罚动作，并让后台审计详情可查看处罚证据。
+- 本轮只实现 `limit_user`，不做聊天冻结、内容下线、收益冻结、批量处置和用户端通知。
+
+### 已读取文件
+
+- `AGENTS.md`
+- `docs/api-contract.md`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+- `backend/app/routes/admin.py`
+- `backend/app/db_business.py`
+- `backend/app/models.py`
+- `backend/app/schemas.py`
+- `backend/tests/test_api_contract.py`
+- `src/services/adminApi.ts`
+- `src/services/mockApi.ts`
+- `src/types/domain.ts`
+- `admin-web/src/AdminApp.vue`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+
+### 多子 Agent 分工
+
+- Product Rules Agent：限定处罚联动为后台审核员明确选择 `limit_user`，不改变用户端私聊规则。
+- API Contract Agent：补 `penalty_action`、处罚响应字段、审计 detail 字段和错误码。
+- Backend Agent：实现聊天举报目标用户解析、用户限制写入和处罚审计。
+- Admin Web Agent：补举报处置动作选择和后台审计详情面板。
+- User Frontend Agent：本轮不改用户端页面，仅通过 H5 回归确认无破坏。
+- QA Agent：补后端契约测试、直接接口冒烟和 UI smoke 审计详情断言。
+- Security & Risk Agent：确认处罚接口仍要求 `admin` 或 `moderator`，非聊天举报不能误触发 `limit_user`。
+- Docs Agent：回写 API 契约、requirements、completed、inbox 和 work-history。
+
+### 修改文件
+
+- `backend/app/routes/admin.py`
+- `backend/app/db_business.py`
+- `backend/app/schemas.py`
+- `backend/tests/test_api_contract.py`
+- `src/services/adminApi.ts`
+- `src/services/mockApi.ts`
+- `admin-web/src/AdminApp.vue`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+- `docs/api-contract.md`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+
+### 验证命令
+
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests\test_api_contract.py::test_admin_report_resolve_can_limit_reported_chat_user_and_expose_audit_detail -q`：1 passed。
+- `npm run typecheck`：通过。
+- `node --check scripts\ui-message-admin-loop-smoke.cjs`：通过。
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：63 passed。
+- `npm run test:frontend`：4 files / 29 tests passed。
+- `python -m compileall -q backend\app backend\tests`：通过。
+- `npm run build:h5`：通过。
+- `npm run build:admin`：通过。
+- `.\scripts\run-ui-message-admin-loop.ps1`：通过，失败用例 0。
+
+### 接口冒烟
+
+- `POST http://127.0.0.1:8100/admin/reports/report_f41849bced4699c8/resolve`
+  - 请求摘要：`{"action":"resolve","reason":"接口冒烟限制用户","penalty_action":"limit_user"}`
+  - 响应摘要：`{"status":200,"report_id":"report_f41849bced4699c8","before_status":"reviewing","after_status":"resolved","penalty_action":"limit_user","penalty_target_user_id":"200000000007","penalty_audit_id":"audit_6ea9505ed8d343aaae9100c93a52c924"}`
+- `GET http://127.0.0.1:8100/admin/users`：复查目标用户 `status=limited`。
+- `GET http://127.0.0.1:8100/admin/audit`：复查 `report_resolve` 的 `detail` 包含 `penalty_action=limit_user` 和 `penalty_target_user_id=200000000007`，且存在 `report_penalty_limit_user` 审计。
+
+### 截图证据
+
+- `reports/ui-message-admin-loop/screenshots/admin-1366-reports.png`
+- `reports/ui-message-admin-loop/screenshots/admin-1366-audit-detail.png`
+- `reports/ui-message-admin-loop/screenshots/admin-1366-overview.png`
+
+### 风险与回滚
+
+- 风险：当前 `limit_user` 只支持聊天举报，其他举报类型返回 `REPORT_PENALTY_UNSUPPORTED`，避免错误处罚。
+- 风险：处罚目标按“聊天会话中非举报人”解析，适用于当前一对一聊天举报；多人房间处罚需要后续单独建模。
+- 回滚：移除 `penalty_action` 字段处理、用户限制写入和审计详情 UI，即可回到 LOOP-36 的仅标记已处理状态。
+
+### 文档回写
+
+- `docs/api-contract.md`：补 `penalty_action`、处罚响应字段、审计 detail 和错误码。
+- `docs/requirements-ledger.md`：新增 R-040。
+- `docs/completed-checklist.md`：新增 LOOP-37 完成项。
+- `docs/detail-optimization-inbox.md`：更新 O-040，新增 O-041。
+- `docs/work-history.md`：追加本轮记录。
+
+### 本轮结论
+
+通过
+
+### 下一轮 LOOP
+
+- LOOP-38：建议进入举报多动作处罚中的“冻结聊天”最小闭环，范围控制为 1 个 P1：新增 `penalty_action=freeze_chat`，把对应会话状态或风控态置为冻结，后台展示冻结结果，并补接口/UI 冒烟。
+
+## 2026-06-30 LOOP-38 举报冻结聊天最小闭环
+
+### 本轮目标
+
+- 范围控制为 1 个 P1：新增 `penalty_action=freeze_chat`，冻结被举报聊天，并让后台审计详情可查看冻结证据。
+- 不处理内容下线、收益冻结、批量处置、二次确认、处罚撤销、用户端通知和申诉。
+
+### 已读取文件
+
+- `AGENTS.md`
+- `docs/api-contract.md`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+- `backend/app/routes/admin.py`
+- `backend/app/db_business.py`
+- `backend/app/schemas.py`
+- `backend/tests/test_api_contract.py`
+- `src/services/adminApi.ts`
+- `src/services/mockApi.ts`
+- `admin-web/src/AdminApp.vue`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+
+### 多子 Agent 分工
+
+- Product Rules Agent：确认本轮只做后台明确选择的冻结聊天，不改变用户端私聊入口规则。
+- API Contract Agent：补 `freeze_chat`、`penalty_target_thread_id`、冻结后发消息错误码和审计要求。
+- Backend Agent：实现聊天线程 `risk_frozen` 状态、发送消息拦截和处罚审计。
+- Admin Web Agent：在举报处置动作下拉中增加“冻结聊天”。
+- User Frontend Agent：本轮不改用户端页面，仅通过 H5 回归确认无破坏。
+- QA Agent：补后端契约测试、直接接口冒烟和 UI smoke 冻结聊天断言。
+- Security & Risk Agent：确认 `freeze_chat` 只允许聊天举报触发，避免跨类型误冻结。
+- Docs Agent：回写 API 契约、requirements、completed、inbox 和 work-history。
+
+### 修改文件
+
+- `backend/app/db_business.py`
+- `backend/app/schemas.py`
+- `backend/tests/test_api_contract.py`
+- `src/services/adminApi.ts`
+- `src/services/mockApi.ts`
+- `admin-web/src/AdminApp.vue`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+- `docs/api-contract.md`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+
+### 验证命令
+
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests\test_api_contract.py::test_admin_report_resolve_can_freeze_chat_and_block_new_message -q`：1 passed。
+- `npm run typecheck`：通过。
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：64 passed。
+- `npm run test:frontend`：4 files / 29 tests passed。
+- `python -m compileall -q backend\app backend\tests`：通过。
+- `npm run build:h5`：通过。
+- `npm run build:admin`：通过。
+- `node --check scripts\ui-message-admin-loop-smoke.cjs`：通过。
+- `.\scripts\run-ui-message-admin-loop.ps1`：通过，失败用例 0。
+
+### 接口冒烟
+
+- `POST http://127.0.0.1:8100/admin/reports/report_f41849bced4699c8/resolve`
+  - 请求摘要：`{"action":"resolve","reason":"接口冒烟冻结聊天","penalty_action":"freeze_chat"}`
+  - 响应摘要：`{"status":200,"report_id":"report_f41849bced4699c8","before_status":"reviewing","after_status":"resolved","penalty_action":"freeze_chat","penalty_target_thread_id":"thread_f41849bced4699c8","penalty_audit_id":"audit_562bb179f73747e685ca5b75a933170a"}`
+- `GET http://127.0.0.1:8100/admin/reports?q=report_f41849bced4699c8`：复查 `evidence_refs` 包含 `thread_status:risk_frozen`。
+- `POST http://127.0.0.1:8100/conversations/thread_f41849bced4699c8/turns`：冻结后发消息返回 `403`，错误码 `CHAT_RISK_FROZEN`。
+- `GET http://127.0.0.1:8100/admin/audit`：复查 `report_resolve` 的 `detail` 包含 `penalty_action=freeze_chat` 和 `penalty_target_thread_id`，且存在 `report_penalty_freeze_chat` 审计。
+
+### 截图证据
+
+- `reports/ui-message-admin-loop/screenshots/admin-1366-reports.png`
+- `reports/ui-message-admin-loop/screenshots/admin-1366-audit-detail.png`
+- `reports/ui-message-admin-loop/screenshots/admin-1366-overview.png`
+
+### 风险与回滚
+
+- 风险：`freeze_chat` 当前只支持一对一聊天举报目标 `ConversationThread`，多人房间精细冻结仍需后续建模。
+- 风险：冻结后消息列表只显示 active 线程，用户端冻结提示和申诉入口尚未做，本轮已记录到后续项。
+- 回滚：移除 `freeze_chat` 枚举、线程 `risk_frozen` 写入、发送拦截和后台下拉选项，即可回到 LOOP-37 状态。
+
+### 文档回写
+
+- `docs/api-contract.md`：补 `freeze_chat` 契约、冻结错误码和审计要求。
+- `docs/requirements-ledger.md`：新增 R-041。
+- `docs/completed-checklist.md`：新增 LOOP-38 完成项。
+- `docs/detail-optimization-inbox.md`：更新 O-041，新增 O-042。
+- `docs/work-history.md`：追加本轮记录。
+
+### 本轮结论
+
+通过
+
+### 下一轮 LOOP
+
+- LOOP-39：建议进入处罚后的用户端通知与冻结提示最小闭环，范围控制为 1 个 P1：冻结聊天后生成系统通知，并在用户端聊天/消息页显示冻结原因和申诉说明入口。
+
+## 2026-06-30 LOOP-39 处罚后用户端通知与冻结提示最小闭环
+
+### 本轮目标
+
+- 范围控制为 1 个 P1：冻结聊天处罚完成后，让用户在系统消息和聊天详情中看到冻结结果、原因和申诉说明。
+- 不处理真实申诉工单、处罚撤销/恢复、内容下线、收益冻结、批量处置和多动作组合。
+
+### 已读取文件
+
+- `AGENTS.md`
+- `docs/api-contract.md`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+- `backend/app/db_business.py`
+- `backend/app/schemas.py`
+- `backend/tests/test_api_contract.py`
+- `src/types/domain.ts`
+- `src/services/businessApi.ts`
+- `src/services/mockApi.ts`
+- `src/services/mockState.ts`
+- `src/stores/content.ts`
+- `src/stores/content.test.ts`
+- `src/pages/messages/index.vue`
+- `src/pages/messages/chat.vue`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+
+### 多子 Agent 分工
+
+- Product Rules Agent：确认本轮只补冻结后的用户可感知提示，不改变上下文私聊和举报处置规则。
+- API Contract Agent：补 `chat_freeze` 通知、`ConversationThread.status`、`frozen_notice` 和冻结页禁发约束。
+- Backend Agent：冻结聊天处置后生成系统通知，冻结线程继续可读取，并返回 `frozen_notice`。
+- Admin Web Agent：复用 LOOP-38 的冻结处置和审计详情，不新增后台页面。
+- User Frontend Agent：消息页识别 `chat_freeze` 系统通知，聊天页展示冻结说明并禁用输入/媒体/礼物/房间入口。
+- QA Agent：补后端契约测试、前端类型修复、UI 冒烟断言和接口冒烟。
+- Security & Risk Agent：确认冻结后所有发送路径仍被前端禁用和后端 `CHAT_RISK_FROZEN` 双重拦截。
+- Docs Agent：回写 API 契约、requirements、completed、inbox 和 work-history。
+
+### 修改文件
+
+- `backend/app/db_business.py`
+- `backend/app/schemas.py`
+- `backend/tests/test_api_contract.py`
+- `src/types/domain.ts`
+- `src/services/businessApi.ts`
+- `src/services/mockApi.ts`
+- `src/services/mockState.ts`
+- `src/stores/content.ts`
+- `src/stores/content.test.ts`
+- `src/pages/messages/index.vue`
+- `src/pages/messages/chat.vue`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+- `docs/api-contract.md`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+
+### 验证命令
+
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests\test_api_contract.py::test_admin_report_resolve_can_freeze_chat_and_block_new_message -q`：1 passed。并行跑定向与全量 pytest 时曾因共用 SQLite 建表竞争失败一次，已单独重跑通过。
+- `node --check scripts\ui-message-admin-loop-smoke.cjs`：通过。
+- `npm run typecheck`：通过。
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：64 passed。
+- `python -m compileall -q backend\app backend\tests`：通过。
+- `npm run test:frontend`：4 files / 29 tests passed。
+- `npm run build:h5`：通过。
+- `npm run build:admin`：通过。
+- `.\scripts\run-ui-message-admin-loop.ps1`：通过，失败用例 0。
+
+### 接口冒烟
+
+- 当前后端重新创建聊天举报并执行冻结处置：
+  - `POST /reports`：生成 `report_766078aba4774a938ab8c34216d5baff`。
+  - `POST /admin/reports/{id}/resolve`：请求 `{"action":"resolve","reason":"LOOP-39 接口冒烟","penalty_action":"freeze_chat"}`，响应 `penalty_action=freeze_chat`。
+- `GET /messages`：
+  - 响应摘要：`{"title":"聊天已被冻结","business_type":"chat_freeze","business_id":"thread_747fc60009aebaf9"}`。
+- `POST /conversations/thread_747fc60009aebaf9/read`：
+  - 响应摘要：`{"status":"risk_frozen","frozen_notice":"该聊天已因举报处置被冻结。若你认为处理有误，可在客服入口提交申诉说明。"}`。
+- `POST /conversations/thread_747fc60009aebaf9/turns`：
+  - 响应摘要：`403`，`{"code":"CHAT_RISK_FROZEN","message":"该聊天已因举报处置被冻结。"}`。
+
+### 截图证据
+
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-frozen.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-system-notices.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-messages.png`
+- `reports/ui-message-admin-loop/screenshots/admin-1366-reports.png`
+- `reports/ui-message-admin-loop/screenshots/admin-1366-audit-detail.png`
+
+### 风险与回滚
+
+- 风险：本轮只做冻结说明和申诉提示文案，真实申诉工单和客服入口尚未落库。
+- 风险：冻结通知当前发送给举报人；被处罚方通知和双向通知策略需后续结合申诉规则单独确认。
+- 回滚：移除 `chat_freeze` 通知生成、`status/frozen_notice` 前端字段和冻结页 UI，即可回到 LOOP-38 的后台冻结闭环。
+
+### 文档回写
+
+- `docs/api-contract.md`：补冻结通知、冻结会话读取和用户端禁发契约。
+- `docs/requirements-ledger.md`：新增 R-042。
+- `docs/completed-checklist.md`：新增 LOOP-39 完成项。
+- `docs/detail-optimization-inbox.md`：更新 O-042，新增 O-043。
+- `docs/work-history.md`：追加本轮记录。
+
+### 本轮结论
+
+通过
+
+### 下一轮 LOOP
+
+- LOOP-40：建议进入处罚撤销/恢复与申诉入口最小闭环，范围控制为 1 个 P1：新增冻结聊天恢复接口或后台恢复按钮，恢复后会话可发送，写入恢复审计，并补接口/UI 冒烟。
+
+## 2026-06-30 LOOP-40 冻结聊天恢复与审计最小闭环
+
+### 本轮目标
+
+- 范围控制为 1 个 P1：新增冻结聊天恢复接口和后台按钮，恢复后会话重新变为 active，可发送消息，并写恢复审计。
+- 不处理真实申诉工单、内容下线、收益冻结、批量处置和多动作组合。
+
+### 已读取文件
+
+- `AGENTS.md`
+- `docs/api-contract.md`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+- `backend/app/routes/admin.py`
+- `backend/app/db_business.py`
+- `backend/app/schemas.py`
+- `backend/tests/test_api_contract.py`
+- `src/services/adminApi.ts`
+- `src/pages/messages/index.vue`
+- `admin-web/src/AdminApp.vue`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+
+### 多子 Agent 分工
+
+- Product Rules Agent：确认本轮只做管理员恢复冻结聊天，不改变举报已处理状态和申诉业务规则。
+- API Contract Agent：新增 `POST /admin/reports/{id}/restore` 契约、错误码、通知和审计要求。
+- Backend Agent：实现恢复接口，校验聊天举报和 `risk_frozen` 状态，恢复为 `active`。
+- Admin Web Agent：后台举报详情新增“恢复聊天”按钮，仅在已处理且证据链为 `thread_status:risk_frozen` 时展示。
+- User Frontend Agent：系统消息识别 `chat_restore`，恢复后聊天页重新显示输入区。
+- QA Agent：新增后端恢复契约测试、接口冒烟和 UI 冒烟恢复断言。
+- Security & Risk Agent：恢复接口仅限 `admin/moderator`，且非冻结目标返回 `REPORT_CHAT_NOT_FROZEN`。
+- Docs Agent：回写 API 契约、requirements、completed、inbox 和 work-history。
+
+### 修改文件
+
+- `backend/app/routes/admin.py`
+- `backend/app/db_business.py`
+- `backend/app/schemas.py`
+- `backend/tests/test_api_contract.py`
+- `src/services/adminApi.ts`
+- `src/pages/messages/index.vue`
+- `admin-web/src/AdminApp.vue`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+- `docs/api-contract.md`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+
+### 验证命令
+
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests\test_api_contract.py::test_admin_report_restore_chat_reactivates_thread_and_writes_audit -q`：1 passed。
+- `node --check scripts\ui-message-admin-loop-smoke.cjs`：通过。
+- `npm run typecheck`：通过。
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：65 passed。
+- `npm run test:frontend`：4 files / 29 tests passed。
+- `python -m compileall -q backend\app backend\tests`：通过。
+- `npm run build:h5`：通过。
+- `npm run build:admin`：通过。
+- `.\scripts\run-ui-message-admin-loop.ps1`：通过，失败用例 0。
+
+### 接口冒烟
+
+- `POST /reports`：生成 `report_a8550406c4984827824f84b96fabfda2`。
+- `POST /admin/reports/{id}/resolve`：
+  - 请求摘要：`{"action":"resolve","reason":"先冻结再恢复","penalty_action":"freeze_chat"}`。
+  - 响应摘要：`{"penalty_action":"freeze_chat"}`。
+- `POST /admin/reports/{id}/restore`：
+  - 请求摘要：`{"reason":"接口冒烟恢复聊天"}`。
+  - 响应摘要：`{"before_thread_status":"risk_frozen","after_thread_status":"active"}`。
+- `POST /conversations/{thread_id}/read`：响应 `status=active`。
+- `POST /conversations/{thread_id}/turns`：恢复后发送成功，`last_message=loop40 restored send`。
+- `GET /messages`：存在 `{"title":"聊天已恢复","business_type":"chat_restore","business_id":"thread_747fc60009aebaf9"}`。
+- `GET /admin/audit`：存在 `action=report_restore_chat`，detail 包含 `before_status=risk_frozen;after_status=active`。
+
+### 截图证据
+
+- `reports/ui-message-admin-loop/screenshots/admin-1366-reports-restored.png`
+- `reports/ui-message-admin-loop/screenshots/admin-1366-audit-restore.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-restored.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-frozen.png`
+
+### 风险与回滚
+
+- 风险：恢复接口当前只恢复聊天线程，不自动撤销举报工单或删除处罚审计；这是为了保留处置历史。
+- 风险：真实申诉工单未实现，用户端仍只显示申诉说明文案。
+- 回滚：移除 `/admin/reports/{id}/restore` 路由、`restore_report_chat`、后台恢复按钮和 `chat_restore` 通知映射，即可回到 LOOP-39。
+
+### 文档回写
+
+- `docs/api-contract.md`：新增恢复接口契约。
+- `docs/requirements-ledger.md`：新增 R-043。
+- `docs/completed-checklist.md`：新增 LOOP-40 完成项。
+- `docs/detail-optimization-inbox.md`：更新 O-043，新增 O-044。
+- `docs/work-history.md`：追加本轮记录。
+
+### 本轮结论
+
+通过
+
+### 下一轮 LOOP
+
+- LOOP-41：建议进入真实申诉工单最小闭环，范围控制为 1 个 P1：用户端提交冻结聊天申诉，后台查看申诉详情并通过/驳回，写入申诉审计和消息通知。
+
+## 2026-06-30 LOOP-41 用户端私聊位置、附近开聊和留言即时反馈纠偏
+
+### 本轮目标
+
+处理用户反馈的 1 个 P1 用户体验纠偏：附近的人开聊不需要同意、聊天页需要显示双方头像昵称、私聊头部边界不对、广场帖子留言提交后显示延迟。不处理真实申诉工单、内容下线、收益冻结和批量处置。
+
+### 已读取文件
+
+- `src/pages/nearby/index.vue`
+- `src/pages/messages/chat.vue`
+- `src/pages/plaza/comments.vue`
+- `src/stores/content.ts`
+- `src/services/businessApi.ts`
+- `src/types/domain.ts`
+- `backend/app/db_business.py`
+- `backend/app/schemas.py`
+- `backend/tests/test_api_contract.py`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+- `docs/api-contract.md`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+
+### 多子 Agent 分工
+
+- Product Rules Agent：确认附近的人属于消耗型直接开聊，不走同意队列；广场继续聊仍保留上下文确认规则。
+- API Contract Agent：补充 `POST /chat/match-expand-requests` 返回 `thread_id`、`active` 状态、VIP/积分扣费和会话头像昵称读取要求。
+- Backend Agent：把附近的人开聊改为创建/复用 `ConversationThread`，兼容保留 active request 记录。
+- Admin Web Agent：本轮无后台 UI 改动，仅通过既有 admin 构建和 UI 冒烟回归确认未破坏。
+- User Frontend Agent：附近的人点击后直接跳转聊天页；聊天头部展示双方头像昵称；广场留言即时追加并修复时间显示。
+- QA Agent：新增/调整附近的人契约测试和 UI 冒烟断言，覆盖直接跳转、双方头像昵称、无“等待确认”、留言“刚刚”。
+- Security & Risk Agent：保留 VIP/积分门槛、重复开聊不重复扣费、会话读取仍走当前用户权限。
+- Docs Agent：回写 API 契约、requirements、completed、inbox 和 work-history。
+
+### 修改文件
+
+- `backend/app/db_business.py`
+- `backend/app/schemas.py`
+- `backend/tests/test_api_contract.py`
+- `src/types/domain.ts`
+- `src/services/businessApi.ts`
+- `src/stores/content.ts`
+- `src/pages/nearby/index.vue`
+- `src/pages/messages/chat.vue`
+- `src/pages/plaza/comments.vue`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+- `docs/api-contract.md`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+
+### 验证命令
+
+- `npm run typecheck`：通过。
+- `npm run test:frontend`：4 files / 29 tests passed。
+- `npm run build:h5`：通过。
+- `npm run build:admin`：通过。
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：65 passed。
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests\test_api_contract.py::test_match_expand_context_request_is_free_for_vip_user backend\tests\test_api_contract.py::test_match_expand_context_request_costs_five_coins_for_non_vip_user backend\tests\test_api_contract.py::test_match_expand_context_request_reuses_existing_chat_without_second_charge -q`：3 passed。
+- `.\scripts\run-ui-message-admin-loop.ps1`：通过，失败用例 0。
+
+### 接口冒烟
+
+- `GET /nearby/users`：返回目标用户 `200000000001`。
+- `POST /chat/match-expand-requests`：
+  - 请求摘要：`{"target_user_id":"200000000001"}`。
+  - 响应摘要：`{"request_status":"active","conversation_id":"thread_88cc44b20ee34011a84ebcc2ba2676a0","thread_id":"thread_88cc44b20ee34011a84ebcc2ba2676a0","cost_coins":0}`。
+- `POST /conversations/{thread_id}/read`：
+  - 响应摘要：`{"conversation_status":"active","participant_name":"海岛来信","participant_avatar_url":"https://api.dicebear.com/9.x/open-peeps/svg?seed=bottle-wave-25&backgroundColor=b6e3f4,c0aede,d1d4f9","last_message":"已通过附近的人开聊。"}`。
+
+### 截图证据
+
+- `reports/ui-message-admin-loop/screenshots/mobile-390-nearby-direct-chat.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-plaza-comment-immediate.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-plus-panel.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-default.png`
+
+### 风险与回滚
+
+- 风险：本轮改变附近的人开聊业务状态，从 pending 申请转为直接 active 会话；已用 VIP/积分门槛和重复不扣费约束风险。
+- 风险：广场留言即时追加是前端临时对象，后端刷新后以服务端列表为准；后续可让接口直接返回新建留言对象。
+- 回滚：恢复 `create_match_expand_context_request` 的 pending request 行为，移除前端 `threadId` 跳转和聊天头部双方布局即可回到 LOOP-40 行为。
+
+### 文档回写
+
+- `docs/api-contract.md`：补充附近的人直接开聊契约。
+- `docs/requirements-ledger.md`：新增 R-044。
+- `docs/completed-checklist.md`：新增 LOOP-41 完成项。
+- `docs/detail-optimization-inbox.md`：新增 O-045。
+- `docs/work-history.md`：追加本轮记录。
+
+### 本轮结论
+
+通过
+
+### 下一轮 LOOP
+
+- LOOP-42：建议回到真实申诉工单最小闭环，范围控制为 1 个 P1：用户端提交冻结聊天申诉，后台查看申诉详情并通过/驳回，写入申诉审计和消息通知。
+
+## 2026-07-01 LOOP-42 冻结聊天真实申诉工单最小闭环
+
+### 本轮目标
+
+处理 1 个 P1：把冻结聊天的“申诉说明”升级为真实申诉工单，覆盖用户提交、后台查看、后台通过/驳回、审计和消息通知。不处理内容下线、私密照片收益冻结/解冻、批量处置和二次确认。
+
+### 已读取文件
+
+- `backend/app/models.py`
+- `backend/app/schemas.py`
+- `backend/app/db_business.py`
+- `backend/app/routes/messages.py`
+- `backend/app/routes/admin.py`
+- `backend/tests/test_api_contract.py`
+- `src/types/domain.ts`
+- `src/services/businessApi.ts`
+- `src/services/adminApi.ts`
+- `src/services/mockApi.ts`
+- `src/stores/content.ts`
+- `src/pages/messages/chat.vue`
+- `admin-web/src/AdminApp.vue`
+- `admin-web/src/styles.css`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+- `docs/api-contract.md`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+
+### 多子 Agent 分工
+
+- Product Rules Agent：确认申诉只作用于 `risk_frozen` 普通私聊，通过恢复聊天，驳回保持冻结。
+- API Contract Agent：新增用户端申诉、后台申诉列表和后台申诉处理契约。
+- Backend Agent：新增 `ChatAppeal` 表、迁移、提交/列表/处理业务函数和路由。
+- Admin Web Agent：举报处置页新增聊天申诉工单列表、详情、通过/驳回按钮。
+- User Frontend Agent：冻结聊天页新增申诉理由输入和提交状态。
+- QA Agent：新增后端契约测试、接口冒烟、UI 冒烟断言和截图。
+- Security & Risk Agent：申诉仅允许当前用户自己的冻结聊天；同一冻结聊天 pending 申诉幂等复用。
+- Docs Agent：回写 API 契约、requirements、completed、inbox 和 work-history。
+
+### 修改文件
+
+- `backend/app/models.py`
+- `backend/app/schemas.py`
+- `backend/app/db_business.py`
+- `backend/app/routes/messages.py`
+- `backend/app/routes/admin.py`
+- `backend/alembic/versions/0014_chat_appeals.py`
+- `backend/tests/test_api_contract.py`
+- `src/types/domain.ts`
+- `src/services/businessApi.ts`
+- `src/services/adminApi.ts`
+- `src/services/mockApi.ts`
+- `src/stores/content.ts`
+- `src/pages/messages/chat.vue`
+- `admin-web/src/AdminApp.vue`
+- `admin-web/src/styles.css`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+- `docs/api-contract.md`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+
+### 验证命令
+
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests\test_api_contract.py::test_chat_appeal_submit_approve_and_reject_contract -q`：1 passed。
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：66 passed。
+- `python -m compileall -q backend\app backend\tests`：通过。
+- `npm run typecheck`：通过。
+- `npm run test:frontend`：4 files / 29 tests passed。
+- `npm run build:h5`：通过。
+- `npm run build:admin`：通过。
+- `node --check scripts\ui-message-admin-loop-smoke.cjs`：通过。
+- `.\scripts\run-ui-message-admin-loop.ps1`：通过，失败用例 0。
+- `python -m alembic -c alembic.ini heads`：`0014_chat_appeals (head)`。
+- `python -m alembic -c alembic.ini upgrade head --sql`：生成 SQL 包含 `CREATE TABLE chat_appeals`。
+
+### 接口冒烟
+
+- `POST /chat/match-expand-requests`：创建测试聊天 `thread_0f8a5f320c9f4e028b7d7788cf9f808d`。
+- `POST /reports`：创建聊天举报 `report_86d5fbdb257b4c05905a5b59fd6ec91d`。
+- `POST /admin/reports/{id}/resolve`：
+  - 请求摘要：`{"action":"resolve","reason":"API smoke freeze","penalty_action":"freeze_chat"}`。
+  - 响应摘要：`{"penalty_action":"freeze_chat"}`。
+- `POST /conversations/{thread_id}/appeal`：
+  - 请求摘要：`{"reason":"API smoke appeal approve"}`。
+  - 响应摘要：`{"id":"appeal_9796fc6bb4a64b5c8f571f2639001c45","status":"pending"}`。
+- `GET /admin/chat-appeals`：返回上述申诉。
+- `POST /admin/chat-appeals/{id}/review`：
+  - 请求摘要：`{"action":"approve","reason":"API smoke approve"}`。
+  - 响应摘要：`{"after_status":"approved","thread_status":"active","audit_id":"audit_..."}`。
+- `POST /conversations/{thread_id}/read`：恢复后 `status=active`。
+- `GET /messages`：存在 `business_type=chat_appeal_approved`。
+- `GET /admin/audit`：对应审计 `action=chat_appeal_approve`。
+
+### 截图证据
+
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-appeal-submitted.png`
+- `reports/ui-message-admin-loop/screenshots/admin-1366-chat-appeal-rejected.png`
+- `reports/ui-message-admin-loop/screenshots/mobile-390-chat-restored.png`
+- `reports/ui-message-admin-loop/screenshots/admin-1366-audit-restore.png`
+
+### 风险与回滚
+
+- 风险：本轮新增持久化表，需要真实环境执行 `0014_chat_appeals` 迁移。
+- 风险：后台申诉处理当前只支持聊天冻结申诉，不处理内容下线或收益冻结。
+- 回滚：移除 `chat_appeals` 表、申诉路由、后台申诉 UI 和用户端申诉入口，可回到 LOOP-41 的冻结说明行为。
+
+### 文档回写
+
+- `docs/api-contract.md`：新增冻结聊天申诉接口契约。
+- `docs/requirements-ledger.md`：新增 R-045。
+- `docs/completed-checklist.md`：新增 LOOP-42 完成项。
+- `docs/detail-optimization-inbox.md`：更新 O-044/O-045，新增 O-046。
+- `docs/work-history.md`：追加本轮记录。
+
+### 本轮结论
+
+通过
+
+### 下一轮 LOOP
+
+- LOOP-43：建议进入内容下线处罚联动最小闭环，范围控制为 1 个 P1：举报处置新增 `offline_content` 动作，支持广场帖子/留言/瓶子下线，写入审计、用户通知和后台 UI 冒烟。
+
+## 2026-07-01 LOOP-43 内容下线处罚联动最小闭环
+
+### 本轮目标
+
+处理 1 个 P1：在举报处置中新增 `offline_content` 处罚动作，支持瓶子、广场帖子、广场留言下线，写入处置审计、刷新后台证据链、通知内容所有者，并补后端契约测试、接口冒烟和后台 UI 冒烟。不处理私密照片收益冻结、批量下线、二次确认和内容申诉。
+
+### 已读取文件
+
+- `backend/app/models.py`
+- `backend/app/schemas.py`
+- `backend/app/db_business.py`
+- `backend/app/routes/admin.py`
+- `backend/app/routes/bottle.py`
+- `backend/app/routes/plaza.py`
+- `backend/tests/test_api_contract.py`
+- `src/types/domain.ts`
+- `src/services/adminApi.ts`
+- `admin-web/src/AdminApp.vue`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+- `docs/work-history.md`
+- `docs/completed-checklist.md`
+- `docs/requirements-ledger.md`
+- `docs/detail-optimization-inbox.md`
+
+### 多子 Agent 分工
+
+- Product Rules Agent：确认本轮只做举报处置触发的内容下线，不扩大到收益冻结和批量操作。
+- API Contract Agent：扩展 `AdminReportResolveRequest/Response.penalty_action`，新增 `offline_content`、`penalty_target_content_id`、`penalty_target_content_type`。
+- Backend Agent：实现瓶子、广场帖子、广场留言状态改为 `rejected`，并写入 `report_penalty_offline_content` 审计。
+- Admin Web Agent：后台举报处置动作新增“下线目标内容”，审计动作标签新增“举报下线内容”。
+- User Frontend Agent：本轮无 H5 业务 UI 改动；通过消息通知链验证内容所有者可收到 `content_offline` 系统通知。
+- QA Agent：补后端契约测试、接口冒烟 JSON、UI 冒烟截图和 0 失败报告。
+- Security & Risk Agent：非内容类举报使用 `offline_content` 返回不支持；目标不存在返回 404；下线只影响 `approved` 列表可见性。
+- Docs Agent：回写 work-history、completed-checklist、requirements-ledger、detail-optimization-inbox。
+
+### 修改文件
+
+- `backend/app/schemas.py`
+- `backend/app/db_business.py`
+- `backend/tests/test_api_contract.py`
+- `src/services/adminApi.ts`
+- `admin-web/src/AdminApp.vue`
+- `scripts/ui-message-admin-loop-smoke.cjs`
+- `docs/work-history.md`
+- `docs/completed-checklist.md`
+- `docs/requirements-ledger.md`
+- `docs/detail-optimization-inbox.md`
+
+### 验证命令
+
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests\test_api_contract.py::test_admin_report_resolve_can_offline_reported_content_and_expose_audit_detail -q`：1 passed。
+- `npm run typecheck`：通过。
+- `npm run build:admin`：通过。
+- `npm run test:frontend`：4 files / 29 tests passed。
+- `npm run build:h5`：通过。
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：67 passed。
+- `node scripts\ui-message-admin-loop-smoke.cjs`：通过，`reports/ui-message-admin-loop/failed-count.txt=0`。
+
+### 接口冒烟
+
+- 证据文件：`reports/loop43/api-smoke.json`。
+- `POST /admin/reports/{id}/resolve`，`penalty_action=offline_content`，目标 `bottle`：响应 `penalty_target_content_type=bottle`，举报证据含 `content_status:rejected`，`GET /bottles` 不再返回目标瓶子。
+- `POST /admin/reports/{id}/resolve`，`penalty_action=offline_content`，目标 `plaza`：响应 `penalty_target_content_type=plaza`，举报证据含 `content_status:rejected`，`GET /plaza/posts` 不再返回目标帖子。
+- `POST /admin/reports/{id}/resolve`，`penalty_action=offline_content`，目标 `reply`：响应 `penalty_target_content_type=plaza_comment`，举报证据含 `content_type:plaza_comment` 和 `content_status:rejected`，`GET /plaza/posts/{id}/comments` 不再返回目标留言。
+
+### 截图证据
+
+- `reports/ui-message-admin-loop/screenshots/admin-1366-report-offline-content.png`
+- `reports/ui-message-admin-loop/screenshots/admin-1366-audit-offline-content.png`
+
+### 风险与回滚
+
+- 风险：本轮复用已有 `status=rejected`，无数据库迁移；如果后续需要可恢复下线内容，需要单独设计恢复接口和审计。
+- 风险：`reply` 目标当前兼容广场留言和瓶子回应，本轮优先验证广场留言；瓶子回应下线已走同一分支但不是本轮 UI 冒烟重点。
+- 回滚：移除 `offline_content` 枚举、后台选项、`resolve_report` 下线分支和对应测试/冒烟即可回到 LOOP-42 行为。
+
+### 文档回写
+
+- `docs/work-history.md`
+- `docs/completed-checklist.md`
+- `docs/requirements-ledger.md`
+- `docs/detail-optimization-inbox.md`
+
+### 本轮结论
+
+通过
+
+### 下一轮 LOOP
+
+- LOOP-44：已纠偏为“普通举报目标边界与用户信息名片入口”。私密照片不进入普通举报处置，继续走 AI 审核、人工复核、申诉和收益冻结链路。
+## 2026-07-01 LOOP-44 举报目标边界与用户信息名片入口
+
+### 本轮目标
+
+处理 1 个 P1：纠偏“私密照片举报处置”误排队，明确普通举报只允许用户、漂流瓶和广场帖子，并在广场页补用户头像名片举报与帖子举报入口。不处理后台历史举报枚举清理、聊天冻结链路重构、私密照片收益冻结。
+
+### 已读取文件
+
+- `src/services/businessApi.ts`
+- `src/stores/content.ts`
+- `src/pages/plaza/index.vue`
+- `src/pages/bottle/index.vue`
+- `backend/app/schemas.py`
+- `backend/app/db_business.py`
+- `backend/tests/test_api_contract.py`
+- `docs/api-contract.md`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+
+### 多子 Agent 分工
+
+- Product Rules Agent：确认普通举报仅限 `user`、`bottle`、`plaza`，私密照片不走普通举报。
+- API Contract Agent：补充 `POST /reports` 用户端入口的目标边界与 UI 约束。
+- Backend Agent：本轮不改后台历史兼容读取，避免扩大到聊天冻结/申诉链路。
+- Admin Web Agent：确认后台旧类型仅作为历史工单兼容，不在本轮改 UI。
+- User Frontend Agent：新增广场帖子举报按钮和头像用户名片举报入口。
+- QA Agent：执行类型检查、前端测试、H5/admin 构建、接口冒烟和截图。
+- Security & Risk Agent：确认评论、聊天、私密照片不新增普通举报入口。
+- Docs Agent：回写 API 契约、requirements、completed、inbox 和 work-history。
+
+### 修改文件
+
+- `src/services/businessApi.ts`
+- `src/stores/content.ts`
+- `src/pages/plaza/index.vue`
+- `docs/api-contract.md`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+
+### 验证命令
+
+- `npm run typecheck`：通过。
+- `npm run test:frontend`：通过，4 个测试文件、29 个用例通过。
+- `npm run build:h5`：通过。
+- `npm run build:admin`：通过。
+- `$env:PYTHONPATH='backend'; python -m pytest backend\tests -q`：通过，67 个用例通过。
+- `powershell -ExecutionPolicy Bypass -File scripts\run-ui-message-admin-loop.ps1`：通过，UI 门禁 `failed=[]`。
+
+### 接口冒烟
+
+- `GET /plaza/posts`：200，取到 `postId=plaza_003`、`targetUserId=200000000006`。
+- `POST /reports target_type=user`：200，返回 `report_86ab2f71a7924c99bb81218b283dcb72`，状态 `queued`。
+- `POST /reports target_type=plaza`：200，返回 `report_4ead65c273ce4ecd9451f033812cca47`，状态 `queued`。
+- `POST /reports target_type=bottle`：200，返回 `report_0304698915a948abb941bf5300c52f27`，状态 `queued`。
+- 证据文件：`reports/loop44/api-smoke.json`。
+
+### 截图证据
+
+- 广场帖子举报入口：`reports/loop44/screenshots/mobile-390-plaza-report-post-entry.png`。
+- 用户头像信息名片与左上角举报：`reports/loop44/screenshots/mobile-390-plaza-user-card-report.png`。
+- 用户举报弹窗目标边界文案：`reports/loop44/screenshots/mobile-390-plaza-user-report-modal.png`。
+- UI 冒烟截图集：`reports/ui-message-admin-loop/screenshots/`。
+
+### 风险与回滚
+
+- 风险：后台 `/reports` 和 `GET /admin/reports` 仍兼容旧 target_type，属于历史冻结/申诉链路依赖；本轮只约束用户端新建入口。
+- 回滚：恢复 `businessApi` 原 `reportBottle` 单方法、移除广场页新增名片/举报弹层和文档追加段即可。
+
+### 文档回写
+
+- `docs/api-contract.md`
+- `docs/requirements-ledger.md`
+- `docs/completed-checklist.md`
+- `docs/detail-optimization-inbox.md`
+- `docs/work-history.md`
+
+### 本轮结论
+
+通过
+
+### 下一轮 LOOP
+
+- LOOP-45：普通举报后端强约束与历史工单兼容迁移最小设计，范围控制为 1 个 P1。先设计如何让新建 `POST /reports` 拒绝旧类型，同时不破坏后台历史聊天冻结/申诉证据链。

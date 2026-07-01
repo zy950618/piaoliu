@@ -1,5 +1,6 @@
 import type { MeStatus, QuotaType, UserProfile } from '@/types/domain'
 import { requestJson } from '@/services/http'
+import { resolveAvatarUrl } from '@/utils/avatar'
 
 type UserProfileDto = {
   id: string
@@ -38,6 +39,16 @@ type MeStatusDto = {
     cooldown_minutes: number
     reward_per_quota: number
     active_session_id?: string
+    display_type: 'video' | 'image' | 'link'
+    provider: string
+    placement_id: string
+    title: string
+    description: string
+    media_url?: string | null
+    click_url?: string | null
+    countdown_seconds: number
+    mini_program_app_id?: string | null
+    mini_program_path?: string | null
   }
   checkin: {
     checked_today: boolean
@@ -69,7 +80,7 @@ function toMeStatus(dto: MeStatusDto): MeStatus {
       id: dto.user.id,
       nickname: dto.user.nickname,
       avatarText: dto.user.avatar_text,
-      avatarUrl: dto.user.avatar_url,
+      avatarUrl: resolveAvatarUrl(dto.user.avatar_url, dto.user.id),
       platform: dto.user.platform,
       isVip: dto.user.is_vip,
       vipLevel: dto.user.vip_level,
@@ -88,7 +99,17 @@ function toMeStatus(dto: MeStatusDto): MeStatus {
       cooldownSeconds: dto.ad_reward.cooldown_seconds,
       cooldownMinutes: dto.ad_reward.cooldown_minutes,
       rewardPerQuota: dto.ad_reward.reward_per_quota,
-      activeSessionId: dto.ad_reward.active_session_id
+      activeSessionId: dto.ad_reward.active_session_id,
+      displayType: dto.ad_reward.display_type,
+      provider: dto.ad_reward.provider,
+      placementId: dto.ad_reward.placement_id,
+      title: dto.ad_reward.title,
+      description: dto.ad_reward.description,
+      mediaUrl: dto.ad_reward.media_url || undefined,
+      clickUrl: dto.ad_reward.click_url || undefined,
+      countdownSeconds: dto.ad_reward.countdown_seconds,
+      miniProgramAppId: dto.ad_reward.mini_program_app_id || undefined,
+      miniProgramPath: dto.ad_reward.mini_program_path || undefined
     },
     checkin: {
       checkedToday: dto.checkin.checked_today,
@@ -105,7 +126,7 @@ function toUserProfile(dto: UserProfileDto): UserProfile {
     id: dto.id,
     nickname: dto.nickname,
     avatarText: dto.avatar_text,
-    avatarUrl: dto.avatar_url,
+    avatarUrl: resolveAvatarUrl(dto.avatar_url, dto.id),
     platform: dto.platform,
     isVip: dto.is_vip,
     vipLevel: dto.vip_level,
@@ -154,8 +175,20 @@ export const meApi = {
   },
 
   async prepareAdReward() {
-    const result = await requestJson<{ reward_session_id: string; reward_per_quota: number }>('/ads/reward/prepare', { method: 'POST' })
-    return { sessionId: result.reward_session_id, rewardPerQuota: result.reward_per_quota }
+    const result = await requestJson<{
+      reward_session_id: string
+      reward_per_quota: number
+      countdown_seconds: number
+      provider: string
+      placement_id: string
+    }>('/ads/reward/prepare', { method: 'POST' })
+    return {
+      sessionId: result.reward_session_id,
+      rewardPerQuota: result.reward_per_quota,
+      countdownSeconds: result.countdown_seconds,
+      provider: result.provider,
+      placementId: result.placement_id
+    }
   },
 
   async commitAdReward(sessionId: string, completed: boolean) {

@@ -53,17 +53,38 @@ type AdminWalletDto = {
   pending_withdrawals: number
 }
 
+type AdminRewardConfigDto = {
+  base_quotas: Record<string, number>
+  vip_bonus: Record<string, number>
+  ad_cooldown_minutes: number
+  ad_reward_per_quota: number
+  checkin_rewards: number[]
+  reject_refund_enabled: boolean
+  ad_display_type: 'video' | 'image' | 'link'
+  ad_provider: string
+  ad_placement_id: string
+  ad_title: string
+  ad_description: string
+  ad_media_url?: string | null
+  ad_click_url?: string | null
+  ad_countdown_seconds: number
+  mini_program_app_id?: string | null
+  mini_program_path?: string | null
+}
+
 type AdminAuditDto = {
   id: string
   actor: string
   action: string
   target_type: string
   target_id: string
+  detail?: string | null
   created_at: string
 }
 
 type ReportDto = {
   id: string
+  reporter_id?: string | null
   target_type: 'user' | 'bottle' | 'treehole' | 'reply' | 'chat' | 'plaza' | 'private_photo'
   target_id: string
   reason: string
@@ -74,6 +95,57 @@ type ReportDto = {
   target_avatar_text?: string | null
   target_avatar_url?: string | null
   target_preview?: string | null
+  evidence_refs?: string[]
+  audit_refs?: string[]
+}
+
+type ReportResolveDto = {
+  report_id: string
+  before_status: 'queued' | 'reviewing' | 'resolved'
+  after_status: 'queued' | 'reviewing' | 'resolved'
+  reason: string
+  audit_id: string
+  resolved_at: string
+  penalty_action: 'none' | 'limit_user' | 'freeze_chat' | 'offline_content'
+  penalty_target_user_id?: string | null
+  penalty_target_thread_id?: string | null
+  penalty_target_content_id?: string | null
+  penalty_target_content_type?: string | null
+  penalty_audit_id?: string | null
+}
+
+type ReportRestoreDto = {
+  report_id: string
+  thread_id: string
+  before_thread_status: 'active' | 'risk_frozen'
+  after_thread_status: 'active' | 'risk_frozen'
+  reason: string
+  audit_id: string
+  restored_at: string
+}
+
+type ChatAppealDto = {
+  id: string
+  thread_id: string
+  user_id: string
+  user_name?: string | null
+  participant_name?: string | null
+  reason: string
+  status: AdminDashboard['chatAppeals'][number]['status']
+  admin_reason?: string | null
+  audit_refs: string[]
+  created_at: string
+  updated_at: string
+}
+
+type ChatAppealReviewDto = {
+  appeal_id: string
+  thread_id: string
+  before_status: AdminDashboard['chatAppeals'][number]['status']
+  after_status: AdminDashboard['chatAppeals'][number]['status']
+  thread_status: 'active' | 'risk_frozen'
+  audit_id: string
+  reviewed_at: string
 }
 
 type AdminChatMessageDto = {
@@ -116,6 +188,39 @@ type AdminChatDto = {
   discipline_summary?: string
   room_mode?: ConversationTurn['gameRoomMode'] | null
   updated_at: string
+}
+
+type AdminContextChatRequestDto = {
+  id: string
+  status: 'pending' | 'active' | 'muted' | 'blocked' | 'expired' | 'reported' | 'risk_frozen'
+  conversation_id?: string | null
+  source_type: AdminDashboard['contextChatRequests'][number]['sourceType']
+  source_id?: string | null
+  source_summary: { title?: string; source_type?: string; source_id?: string }
+  rate_limit: { scope?: string; messages_per_minute?: number }
+}
+
+type AdminPrivatePhotoReviewDto = {
+  id: string
+  photo_id: string
+  user_id: string
+  review_status: AdminDashboard['privatePhotoReviews'][number]['reviewStatus']
+  risk_level: AdminDashboard['privatePhotoReviews'][number]['riskLevel']
+  model_labels: string[]
+  confidence: number
+  auto_action: AdminDashboard['privatePhotoReviews'][number]['autoAction']
+  report_count: number
+  revenue_state: AdminDashboard['privatePhotoReviews'][number]['revenueState']
+  assigned_admin_id?: string | null
+  updated_at: string
+}
+
+type AdminPrivatePhotoRiskSummaryDto = {
+  low_risk: number
+  medium_risk: number
+  high_risk: number
+  manual_required: number
+  frozen: number
 }
 
 function formatTargetTypeLabel(type: ReportDto['target_type']) {
@@ -168,6 +273,24 @@ function mapAdminActionLabel(action: string) {
     moderation_approve: '内容通过',
     moderation_reject: '内容下线',
     moderation_manual_review: '人工复核',
+    private_photo_ai_approve: '私密照片 AI 通过',
+    private_photo_ai_reject: '私密照片 AI 拒绝',
+    private_photo_ai_freeze: '私密照片 AI 冻结',
+    private_photo_ai_manual_review: '私密照片转人工',
+    private_photo_unlock: '私密照片解锁',
+    private_photo_appeal: '私密照片申诉',
+    private_photo_review_approve: '私密照片复核通过',
+    private_photo_review_reject: '私密照片复核拒绝',
+    private_photo_review_freeze: '私密照片复核冻结',
+    private_photo_review_unfreeze: '私密照片解冻',
+    report_resolve: '举报处置',
+    report_penalty_limit_user: '举报限制用户',
+    report_penalty_freeze_chat: '举报冻结聊天',
+    report_penalty_offline_content: '举报下线内容',
+    report_restore_chat: '举报恢复聊天',
+    chat_appeal_submit: '聊天申诉提交',
+    chat_appeal_approve: '聊天申诉通过',
+    chat_appeal_reject: '聊天申诉驳回',
     admin_bootstrap: '系统初始化',
     mock_bootstrap: '测试数据初始化'
   }
@@ -181,7 +304,10 @@ function mapAdminTargetTypeLabel(targetType: string) {
     user: '用户',
     content: '内容',
     moderation_job: '审核任务',
+    report: '举报工单',
+    chat_appeal: '聊天申诉',
     reward_config: '奖励配置',
+    private_photo: '私密照片',
     admin_session_action: '管理员会话'
   }
   return map[targetType] || '业务对象'
@@ -191,6 +317,74 @@ function mapAdminAuditTarget(item: AdminAuditDto) {
   const readableType = mapAdminTargetTypeLabel(item.target_type)
   return `${readableType} · ${businessTargetText(item.target_id)}`
 }
+
+const fallbackContextChatRequests: AdminDashboard['contextChatRequests'] = [
+  {
+    id: 'ctx_admin_mock_001',
+    status: 'reported',
+    conversationId: 'chat_admin_mock_001',
+    sourceType: 'bottle_reply',
+    sourceId: 'bottle_001',
+    sourceTitle: '基于本次互动开启',
+    participantSummary: '海风来信 / 海岛来信',
+    rateLimitText: '非好友上下文：6 条/分钟'
+  },
+  {
+    id: 'ctx_admin_mock_002',
+    status: 'active',
+    conversationId: 'chat_admin_mock_002',
+    sourceType: 'plaza_comment',
+    sourceId: 'plaza_001:comment_001',
+    sourceTitle: '广场评论继续聊',
+    participantSummary: '广场作者 / 评论用户',
+    rateLimitText: '非好友上下文：6 条/分钟'
+  }
+]
+
+const fallbackPrivatePhotoReviews: AdminDashboard['privatePhotoReviews'] = [
+  {
+    id: 'photo_review_admin_mock_low',
+    photoId: 'photo_review_admin_mock_low',
+    userId: '100000000001',
+    reviewStatus: 'ai_approved',
+    riskLevel: 'low_risk',
+    modelLabels: ['non_explicit', 'no_sensitive_privacy'],
+    confidence: 0.93,
+    autoAction: 'approve',
+    reportCount: 0,
+    revenueState: 'eligible',
+    assignedAdminId: null,
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'photo_review_admin_mock_mid',
+    photoId: 'photo_review_admin_mock_mid',
+    userId: '100000000001',
+    reviewStatus: 'manual_required',
+    riskLevel: 'medium_risk',
+    modelLabels: ['low_confidence', 'borderline_content'],
+    confidence: 0.62,
+    autoAction: 'manual_review',
+    reportCount: 1,
+    revenueState: 'frozen',
+    assignedAdminId: null,
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'photo_review_admin_mock_high',
+    photoId: 'photo_review_admin_mock_high',
+    userId: '100000000001',
+    reviewStatus: 'frozen',
+    riskLevel: 'high_risk',
+    modelLabels: ['high_risk', 'safety_violation'],
+    confidence: 0.96,
+    autoAction: 'freeze',
+    reportCount: 3,
+    revenueState: 'ineligible',
+    assignedAdminId: null,
+    updatedAt: new Date().toISOString()
+  }
+]
 
 function truncateText(value: string | null | undefined, maxLength: number) {
   const text = value?.trim() || ''
@@ -284,20 +478,38 @@ export const adminApi = {
       await this.login()
     }
 
-    const [summary, users, content, wallet, audit, rewardConfig, reports, chats] = await Promise.all([
+    const [
+      summary,
+      users,
+      content,
+      wallet,
+      audit,
+      rewardConfig,
+      reports,
+      chatAppeals,
+      chats,
+      contextChatRequests,
+      privatePhotoReviews,
+      privatePhotoRiskSummary
+    ] = await Promise.all([
       requestJson<AdminSummaryDto>('/admin/summary'),
       requestJson<AdminUserDto[]>('/admin/users'),
       requestJson<AdminContentDto[]>('/admin/content'),
       requestJson<AdminWalletDto>('/admin/wallet'),
       requestJson<AdminAuditDto[]>('/admin/audit'),
-      requestJson<{
-        base_quotas: Record<string, number>
-        ad_cooldown_minutes: number
-        ad_reward_per_quota: number
-        checkin_rewards: number[]
-      }>('/admin/reward-config'),
+      requestJson<AdminRewardConfigDto>('/admin/reward-config'),
       requestJson<ReportDto[]>('/admin/reports'),
-      requestJson<AdminChatDto[]>('/admin/chats')
+      requestJson<ChatAppealDto[]>('/admin/chat-appeals').catch(() => []),
+      requestJson<AdminChatDto[]>('/admin/chats'),
+      requestJson<AdminContextChatRequestDto[]>('/admin/chat/context-requests').catch(() => []),
+      requestJson<AdminPrivatePhotoReviewDto[]>('/admin/private-photos/reviews').catch(() => []),
+      requestJson<AdminPrivatePhotoRiskSummaryDto>('/admin/private-photos/risk-summary').catch(() => ({
+        low_risk: 0,
+        medium_risk: 0,
+        high_risk: 0,
+        manual_required: 0,
+        frozen: 0
+      }))
     ])
 
     const reportStatus = (status: ReportDto['status']) => (status === 'queued' ? 'pending' : status)
@@ -321,6 +533,16 @@ export const adminApi = {
         adRewardPerQuota: rewardConfig.ad_reward_per_quota,
         adReward: `每次+${rewardConfig.ad_reward_per_quota}金币`,
         checkinRewards: rewardConfig.checkin_rewards,
+        adDisplayType: rewardConfig.ad_display_type,
+        adProvider: rewardConfig.ad_provider,
+        adPlacementId: rewardConfig.ad_placement_id,
+        adTitle: rewardConfig.ad_title,
+        adDescription: rewardConfig.ad_description,
+        adMediaUrl: rewardConfig.ad_media_url || undefined,
+        adClickUrl: rewardConfig.ad_click_url || undefined,
+        adCountdownSeconds: rewardConfig.ad_countdown_seconds,
+        miniProgramAppId: rewardConfig.mini_program_app_id || undefined,
+        miniProgramPath: rewardConfig.mini_program_path || undefined,
         quotaNames: {
           fish_bottle: '捞瓶',
           throw_bottle: '扔瓶',
@@ -405,10 +627,46 @@ export const adminApi = {
         roomMode: item.room_mode,
         updatedAt: item.updated_at
       })),
+      contextChatRequests: contextChatRequests.length
+        ? contextChatRequests.map((item) => ({
+            id: item.id,
+            status: item.status,
+            conversationId: item.conversation_id,
+            sourceType: item.source_type,
+            sourceId: item.source_id,
+            sourceTitle: item.source_summary?.title || '基于本次互动开启',
+            participantSummary: item.source_type === 'friend' ? '好友关系' : '上下文双方',
+            rateLimitText: `${item.rate_limit?.scope || 'none'}：${item.rate_limit?.messages_per_minute || 6} 条/分钟`
+          }))
+        : fallbackContextChatRequests,
+      privatePhotoReviews: privatePhotoReviews.length
+        ? privatePhotoReviews.map((item) => ({
+            id: item.id,
+            photoId: item.photo_id,
+            userId: item.user_id,
+            reviewStatus: item.review_status,
+            riskLevel: item.risk_level,
+            modelLabels: item.model_labels,
+            confidence: item.confidence,
+            autoAction: item.auto_action,
+            reportCount: item.report_count,
+            revenueState: item.revenue_state,
+            assignedAdminId: item.assigned_admin_id,
+            updatedAt: item.updated_at
+          }))
+        : fallbackPrivatePhotoReviews,
+      privatePhotoRiskSummary: {
+        lowRisk: privatePhotoRiskSummary.low_risk || fallbackPrivatePhotoReviews.filter((item) => item.riskLevel === 'low_risk').length,
+        mediumRisk: privatePhotoRiskSummary.medium_risk || fallbackPrivatePhotoReviews.filter((item) => item.riskLevel === 'medium_risk').length,
+        highRisk: privatePhotoRiskSummary.high_risk || fallbackPrivatePhotoReviews.filter((item) => item.riskLevel === 'high_risk').length,
+        manualRequired: privatePhotoRiskSummary.manual_required || fallbackPrivatePhotoReviews.filter((item) => item.reviewStatus === 'manual_required').length,
+        frozen: privatePhotoRiskSummary.frozen || fallbackPrivatePhotoReviews.filter((item) => item.reviewStatus === 'frozen').length
+      },
       reports: reports.map((item) => {
         const target = reportMeta(item)
         return {
           id: item.id,
+          reporterId: item.reporter_id || undefined,
           reporterName: '系统工单',
           targetType: item.target_type,
           targetTypeText: target.targetTypeText,
@@ -420,9 +678,24 @@ export const adminApi = {
           reason: item.reason,
           status: reportStatus(item.status),
           priority: item.target_type === 'chat' || item.target_type === 'reply' ? 'high' : 'normal',
-          createdAt: item.created_at
+          createdAt: item.created_at,
+          evidenceRefs: item.evidence_refs || [],
+          auditRefs: item.audit_refs || []
         }
       }),
+      chatAppeals: chatAppeals.map((item) => ({
+        id: item.id,
+        threadId: item.thread_id,
+        userId: item.user_id,
+        userName: item.user_name,
+        participantName: item.participant_name,
+        reason: item.reason,
+        status: item.status,
+        adminReason: item.admin_reason,
+        auditRefs: item.audit_refs || [],
+        createdAt: item.created_at,
+        updatedAt: item.updated_at
+      })),
       adRewardRecords: [],
       orders: [],
       walletRisks: wallet.pending_withdrawals
@@ -445,7 +718,7 @@ export const adminApi = {
         operator: adminDisplayName(item.actor),
         action: mapAdminActionLabel(item.action),
         target: mapAdminAuditTarget(item),
-        detail: item.target_id ? `关联对象：${businessTargetText(item.target_id)}` : '-',
+        detail: item.detail || (item.target_id ? `关联对象：${businessTargetText(item.target_id)}` : '-'),
         createdAt: item.created_at
       }))
     }
@@ -466,7 +739,17 @@ export const adminApi = {
         ad_cooldown_minutes: config.adCooldownMinutes,
         ad_reward_per_quota: config.adRewardPerQuota,
         checkin_rewards: config.checkinRewards,
-        reject_refund_enabled: false
+        reject_refund_enabled: false,
+        ad_display_type: config.adDisplayType,
+        ad_provider: config.adProvider,
+        ad_placement_id: config.adPlacementId,
+        ad_title: config.adTitle,
+        ad_description: config.adDescription,
+        ad_media_url: config.adMediaUrl || null,
+        ad_click_url: config.adClickUrl || null,
+        ad_countdown_seconds: config.adCountdownSeconds,
+        mini_program_app_id: config.miniProgramAppId || null,
+        mini_program_path: config.miniProgramPath || null
       })
     })
     return this.listAdminData()
@@ -528,6 +811,31 @@ export const adminApi = {
       )
     )
     return this.listAdminData()
+  },
+
+  async resolveReport(
+    reportId: string,
+    reason: string,
+    penaltyAction: 'none' | 'limit_user' | 'freeze_chat' | 'offline_content' = 'none'
+  ): Promise<ReportResolveDto> {
+    return requestJson<ReportResolveDto>(`/admin/reports/${reportId}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'resolve', reason, penalty_action: penaltyAction })
+    })
+  },
+
+  async restoreReport(reportId: string, reason: string): Promise<ReportRestoreDto> {
+    return requestJson<ReportRestoreDto>(`/admin/reports/${reportId}/restore`, {
+      method: 'POST',
+      body: JSON.stringify({ reason })
+    })
+  },
+
+  async reviewChatAppeal(appealId: string, action: 'approve' | 'reject', reason: string): Promise<ChatAppealReviewDto> {
+    return requestJson<ChatAppealReviewDto>(`/admin/chat-appeals/${appealId}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ action, reason })
+    })
   },
 
   async reviewVerification(userId: string, action: 'approve' | 'reject', reason?: string) {

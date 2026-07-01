@@ -4,6 +4,8 @@
 
 先搭建后台接口和独立 Web 管理后台，再继续细化前台体验和业务细节。后台不得挂在小程序、iOS、Android 或 H5 用户端路由中。
 
+当前规则补丁已覆盖旧版私聊和私密照片审核规则：禁止无上下文冷启动骚扰，但允许明确互动上下文内的陌生人私聊；私密照片采用 AI 智能审核优先、风险分级、人工复核兜底。后续 Agent 不得再把好友关系作为私聊唯一门槛，也不得把全量人工先审作为私密照片唯一流程。
+
 ## 2026-06-23 继续完成阶段目标
 
 本轮已从“文档登记”推进到“代码骨架落地”。当前已完成 Mock 鉴权、角色依赖占位、统一错误响应、审计链路、数据库/Alembic 占位和后台详情/批量操作入口；后续继续接入生产级持久化、真实会话和完整权限矩阵。
@@ -46,6 +48,8 @@
 
 1. 后台接口 Agent：从 [接口与后台搭建计划](backend-interface-admin-plan.md) 的“继续完成阶段代码落地状态”开始，接入生产级账号、token/session、真实数据库和完整权限矩阵。
 2. 后台管理 Agent：只在 `admin-web/` 中继续做管理后台，高级筛选、导出、趋势图和更多批量操作不得写回用户端 `src/pages/**`。
-3. 产品规则 Agent：维护 [需求台账](requirements-ledger.md) 和 [处理历史](work-history.md)，确保每次新要求都有记录。
-4. 数据持久化 Agent：按后台计划把 PostgreSQL/Redis/SQLAlchemy async/Alembic 从占位推进到真实连接、迁移执行和种子管理员。
-5. 前端体验 Agent：只处理已明确进入 P1/P2 的体验问题，未排期细节放入 [后续细节优化入口](detail-optimization-inbox.md)。
+3. 上下文私聊 Agent：按 [API Contract](api-contract.md) 落地 `source_type/source_id`、双向回应/确认、临时会话状态、频控、拉黑、举报、风控和审计。
+4. 私密照片审核 Agent：按 [API Contract](api-contract.md) 落地 AI 风险分级、自动通过、人工复核、拒绝/冻结、收益冻结和解冻审计。
+5. 产品规则 Agent：维护 [需求台账](requirements-ledger.md) 和 [处理历史](work-history.md)，确保每次新要求都有记录。
+6. 数据持久化 Agent：按后台计划把 PostgreSQL/Redis/SQLAlchemy async/Alembic 从占位推进到真实连接、迁移执行和种子管理员。
+7. 前端体验 Agent：只处理已明确进入 P1/P2 的体验问题，未排期细节放入 [后续细节优化入口](detail-optimization-inbox.md)。

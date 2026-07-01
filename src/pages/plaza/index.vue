@@ -26,11 +26,10 @@
 
     <view class="section">
       <view v-for="post in filteredPosts" :key="post.id" class="panel plaza-card">
-        <view class="between" @tap="openCommentPage(post.id)">
-          <view class="row author-row">
-            <view class="author-icon">
-              <image v-if="post.iconUrl" class="avatar-image" :src="post.iconUrl" mode="aspectFill" />
-              <text v-else>{{ post.iconText }}</text>
+        <view class="between">
+          <view class="row author-row" @tap.stop="openUserCard(post)" @click.stop="openUserCard(post)">
+            <view class="author-icon" @tap.stop="openUserCard(post)" @click.stop="openUserCard(post)">
+              <image class="avatar-image" :src="resolveAvatarUrl(post.iconUrl, post.id || post.authorName)" mode="aspectFill" />
             </view>
             <view>
               <text class="h2">{{ post.authorName }}</text>
@@ -111,6 +110,7 @@
               <text>{{ post.likedByMe ? '已赞' : '点赞' }}</text>
               <text v-if="likeEffects[post.id]" class="like-float">{{ likeEffects[post.id] }}</text>
             </view>
+            <view class="button ghost mini-button report-post-button" @tap.stop="openPostReport(post)" @click.stop="openPostReport(post)">举报</view>
             <view class="button ghost mini-button" @tap.stop="openCommentPage(post.id)" @click.stop="openCommentPage(post.id)">留言</view>
           </view>
         </view>
@@ -122,16 +122,12 @@
 
     <view class="publish-fab" @tap="openComposer">+</view>
 
-    <view v-if="composerOpen" class="modal-mask center-mask">
+    <view v-if="composerOpen" class="modal-mask center-mask" @touchmove.stop.prevent>
       <view class="modal-card composer-card" @tap.stop @click.stop>
         <view class="composer-top">
-          <view>
-            <text class="h2">发布动态</text>
-            <text class="muted">广场内容公开展示，可发布图文、声音或视频。</text>
-          </view>
+          <text class="h2">发布动态</text>
           <view class="composer-avatar">
-            <image v-if="app.user?.avatarUrl" class="avatar-image" :src="app.user.avatarUrl" mode="aspectFill" />
-            <text v-else>{{ app.user?.avatarText || '海' }}</text>
+            <image class="avatar-image" :src="resolveAvatarUrl(app.user?.avatarUrl, app.user?.id || 'current-user')" mode="aspectFill" />
           </view>
         </view>
         <textarea
@@ -144,16 +140,24 @@
           @click.stop
         />
         <text v-if="postError" class="post-error">{{ postError }}</text>
-        <view class="media-row">
+        <view class="composer-tool-row">
           <view
-            v-for="type in mediaTypes"
-            :key="type.value"
-            class="media-option"
-            :class="{ active: mediaType === type.value }"
-            @tap="selectMediaType(type.value)"
-            @click="selectMediaType(type.value)"
+            class="composer-tool"
+            :class="{ active: selectedImages.length > 0 }"
+            @tap="chooseImages"
+            @click="chooseImages"
           >
-            {{ type.label }}
+            <view class="composer-tool-icon image-icon" />
+            <text>图片</text>
+          </view>
+          <view
+            class="composer-tool"
+            :class="{ active: Boolean(selectedVideo) }"
+            @tap="choosePostVideo"
+            @click="choosePostVideo"
+          >
+            <view class="composer-tool-icon video-icon" />
+            <text>视频</text>
           </view>
         </view>
         <view v-if="selectedImages.length" class="composer-media-grid" :class="imageGridClass(selectedImages.length)">
@@ -162,10 +166,74 @@
             <view class="remove-image" @tap.stop="removeSelectedImage(image.id)" @click.stop="removeSelectedImage(image.id)">×</view>
           </view>
         </view>
+        <view v-if="selectedVideo" class="composer-video-preview">
+          <video class="composer-video" :src="selectedVideo.url" controls />
+          <view class="remove-image" @tap.stop="removeSelectedVideo" @click.stop="removeSelectedVideo">×</view>
+        </view>
         <view class="modal-actions">
           <view class="button ghost" @tap="closeComposer">取消</view>
           <view class="button publish-button" :class="{ disabled: content.submitting || !draftPost.trim() }" @tap="publishPost">
             发布
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view v-if="userCardOpen && selectedProfilePost" class="modal-mask center-mask" @touchmove.stop.prevent>
+      <view class="modal-card user-card" @tap.stop @click.stop>
+        <view class="user-card-report" @tap.stop="openUserReport(selectedProfilePost)" @click.stop="openUserReport(selectedProfilePost)">举报</view>
+        <view class="user-card-main">
+          <image class="user-card-avatar" :src="resolveAvatarUrl(selectedProfilePost.iconUrl, selectedProfilePost.authorId)" mode="aspectFill" />
+          <view class="user-card-info">
+            <text class="user-card-name">{{ selectedProfilePost.authorName }}</text>
+            <text class="user-card-meta">{{ selectedProfilePost.city || '全国' }} · {{ selectedProfilePost.ageRange || '年龄未知' }}</text>
+            <text class="user-card-meta">{{ selectedProfilePost.topic }} · {{ selectedProfilePost.distanceText }}</text>
+          </view>
+        </view>
+        <view class="user-card-preview">{{ selectedProfilePost.content }}</view>
+        <view class="modal-actions">
+          <view class="button ghost" @tap="closeUserCard" @click="closeUserCard">关闭</view>
+          <view class="button" @tap="openCommentPage(selectedProfilePost.id)" @click="openCommentPage(selectedProfilePost.id)">查看动态</view>
+        </view>
+      </view>
+    </view>
+
+    <view v-if="reportOpen && reportTarget" class="modal-mask center-mask" @touchmove.stop.prevent>
+      <view class="modal-card report-card" @tap.stop @click.stop>
+        <text class="modal-kicker">举报</text>
+        <text class="modal-title">{{ reportTarget.title }}</text>
+        <text class="report-desc">普通举报仅支持：用户、广场帖子、漂流瓶；评论、聊天和私密照片走对应审核或申诉链路。</text>
+        <view class="choice-row report-reasons">
+          <view
+            v-for="reason in reportReasons"
+            :key="reason"
+            class="choice-chip"
+            :class="{ active: reportReason === reason }"
+            @tap="reportReason = reason"
+            @click="reportReason = reason"
+          >
+            {{ reason }}
+          </view>
+        </view>
+        <view class="report-field">
+          <text class="field-label">举报说明</text>
+          <textarea
+            v-model="reportDescription"
+            class="report-textarea"
+            maxlength="120"
+            placeholder="补充举报说明"
+            @tap.stop
+            @click.stop
+          />
+        </view>
+        <view class="report-preview">
+          <text class="field-label">相关内容</text>
+          <text>{{ reportTarget.preview }}</text>
+        </view>
+        <view class="modal-actions report-actions">
+          <view class="button ghost" @tap="closeReportModal" @click="closeReportModal">取消</view>
+          <view class="button" :class="{ disabled: reportSubmitting }" @tap="submitReport" @click="submitReport">
+            {{ reportSubmitting ? '提交中' : '提交举报' }}
           </view>
         </view>
       </view>
@@ -182,6 +250,7 @@ import { navigateTo, showToast, switchTab } from '@/services/feedback'
 import { useAppStore } from '@/stores/app'
 import { useContentStore } from '@/stores/content'
 import type { PlazaMedia, PlazaPost } from '@/types/domain'
+import { resolveAvatarUrl } from '@/utils/avatar'
 
 const app = useAppStore()
 const content = useContentStore()
@@ -189,6 +258,13 @@ const filters = ref<ExploreFilterValue>({ city: '全国', gender: '全部', ageR
 const composerOpen = ref(false)
 const draftPost = ref('')
 const postError = ref('')
+const userCardOpen = ref(false)
+const selectedProfilePost = ref<PlazaPost | null>(null)
+const reportOpen = ref(false)
+const reportSubmitting = ref(false)
+const reportReason = ref('骚扰或不友善')
+const reportDescription = ref('')
+const reportTarget = ref<{ type: 'user' | 'plaza'; id: string; title: string; preview: string } | null>(null)
 const lastLikeAction = ref<{ postId: string; at: number }>({ postId: '', at: 0 })
 const likeEffects = ref<Record<string, string>>({})
 type SelectedImage = {
@@ -196,27 +272,28 @@ type SelectedImage = {
   url: string
   sizeBytes?: number
 }
+type SelectedVideo = {
+  id: string
+  url: string
+  sizeBytes?: number
+  durationSeconds?: number
+}
 const selectedImages = ref<SelectedImage[]>([])
+const selectedVideo = ref<SelectedVideo | null>(null)
 let filterReloadTimer: ReturnType<typeof setTimeout> | undefined
 let voicePlayer: ReturnType<typeof uni.createInnerAudioContext> | undefined
 const likeEffectTimers: Record<string, ReturnType<typeof setTimeout>> = {}
 const playingVoiceUrl = ref('')
-type PlazaMediaType = NonNullable<PlazaPost['mediaType']>
 type FeedTab = 'nearby' | 'gift' | 'newcomer'
 
-const mediaType = ref<PlazaMediaType>('text')
 const cityOptions = ['全国', '北京', '上海', '广州', '深圳', '杭州', '成都', '厦门']
 const activeFeed = ref<FeedTab>('nearby')
+const reportReasons = ['骚扰或不友善', '低俗违规', '广告引流', '虚假资料', '其他问题']
 const feedTabs: Array<{ label: string; value: FeedTab }> = [
   { label: '附近动态', value: 'nearby' },
   { label: '礼物榜', value: 'gift' },
   { label: '新人推荐榜', value: 'newcomer' }
 ]
-const mediaTypes: Array<{ label: string; value: PlazaMediaType }> = [
-  { label: '文字', value: 'text' },
-  { label: '图片', value: 'image' }
-]
-
 const filteredPosts = computed(() => {
   const filtered = content.plazaPosts.filter((post) => {
     if (filters.value.city !== '全国' && post.city !== filters.value.city) return false
@@ -272,27 +349,106 @@ function go(url: string) {
   navigateTo(url)
 }
 
+function openUserCard(post: PlazaPost) {
+  selectedProfilePost.value = post
+  userCardOpen.value = true
+}
+
+function closeUserCard() {
+  userCardOpen.value = false
+}
+
+function resetReportDraft() {
+  reportReason.value = '骚扰或不友善'
+  reportDescription.value = ''
+  reportSubmitting.value = false
+}
+
+function openPostReport(post: PlazaPost) {
+  resetReportDraft()
+  reportTarget.value = {
+    type: 'plaza',
+    id: post.id,
+    title: `举报 ${post.authorName} 的广场帖子`,
+    preview: post.content
+  }
+  reportOpen.value = true
+}
+
+function openUserReport(post: PlazaPost) {
+  resetReportDraft()
+  reportTarget.value = {
+    type: 'user',
+    id: post.authorId,
+    title: `举报用户 ${post.authorName}`,
+    preview: post.content
+  }
+  reportOpen.value = true
+}
+
+function closeReportModal() {
+  reportOpen.value = false
+  reportTarget.value = null
+}
+
+function buildReportReason() {
+  const description = reportDescription.value.trim()
+  return description ? `${reportReason.value}：${description}` : ''
+}
+
+async function submitReport() {
+  if (!reportTarget.value || reportSubmitting.value) return
+  const reason = buildReportReason()
+  if (!reason) {
+    showToast('请填写举报说明')
+    return
+  }
+  reportSubmitting.value = true
+  try {
+    if (reportTarget.value.type === 'user') {
+      await content.reportUser(reportTarget.value.id, reason)
+    } else {
+      await content.reportPlazaPost(reportTarget.value.id, reason)
+    }
+    closeReportModal()
+    closeUserCard()
+    showToast('举报已提交')
+  } finally {
+    reportSubmitting.value = false
+  }
+}
+
 async function publishPost() {
   if (!draftPost.value.trim()) {
     postError.value = '先写一点内容，才能发布'
     showToast('先写一点内容，才能发布')
     return
   }
-  const media = selectedImages.value.map((item) => ({
+  const imageMedia = selectedImages.value.map((item) => ({
     mediaType: 'image' as const,
     url: item.url,
     mimeType: inferImageMime(item.url),
     sizeBytes: item.sizeBytes
   }))
+  const videoMedia = selectedVideo.value
+    ? [{
+        mediaType: 'video' as const,
+        url: selectedVideo.value.url,
+        mimeType: inferVideoMime(selectedVideo.value.url),
+        sizeBytes: selectedVideo.value.sizeBytes,
+        durationSeconds: selectedVideo.value.durationSeconds
+      }]
+    : []
+  const media = selectedVideo.value ? videoMedia : imageMedia
   await content.publishPlazaPost(draftPost.value.trim(), {
-    mediaType: media.length ? 'image' : 'text',
+    mediaType: selectedVideo.value ? 'video' : media.length ? 'image' : 'text',
     mediaCount: media.length,
     media
   })
   draftPost.value = ''
   postError.value = ''
   selectedImages.value = []
-  mediaType.value = 'text'
+  selectedVideo.value = null
   composerOpen.value = false
   showToast('动态已发布')
 }
@@ -310,21 +466,13 @@ function closeComposer() {
   draftPost.value = ''
   postError.value = ''
   selectedImages.value = []
-  mediaType.value = 'text'
-}
-
-function selectMediaType(value: PlazaMediaType) {
-  mediaType.value = value
-  if (value === 'text') {
-    selectedImages.value = []
-    return
-  }
-  if (value === 'image') chooseImages()
+  selectedVideo.value = null
 }
 
 function chooseImages() {
   const count = Math.max(1, 9 - selectedImages.value.length)
   if (typeof uni === 'undefined' || typeof uni.chooseImage !== 'function' || count <= 0) return
+  selectedVideo.value = null
   uni.chooseImage({
     count,
     sizeType: ['compressed'],
@@ -341,17 +489,36 @@ function chooseImages() {
         sizeBytes: files[index]?.size
       }))
       selectedImages.value = [...selectedImages.value, ...nextImages].slice(0, 9)
-      mediaType.value = selectedImages.value.length ? 'image' : 'text'
     },
     fail: () => {
-      if (!selectedImages.value.length) mediaType.value = 'text'
+      if (!selectedImages.value.length) selectedVideo.value = null
+    }
+  })
+}
+
+function choosePostVideo() {
+  if (typeof uni === 'undefined' || typeof uni.chooseVideo !== 'function') return
+  selectedImages.value = []
+  uni.chooseVideo({
+    sourceType: ['album', 'camera'],
+    compressed: true,
+    success: (result) => {
+      selectedVideo.value = {
+        id: `${Date.now()}_${result.tempFilePath}`,
+        url: result.tempFilePath,
+        sizeBytes: result.size,
+        durationSeconds: result.duration
+      }
     }
   })
 }
 
 function removeSelectedImage(id: string) {
   selectedImages.value = selectedImages.value.filter((item) => item.id !== id)
-  if (!selectedImages.value.length) mediaType.value = 'text'
+}
+
+function removeSelectedVideo() {
+  selectedVideo.value = null
 }
 
 function inferImageMime(url: string) {
@@ -359,6 +526,13 @@ function inferImageMime(url: string) {
   if (normalized.endsWith('.png')) return 'image/png'
   if (normalized.endsWith('.webp')) return 'image/webp'
   return 'image/jpeg'
+}
+
+function inferVideoMime(url: string) {
+  const normalized = (url.split('?', 1)[0] || '').toLowerCase()
+  if (normalized.endsWith('.webm')) return 'video/webm'
+  if (normalized.endsWith('.mov')) return 'video/quicktime'
+  return 'video/mp4'
 }
 
 function ageRangeMatches(postAgeRange?: string, selectedAgeRange = '全部') {
@@ -741,6 +915,103 @@ function stopVoice() {
   box-shadow: 0 30rpx 76rpx rgba(0, 0, 0, 0.22);
 }
 
+.user-card {
+  position: relative;
+  padding-top: 58rpx;
+}
+
+.user-card-report {
+  position: absolute;
+  top: 18rpx;
+  left: 20rpx;
+  color: #b42318;
+  font-size: 24rpx;
+  font-weight: 900;
+}
+
+.user-card-main {
+  display: grid;
+  grid-template-columns: 92rpx minmax(0, 1fr);
+  gap: 18rpx;
+  align-items: center;
+}
+
+.user-card-avatar {
+  width: 92rpx;
+  height: 92rpx;
+  border-radius: 50%;
+  background: #e8f1ef;
+}
+
+.user-card-info {
+  min-width: 0;
+}
+
+.user-card-name,
+.user-card-meta {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-card-name {
+  color: #172126;
+  font-size: 32rpx;
+  font-weight: 900;
+}
+
+.user-card-meta {
+  margin-top: 6rpx;
+  color: #65757b;
+  font-size: 23rpx;
+}
+
+.user-card-preview,
+.report-preview {
+  margin-top: 22rpx;
+  border-radius: 12px;
+  padding: 18rpx;
+  color: #334155;
+  background: #f6faf9;
+  font-size: 24rpx;
+  line-height: 1.6;
+}
+
+.report-card {
+  max-width: 500px;
+}
+
+.report-desc {
+  display: block;
+  margin-top: 12rpx;
+  color: #64748b;
+  font-size: 24rpx;
+  line-height: 1.55;
+}
+
+.report-reasons,
+.report-field {
+  margin-top: 20rpx;
+}
+
+.report-textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 128rpx;
+  margin-top: 10rpx;
+  border: 1px solid rgba(35, 108, 114, 0.14);
+  border-radius: 12px;
+  padding: 16rpx;
+  background: #f8fbfb;
+  color: #172126;
+  font-size: 25rpx;
+}
+
+.report-actions {
+  grid-template-columns: 1fr 1fr;
+}
+
 .reply-sheet-mask {
   position: fixed;
   inset: 0;
@@ -842,6 +1113,13 @@ function stopVoice() {
   gap: 16rpx;
 }
 
+.composer-top .h2 {
+  display: block;
+  color: #172126;
+  font-size: 30rpx;
+  font-weight: 900;
+}
+
 .composer-avatar {
   display: flex;
   align-items: center;
@@ -940,29 +1218,78 @@ function stopVoice() {
   font-weight: 800;
 }
 
-.media-row {
+.composer-tool-row {
   display: flex;
   align-items: center;
   gap: 12rpx;
-  margin-top: 16rpx;
+  margin-top: 14rpx;
 }
 
-.media-option {
-  flex: 1;
+.composer-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10rpx;
+  min-width: 136rpx;
   border: 1px solid rgba(23, 33, 38, 0.1);
   border-radius: 999px;
-  padding: 14rpx 16rpx;
+  padding: 12rpx 18rpx;
   color: #172126;
-  background: rgba(29, 29, 31, 0.05);
+  background: rgba(247, 250, 249, 0.92);
   font-size: 24rpx;
   font-weight: 800;
   text-align: center;
 }
 
-.media-option.active {
+.composer-tool.active {
   color: #fff;
   border-color: rgba(35, 108, 114, 0.16);
   background: #236c72;
+}
+
+.composer-tool-icon {
+  position: relative;
+  width: 34rpx;
+  height: 34rpx;
+  border-radius: 10rpx;
+  background: currentColor;
+  opacity: 0.88;
+}
+
+.composer-tool-icon::before {
+  position: absolute;
+  inset: 8rpx;
+  border: 3rpx solid #fff;
+  border-radius: 7rpx;
+  content: '';
+}
+
+.composer-tool-icon::after {
+  position: absolute;
+  right: 7rpx;
+  bottom: 7rpx;
+  width: 8rpx;
+  height: 8rpx;
+  border-radius: 50%;
+  background: #fff;
+  content: '';
+}
+
+.video-icon::before {
+  inset: 9rpx 7rpx;
+  border-radius: 5rpx;
+}
+
+.video-icon::after {
+  right: -5rpx;
+  bottom: 9rpx;
+  width: 0;
+  height: 0;
+  border-top: 7rpx solid transparent;
+  border-bottom: 7rpx solid transparent;
+  border-left: 10rpx solid currentColor;
+  border-radius: 0;
+  background: transparent;
 }
 
 .composer-media-grid {
@@ -1000,6 +1327,20 @@ function stopVoice() {
   width: 100%;
   height: 100%;
   border-radius: inherit;
+}
+
+.composer-video-preview {
+  position: relative;
+  overflow: hidden;
+  margin-top: 16rpx;
+  border-radius: 12px;
+  background: #101820;
+}
+
+.composer-video {
+  display: block;
+  width: 100%;
+  height: 260rpx;
 }
 
 .remove-image {

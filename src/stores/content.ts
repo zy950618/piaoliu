@@ -8,8 +8,13 @@ import type {
   CoinLedgerItem,
   ConversationThread,
   ConversationTurn,
+  ContextChatConversation,
+  ContextChatRequest,
+  ContextChatRequestAcceptPayload,
+  ContextChatRequestPayload,
   CreatorProfile,
   DareTask,
+  GameRandomMatchMode,
   GiftProduct,
   MessageItem,
   NearbyUser,
@@ -52,6 +57,8 @@ export const useContentStore = defineStore('content', () => {
   const currentDare = ref<DareTask>()
   const messages = ref<MessageItem[]>([])
   const conversationThreads = ref<ConversationThread[]>([])
+  const contextChatRequests = ref<ContextChatRequest[]>([])
+  const currentContextConversation = ref<ContextChatConversation>()
   const wallet = ref<WalletState>()
   const ledger = ref<CoinLedgerItem[]>([])
   const creators = ref<CreatorProfile[]>([])
@@ -109,6 +116,16 @@ export const useContentStore = defineStore('content', () => {
 
   async function reportBottle(id: string, reason: string) {
     await businessApi.reportBottle(id, reason)
+    await loadMessages()
+  }
+
+  async function reportPlazaPost(id: string, reason: string) {
+    await businessApi.reportPlazaPost(id, reason)
+    await loadMessages()
+  }
+
+  async function reportUser(id: string, reason: string) {
+    await businessApi.reportUser(id, reason)
     await loadMessages()
   }
 
@@ -189,6 +206,41 @@ export const useContentStore = defineStore('content', () => {
     syncMessageBadge()
   }
 
+  async function markMessageRead(messageId: string) {
+    messages.value = messages.value.map((item) => (item.id === messageId ? { ...item, unread: false } : item))
+    try {
+      const updatedMessage = await businessApi.markMessageRead(messageId)
+      messages.value = messages.value.map((item) => (item.id === messageId ? updatedMessage : item))
+    } catch {
+      // Keep local read state when the network request fails; the next refresh will reconcile.
+    }
+    syncMessageBadge()
+  }
+
+  async function markConversationRead(threadId: string) {
+    conversationThreads.value = conversationThreads.value.map((thread) => (
+      thread.id === threadId ? { ...thread, unreadCount: 0 } : thread
+    ))
+    try {
+      const updatedThread = await businessApi.markConversationRead(threadId)
+      const exists = conversationThreads.value.some((thread) => thread.id === threadId)
+      conversationThreads.value = exists
+        ? conversationThreads.value.map((thread) => (
+          thread.id === threadId ? updatedThread : thread
+        ))
+        : [updatedThread, ...conversationThreads.value]
+    } catch {
+      // Keep local read state when the network request fails; the next refresh will reconcile.
+    }
+    syncMessageBadge()
+  }
+
+  async function submitChatAppeal(threadId: string, reason: string) {
+    const appeal = await businessApi.createChatAppeal(threadId, reason)
+    await loadMessages()
+    return appeal
+  }
+
   async function sendConversationTurn(
     threadId: string,
     payload: Pick<ConversationTurn, 'body' | 'type' | 'mediaUrl' | 'mediaDuration'>
@@ -210,6 +262,50 @@ export const useContentStore = defineStore('content', () => {
     return result
   }
 
+  async function createContextChatRequest(payload: ContextChatRequestPayload) {
+    const result = await businessApi.createContextChatRequest(payload)
+    await loadContextChatRequests()
+    return result
+  }
+
+  async function loadContextChatRequests() {
+    contextChatRequests.value = await businessApi.listContextChatRequests()
+    return contextChatRequests.value
+  }
+
+  async function createMatchExpandContextRequest(targetUserId: string) {
+    const result = await businessApi.createMatchExpandContextRequest(targetUserId)
+    useAppStore().applyUserProfile(result.user)
+    if (result.threadId) {
+      await markConversationRead(result.threadId)
+    }
+    await loadContextChatRequests()
+    return result
+  }
+
+  async function acceptContextChatRequest(requestId: string, payload: ContextChatRequestAcceptPayload) {
+    const result = await businessApi.acceptContextChatRequest(requestId, payload)
+    contextChatRequests.value = contextChatRequests.value.map((item) => (item.id === requestId ? result : item))
+    return result
+  }
+
+  async function rejectContextChatRequest(requestId: string, reason: string) {
+    const result = await businessApi.rejectContextChatRequest(requestId, reason)
+    contextChatRequests.value = contextChatRequests.value.map((item) => (item.id === requestId ? result : item))
+    return result
+  }
+
+  async function loadContextConversation(conversationId: string) {
+    currentContextConversation.value = await businessApi.getContextConversation(conversationId)
+    return currentContextConversation.value
+  }
+
+  async function sendContextConversationMessage(conversationId: string, message: string) {
+    const result = await businessApi.sendContextConversationMessage(conversationId, message)
+    currentContextConversation.value = await businessApi.getContextConversation(conversationId)
+    return result
+  }
+
   async function loadWallet() {
     const result = await businessApi.getWallet()
     wallet.value = result.wallet
@@ -225,6 +321,10 @@ export const useContentStore = defineStore('content', () => {
 
   async function loadCreators() {
     creators.value = await businessApi.listCreators()
+    privatePhotos.value = await businessApi.listPrivatePhotos()
+  }
+
+  async function loadPrivatePhotos() {
     privatePhotos.value = await businessApi.listPrivatePhotos()
   }
 
@@ -301,8 +401,8 @@ export const useContentStore = defineStore('content', () => {
     }
   }
 
-  async function loadNearbyUsers() {
-    nearbyUsers.value = await businessApi.listNearbyUsers()
+  async function loadNearbyUsers(filters: BottleFilterOptions & { distanceKm?: number } = {}) {
+    nearbyUsers.value = await businessApi.listNearbyUsers(filters)
   }
 
   async function loadBlacklist() {
@@ -369,6 +469,13 @@ export const useContentStore = defineStore('content', () => {
     const record = await businessApi.saveUserActivityRecord(payload)
     await loadUserRecords()
     return record
+  }
+
+  async function startGameRandomMatch(payload: { mode: GameRandomMatchMode; gender: BottleTargetGender; ageRange?: string; clientMatchId: string }) {
+    const result = await businessApi.startGameRandomMatch(payload)
+    await useAppStore().refreshStatus()
+    await loadMessages()
+    return result
   }
 
   function syncCurrentUserProfile(profile: UserProfile) {
@@ -474,6 +581,7 @@ export const useContentStore = defineStore('content', () => {
             ...user,
             nickname: profile.nickname,
             iconText: avatarText,
+            iconUrl: profile.avatarUrl,
             gender: profile.gender || 'unknown',
             verified,
             ageRange: profile.ageRange,
@@ -494,6 +602,8 @@ export const useContentStore = defineStore('content', () => {
     currentDare,
     messages,
     conversationThreads,
+    contextChatRequests,
+    currentContextConversation,
     wallet,
     ledger,
     creators,
@@ -514,6 +624,8 @@ export const useContentStore = defineStore('content', () => {
     followUser,
     requestFriend,
     reportBottle,
+    reportPlazaPost,
+    reportUser,
     blockUser,
     drawTruthQuestion,
     drawDareTask,
@@ -524,12 +636,23 @@ export const useContentStore = defineStore('content', () => {
     loadMessages,
     loadConversationThreads,
     markAllMessagesRead,
+    markMessageRead,
+    markConversationRead,
+    submitChatAppeal,
     sendConversationTurn,
     viewConversationTurn,
     createGameRoom,
+    createContextChatRequest,
+    loadContextChatRequests,
+    createMatchExpandContextRequest,
+    acceptContextChatRequest,
+    rejectContextChatRequest,
+    loadContextConversation,
+    sendContextConversationMessage,
     loadWallet,
     loadVerification,
     loadCreators,
+    loadPrivatePhotos,
     loadPlazaPosts,
     loadPlazaPost,
     publishPlazaPost,
@@ -547,6 +670,7 @@ export const useContentStore = defineStore('content', () => {
     requestWithdraw,
     loadUserRecords,
     saveUserActivityRecord,
+    startGameRandomMatch,
     syncCurrentUserProfile
   }
 })

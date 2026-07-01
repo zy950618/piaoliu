@@ -15,7 +15,15 @@ async def reward_status(session: AsyncSession = Depends(get_db_session)) -> AdRe
 
 @router.post("/prepare", response_model=AdPrepareResponse)
 async def reward_prepare(session: AsyncSession = Depends(get_db_session)) -> AdPrepareResponse:
-    return AdPrepareResponse(reward_session_id=await db_business.prepare_ad_reward(session), reward_per_quota=10)
+    reward_session_id = await db_business.prepare_ad_reward(session)
+    state = (await db_business.get_status(session)).ad_reward
+    return AdPrepareResponse(
+        reward_session_id=reward_session_id,
+        reward_per_quota=state.reward_per_quota,
+        countdown_seconds=state.countdown_seconds,
+        provider=state.provider,
+        placement_id=state.placement_id,
+    )
 
 
 @router.post("/commit", response_model=MeStatus)

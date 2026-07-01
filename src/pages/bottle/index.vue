@@ -122,8 +122,7 @@
       <view class="modal-card caught-card" @tap.stop @click.stop>
         <view class="caught-author">
           <view class="author-avatar">
-            <image v-if="content.currentBottle.authorAvatarUrl" class="avatar-image" :src="content.currentBottle.authorAvatarUrl" mode="aspectFill" />
-            <text v-else>{{ content.currentBottle.authorAvatarText || content.currentBottle.authorName.slice(0, 1) }}</text>
+            <image class="avatar-image" :src="resolveAvatarUrl(content.currentBottle.authorAvatarUrl, content.currentBottle.authorId || content.currentBottle.authorName)" mode="aspectFill" />
           </view>
           <view class="author-main">
             <view class="author-line">
@@ -143,14 +142,20 @@
           </view>
         </view>
         <view class="caught-origin-card">
-          <text class="origin-kicker">原漂流瓶</text>
           <text class="caught-message">{{ content.currentBottle.content }}</text>
         </view>
         <input v-model="reply" class="input" placeholder="写一句温柔回应" @input="clearReplyError" @tap.stop @click.stop />
         <text v-if="replyError" class="reply-error">{{ replyError }}</text>
+        <view class="context-chat-hint">
+          <text class="context-chat-title">回应后可基于这个瓶子继续聊</text>
+          <text class="context-chat-copy">对方回复或点击继续聊后才会开启临时私聊，系统会保留来源、回应证据和举报/拉黑记录。</text>
+          <text v-if="bottleContextStatus" class="context-chat-status">{{ bottleContextStatus }}</text>
+        </view>
         <view class="reply-actions">
           <view class="button ghost return-button" @tap.stop="releaseBottle" @click.stop="releaseBottle">扔回海里</view>
-          <view class="button secondary reply-button" @tap.stop="sendReply" @click.stop="sendReply">回应</view>
+          <view class="button secondary reply-button" :class="{ disabled: replySubmitting }" @tap.stop="sendReply" @click.stop="sendReply">
+            {{ replySubmitting ? '发送中' : '回应' }}
+          </view>
         </view>
         <view class="report-link" @tap.stop="openReportModal" @click.stop="openReportModal">举报/拉黑</view>
       </view>
@@ -215,10 +220,11 @@ import { onLoad } from '@dcloudio/uni-app'
 import ExploreFilters, { type ExploreFilterValue } from '@/components/ExploreFilters.vue'
 import VipBadge from '@/components/VipBadge.vue'
 import { useQuotaGuard } from '@/composables/useQuotaGuard'
-import { showToast } from '@/services/feedback'
+import { navigateTo, showToast } from '@/services/feedback'
 import { useAppStore } from '@/stores/app'
 import { useContentStore } from '@/stores/content'
 import type { BottleTargetGender, Bottle, BottleTargetScope } from '@/types/domain'
+import { resolveAvatarUrl } from '@/utils/avatar'
 
 const app = useAppStore()
 const content = useContentStore()
@@ -243,6 +249,7 @@ const throwTargetGender = ref<BottleTargetGender>('all')
 const throwTargetScope = ref<BottleTargetScope>('all')
 const reportReason = ref('骚扰或不友善')
 const reportDescription = ref('')
+const bottleContextStatus = ref('')
 
 const audienceOptions: Array<{ label: string; value: BottleTargetGender }> = [
   { label: '默认', value: 'all' },
@@ -338,22 +345,53 @@ async function fish() {
 
 async function sendReply() {
   if (!content.currentBottle || replySubmitting.value) return
+  const bottle = content.currentBottle
   if (!reply.value.trim()) {
     replyError.value = '请先写一句回应'
     showToast('请先写一句回应')
     return
   }
   replySubmitting.value = true
+  bottleContextStatus.value = ''
   try {
-    await content.replyBottle(content.currentBottle.id, reply.value.trim())
+    await content.replyBottle(bottle.id, reply.value.trim())
+  } catch {
+    showToast('回应发送失败，请稍后再试')
+    replySubmitting.value = false
+    return
+  }
+  try {
+    const contextRequest = await content.createContextChatRequest({
+      targetUserId: bottle.authorId,
+      sourceType: 'bottle_reply',
+      sourceId: bottle.id,
+      replyId: `reply:${bottle.id}`,
+      initiatorAction: 'continue_chat',
+      evidenceId: `bottle_reply:${bottle.id}`
+    })
     reply.value = ''
     replyError.value = ''
     reportOpen.value = false
-    caughtOpen.value = false
-    showToast('回应已送达')
+    caughtOpen.value = true
+    bottleContextStatus.value = contextStatusText(contextRequest.status, contextRequest.conversationId)
+    showToast(bottleContextStatus.value)
+    if (contextRequest.status === 'active' && contextRequest.conversationId) {
+      navigateTo(`/pages/messages/chat?contextConversationId=${contextRequest.conversationId}`)
+    }
+  } catch {
+    bottleContextStatus.value = '回应已送达，继续聊申请暂未发出，请稍后重试'
+    showToast(bottleContextStatus.value)
   } finally {
     replySubmitting.value = false
   }
+}
+
+function contextStatusText(status: string, conversationId?: string) {
+  if (status === 'active') return conversationId ? '继续聊已开启，可到消息页查看临时会话' : '继续聊已开启'
+  if (status === 'blocked') return '对方或你已拉黑，无法继续聊'
+  if (status === 'expired') return '继续聊申请已过期'
+  if (status === 'reported' || status === 'risk_frozen') return '继续聊申请已进入风控处理'
+  return '继续聊申请已发出，等待对方确认'
 }
 
 function clearReplyError() {
@@ -369,6 +407,7 @@ async function follow() {
 function releaseBottle() {
   reply.value = ''
   replyError.value = ''
+  bottleContextStatus.value = ''
   reportOpen.value = false
   caughtOpen.value = false
   showToast('已扔回海里')
@@ -1255,16 +1294,8 @@ function genderLabel(gender?: Bottle['authorGender']) {
     radial-gradient(circle at 100% 0%, rgba(0, 113, 227, 0.06), transparent 34%);
 }
 
-.origin-kicker,
 .caught-message {
   display: block;
-}
-
-.origin-kicker {
-  margin-bottom: 8rpx;
-  color: #6e6e73;
-  font-size: 22rpx;
-  font-weight: 900;
 }
 
 .caught-message {
@@ -1291,6 +1322,41 @@ function genderLabel(gender?: Bottle['authorGender']) {
   color: #d92d20;
   font-size: 24rpx;
   font-weight: 700;
+}
+
+.context-chat-hint {
+  margin-bottom: 18rpx;
+  border: 1px solid rgba(35, 108, 114, 0.12);
+  border-radius: 16px;
+  padding: 18rpx;
+  background: rgba(35, 108, 114, 0.06);
+}
+
+.context-chat-title,
+.context-chat-copy {
+  display: block;
+}
+
+.context-chat-title {
+  color: #236c72;
+  font-size: 25rpx;
+  font-weight: 900;
+}
+
+.context-chat-copy {
+  margin-top: 8rpx;
+  color: #66727a;
+  font-size: 22rpx;
+  line-height: 1.45;
+}
+
+.context-chat-status {
+  display: block;
+  margin-top: 10rpx;
+  color: #236c72;
+  font-size: 22rpx;
+  font-weight: 900;
+  line-height: 1.35;
 }
 
 .reply-actions {

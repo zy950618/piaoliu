@@ -41,3 +41,24 @@ export const quotaOrder: QuotaType[] = [
   'dare',
   'treehole_post'
 ]
+
+export const primaryCityOptions = ['全国', '北京', '上海', '广州', '深圳', '全部']
+
+export const expandedCityOptions = [
+  '杭州',
+  '成都',
+  '重庆',
+  '武汉',
+  '南京',
+  '苏州',
+  '西安',
+  '厦门',
+  '三亚',
+  '长沙',
+  '郑州',
+  '天津',
+  '青岛',
+  '宁波',
+  '福州',
+  '合肥'
+]

@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import list_admin_audit_logs, record_admin_audit
@@ -8,17 +9,24 @@ from app.db import get_db_session
 from app.schemas import (
     AdminAuditLogOut,
     AdminChatReviewOut,
+    AdminChatAppealReviewRequest,
+    AdminChatAppealReviewResponse,
     AdminContentOut,
     AdminLoginRequest,
     AdminModerationJobOut,
     AdminLogoutResponse,
     AdminPrincipalOut,
+    AdminReportRestoreRequest,
+    AdminReportRestoreResponse,
+    AdminReportResolveRequest,
+    AdminReportResolveResponse,
     AdminRewardConfig,
     AdminSummary,
     AdminTokenResponse,
     AdminUserStatusRequest,
     AdminUserOut,
     AdminWalletSummary,
+    ChatAppealOut,
     ModerationDecisionRequest,
     NearbyUser,
     PlazaPost,
@@ -27,15 +35,16 @@ from app.schemas import (
     VerificationReviewRequest,
     VerificationState,
 )
-from app.security import AdminPrincipal, create_mock_admin_token
+from app.security import AdminPrincipal, create_admin_token, authenticate_admin_token
 from app.settings import get_settings
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+ADMIN_READ_ROLES = ("admin", "moderator", "risk")
 
 
 @router.post("/auth/login", response_model=AdminTokenResponse)
 def admin_login(payload: AdminLoginRequest) -> AdminTokenResponse:
-    token = create_mock_admin_token(payload.username, payload.password)
+    token = create_admin_token(payload.username, payload.password)
     if token is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -43,12 +52,18 @@ def admin_login(payload: AdminLoginRequest) -> AdminTokenResponse:
         )
 
     settings = get_settings()
+    principal = authenticate_admin_token(token)
+    if principal is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "ADMIN_LOGIN_FAILED", "message": "Invalid admin credentials"},
+        )
     record_admin_audit(payload.username, "admin_login", "admin_session", payload.username)
     return AdminTokenResponse(
         access_token=token,
         token_type="bearer",
         expires_in=settings.admin_token_expires_seconds,
-        admin=AdminPrincipalOut(username=settings.admin_mock_username, roles=["admin", "moderator"]),
+        admin=AdminPrincipalOut(username=principal.username, roles=principal.roles),
     )
 
 
@@ -64,28 +79,28 @@ def admin_me(principal: AdminPrincipal = Depends(get_current_admin)) -> AdminPri
 
 
 @router.get("/reward-config", response_model=AdminRewardConfig)
-def admin_reward_config() -> AdminRewardConfig:
-    return AdminRewardConfig(
-        base_quotas={quota_type: base for quota_type, (_, base) in db_business.BASE_QUOTAS.items()},
-        vip_bonus={quota_type: 5 for quota_type in db_business.BASE_QUOTAS},
-        ad_cooldown_minutes=15,
-        ad_reward_per_quota=10,
-        checkin_rewards=db_business.CHECKIN_REWARDS,
-        reject_refund_enabled=False,
-    )
+async def admin_reward_config(
+    _: AdminPrincipal = Depends(require_admin_role(*ADMIN_READ_ROLES)),
+    session: AsyncSession = Depends(get_db_session),
+) -> AdminRewardConfig:
+    return await db_business.get_admin_reward_config(session)
 
 
 @router.patch("/reward-config", response_model=AdminRewardConfig)
-def update_admin_reward_config(
+async def update_admin_reward_config(
     payload: AdminRewardConfig,
+    session: AsyncSession = Depends(get_db_session),
     principal: AdminPrincipal = Depends(require_admin_role("admin")),
 ) -> AdminRewardConfig:
     record_admin_audit(principal.username, "update_reward_config", "reward_config", "global")
-    return payload
+    return await db_business.update_admin_reward_config(session, payload, principal.username)
 
 
 @router.get("/users", response_model=list[AdminUserOut])
-async def admin_users(session: AsyncSession = Depends(get_db_session)) -> list[AdminUserOut]:
+async def admin_users(
+    _: AdminPrincipal = Depends(require_admin_role(*ADMIN_READ_ROLES)),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[AdminUserOut]:
     rows = await db_business.admin_users(session)
     return [
         AdminUserOut(
@@ -141,7 +156,10 @@ async def admin_update_user_status(
 
 
 @router.get("/content", response_model=list[AdminContentOut])
-async def admin_content(session: AsyncSession = Depends(get_db_session)) -> list[AdminContentOut]:
+async def admin_content(
+    _: AdminPrincipal = Depends(require_admin_role(*ADMIN_READ_ROLES)),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[AdminContentOut]:
     return [
         AdminContentOut(
             id=row_id,
@@ -178,18 +196,44 @@ def admin_moderation(
 
 
 @router.get("/summary", response_model=AdminSummary)
-async def admin_summary(session: AsyncSession = Depends(get_db_session)) -> AdminSummary:
+async def admin_summary(
+    _: AdminPrincipal = Depends(require_admin_role(*ADMIN_READ_ROLES)),
+    session: AsyncSession = Depends(get_db_session),
+) -> AdminSummary:
     counts = await db_business.admin_counts(session)
     return AdminSummary(**counts)
 
 
 @router.get("/audit", response_model=list[AdminAuditLogOut])
-def admin_audit() -> list[AdminAuditLogOut]:
-    return list_admin_audit_logs()
+async def admin_audit(
+    _: AdminPrincipal = Depends(require_admin_role(*ADMIN_READ_ROLES)),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[AdminAuditLogOut]:
+    db_logs = (
+        await session.execute(select(db_business.AdminAuditLog).order_by(desc(db_business.AdminAuditLog.created_at)))
+    ).scalars().all()
+    rows = [
+        AdminAuditLogOut(
+            id=row.id,
+            actor=row.actor,
+            action=row.action,
+            target_type=row.target_type,
+            target_id=row.target_id,
+            detail=row.detail,
+            created_at=db_business.iso(row.created_at),
+        )
+        for row in db_logs
+    ]
+    seen = {row.id for row in rows}
+    rows.extend(row for row in list_admin_audit_logs() if row.id not in seen)
+    return rows
 
 
 @router.get("/wallet", response_model=AdminWalletSummary)
-async def admin_wallet(session: AsyncSession = Depends(get_db_session)) -> AdminWalletSummary:
+async def admin_wallet(
+    _: AdminPrincipal = Depends(require_admin_role(*ADMIN_READ_ROLES)),
+    session: AsyncSession = Depends(get_db_session),
+) -> AdminWalletSummary:
     wallet = await db_business.wallet_state(session)
     return AdminWalletSummary(
         recharge_coins=wallet.recharge_coins,
@@ -201,7 +245,10 @@ async def admin_wallet(session: AsyncSession = Depends(get_db_session)) -> Admin
 
 
 @router.get("/verification", response_model=VerificationState)
-async def admin_verification(session: AsyncSession = Depends(get_db_session)) -> VerificationState:
+async def admin_verification(
+    _: AdminPrincipal = Depends(require_admin_role(*ADMIN_READ_ROLES)),
+    session: AsyncSession = Depends(get_db_session),
+) -> VerificationState:
     verification, _ = await db_business.verification_overview(session)
     return verification
 
@@ -217,26 +264,86 @@ async def admin_review_verification(
 
 
 @router.get("/reports", response_model=list[ReportOut])
-async def admin_reports(session: AsyncSession = Depends(get_db_session)) -> list[ReportOut]:
-    return await db_business.list_reports(session)
+async def admin_reports(
+    status_filter: str | None = Query(default=None, alias="status"),
+    target_type: str | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=120),
+    _: AdminPrincipal = Depends(require_admin_role(*ADMIN_READ_ROLES)),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[ReportOut]:
+    return await db_business.list_reports(session, status_filter=status_filter, target_type_filter=target_type, q=q)
+
+
+@router.post("/reports/{report_id}/resolve", response_model=AdminReportResolveResponse)
+async def admin_resolve_report(
+    report_id: str,
+    payload: AdminReportResolveRequest,
+    session: AsyncSession = Depends(get_db_session),
+    principal: AdminPrincipal = Depends(require_admin_role("admin", "moderator")),
+) -> AdminReportResolveResponse:
+    result = await db_business.resolve_report(session, report_id, payload.reason, principal.username, payload.penalty_action)
+    return AdminReportResolveResponse(**result)
+
+
+@router.post("/reports/{report_id}/restore", response_model=AdminReportRestoreResponse)
+async def admin_restore_report_chat(
+    report_id: str,
+    payload: AdminReportRestoreRequest,
+    session: AsyncSession = Depends(get_db_session),
+    principal: AdminPrincipal = Depends(require_admin_role("admin", "moderator")),
+) -> AdminReportRestoreResponse:
+    result = await db_business.restore_report_chat(session, report_id, payload.reason, principal.username)
+    return AdminReportRestoreResponse(**result)
+
+
+@router.get("/chat-appeals", response_model=list[ChatAppealOut])
+async def admin_chat_appeals(
+    status_filter: str | None = Query(default=None, alias="status"),
+    _: AdminPrincipal = Depends(require_admin_role(*ADMIN_READ_ROLES)),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[ChatAppealOut]:
+    return await db_business.list_chat_appeals(session, status_filter=status_filter)
+
+
+@router.post("/chat-appeals/{appeal_id}/review", response_model=AdminChatAppealReviewResponse)
+async def admin_review_chat_appeal(
+    appeal_id: str,
+    payload: AdminChatAppealReviewRequest,
+    session: AsyncSession = Depends(get_db_session),
+    principal: AdminPrincipal = Depends(require_admin_role("admin", "moderator")),
+) -> AdminChatAppealReviewResponse:
+    result = await db_business.review_chat_appeal(session, appeal_id, payload.action, payload.reason, principal.username)
+    return AdminChatAppealReviewResponse(**result)
 
 
 @router.get("/chats", response_model=list[AdminChatReviewOut])
-async def admin_chats(session: AsyncSession = Depends(get_db_session)) -> list[AdminChatReviewOut]:
+async def admin_chats(
+    _: AdminPrincipal = Depends(require_admin_role(*ADMIN_READ_ROLES)),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[AdminChatReviewOut]:
     return await db_business.admin_chat_reviews(session)
 
 
 @router.get("/referral", response_model=ReferralState)
-async def admin_referral(session: AsyncSession = Depends(get_db_session)) -> ReferralState:
+async def admin_referral(
+    _: AdminPrincipal = Depends(require_admin_role(*ADMIN_READ_ROLES)),
+    session: AsyncSession = Depends(get_db_session),
+) -> ReferralState:
     _, referral = await db_business.verification_overview(session)
     return referral
 
 
 @router.get("/nearby", response_model=list[NearbyUser])
-async def admin_nearby(session: AsyncSession = Depends(get_db_session)) -> list[NearbyUser]:
+async def admin_nearby(
+    _: AdminPrincipal = Depends(require_admin_role(*ADMIN_READ_ROLES)),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[NearbyUser]:
     return await db_business.list_nearby(session)
 
 
 @router.get("/plaza", response_model=list[PlazaPost])
-async def admin_plaza(session: AsyncSession = Depends(get_db_session)) -> list[PlazaPost]:
+async def admin_plaza(
+    _: AdminPrincipal = Depends(require_admin_role(*ADMIN_READ_ROLES)),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[PlazaPost]:
     return await db_business.list_plaza(session)

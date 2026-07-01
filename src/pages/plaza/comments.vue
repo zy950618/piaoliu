@@ -12,8 +12,7 @@
       <view class="panel post-panel">
         <view class="post-head">
           <view class="author-avatar">
-            <image v-if="post.iconUrl" class="avatar-image" :src="post.iconUrl" mode="aspectFill" />
-            <text v-else>{{ post.iconText }}</text>
+            <image class="avatar-image" :src="resolveAvatarUrl(post.iconUrl, post.id || post.authorName)" mode="aspectFill" />
           </view>
           <view class="author-main">
             <view class="author-line">
@@ -83,14 +82,21 @@
 
         <view v-else v-for="comment in comments" :key="comment.id" class="panel comment-card">
           <view class="comment-avatar" :style="{ background: avatarColor(comment.iconText) }">
-            <image v-if="comment.iconUrl" class="avatar-image" :src="comment.iconUrl" mode="aspectFill" />
-            <text v-else>{{ comment.iconText }}</text>
+            <image class="avatar-image" :src="resolveAvatarUrl(comment.iconUrl, comment.id || comment.authorName)" mode="aspectFill" />
           </view>
           <view class="comment-body">
             <view class="comment-title-row">
               <text class="comment-author">{{ comment.authorName }}</text>
               <text v-if="comment.authorVerified" class="private-tag soft">已认证</text>
               <text v-if="comment.hiddenForOwnerOnly" class="private-tag">仅主人可见</text>
+              <view
+                class="context-chat-button"
+                :class="{ disabled: contextSubmittingId === comment.id }"
+                @tap.stop="requestContextChat(comment)"
+                @click.stop="requestContextChat(comment)"
+              >
+                {{ contextButtonText(comment.id) }}
+              </view>
             </view>
             <view v-if="!comment.hiddenForOwnerOnly" class="comment-meta-row">
               <text class="comment-chip">{{ genderLabel(comment.authorGender) }}</text>
@@ -98,7 +104,8 @@
               <text v-if="comment.authorCity" class="comment-chip">{{ comment.authorCity }}</text>
             </view>
             <text class="comment-text">{{ comment.content }}</text>
-            <text class="comment-time">{{ comment.createdAt }}</text>
+            <text class="comment-time">{{ formatCommentTime(comment.createdAt) }}</text>
+            <text class="context-chat-copy">{{ contextCopyText(comment.id) }}</text>
           </view>
         </view>
       </view>
@@ -150,10 +157,13 @@ import { onLoad, onUnload } from '@dcloudio/uni-app'
 import GiftSheet from '@/components/GiftSheet.vue'
 import GiftSplash from '@/components/GiftSplash.vue'
 import { navigateTo, showToast } from '@/services/feedback'
+import { useAppStore } from '@/stores/app'
 import { useContentStore } from '@/stores/content'
 import type { GiftProduct, PlazaComment, PlazaMedia, PlazaPost } from '@/types/domain'
+import { resolveAvatarUrl } from '@/utils/avatar'
 
 const content = useContentStore()
+const app = useAppStore()
 const postId = ref('')
 const post = ref<PlazaPost>()
 const comments = ref<PlazaComment[]>([])
@@ -167,6 +177,8 @@ const playingVoiceUrl = ref('')
 const giftModalOpen = ref(false)
 const sendingGiftId = ref('')
 const celebrationGift = ref<GiftProduct>()
+const contextSubmittingId = ref('')
+const contextChatState = ref<Record<string, { status: string; conversationId?: string }>>({})
 const firstMedia = computed(() => post.value?.media?.[0])
 let voicePlayer: ReturnType<typeof uni.createInnerAudioContext> | undefined
 let lastPrivateToggleAt = 0
@@ -190,7 +202,8 @@ async function loadPage() {
   loading.value = true
   errorText.value = ''
   try {
-    const [loadedPost, loadedComments] = await Promise.all([
+    const [, loadedPost, loadedComments] = await Promise.all([
+      app.hydrate(),
       content.loadPlazaPost(postId.value),
       content.loadPlazaComments(postId.value),
       content.loadWallet()
@@ -217,6 +230,58 @@ function togglePrivateComment() {
   if (now - lastPrivateToggleAt < 120) return
   lastPrivateToggleAt = now
   privateComment.value = !privateComment.value
+}
+
+async function requestContextChat(comment: PlazaComment) {
+  if (!post.value || contextSubmittingId.value) return
+  contextSubmittingId.value = comment.id
+  try {
+    const result = await content.createContextChatRequest({
+      targetUserId: post.value.authorId,
+      sourceType: 'plaza_comment',
+      sourceId: `${post.value.id}:${comment.id}`,
+      replyId: comment.id,
+      initiatorAction: 'continue_chat',
+      evidenceId: comment.id
+    })
+    contextChatState.value = {
+      ...contextChatState.value,
+      [comment.id]: { status: result.status, conversationId: result.conversationId }
+    }
+    showToast(contextCopyText(comment.id))
+    if (result.status === 'active' && result.conversationId) {
+      navigateTo(`/pages/messages/chat?contextConversationId=${result.conversationId}`)
+    }
+  } catch {
+    contextChatState.value = {
+      ...contextChatState.value,
+      [comment.id]: { status: 'failed' }
+    }
+    showToast('继续聊申请失败，请稍后再试')
+  } finally {
+    contextSubmittingId.value = ''
+  }
+}
+
+function contextButtonText(commentId: string) {
+  if (contextSubmittingId.value === commentId) return '发送中'
+  const state = contextChatState.value[commentId]
+  if (!state) return '继续聊'
+  if (state.status === 'active') return '已开启'
+  if (state.status === 'failed') return '重试'
+  if (state.status === 'blocked') return '已阻止'
+  return '待确认'
+}
+
+function contextCopyText(commentId: string) {
+  const state = contextChatState.value[commentId]
+  if (!state) return '基于这条留言继续聊，需发帖人回复或确认。'
+  if (state.status === 'active') return state.conversationId ? '继续聊已开启，可到消息页查看临时会话。' : '继续聊已开启。'
+  if (state.status === 'failed') return '继续聊申请失败，请稍后重试。'
+  if (state.status === 'blocked') return '对方或你已拉黑，无法继续聊。'
+  if (state.status === 'reported' || state.status === 'risk_frozen') return '继续聊申请已进入风控处理。'
+  if (state.status === 'expired') return '继续聊申请已过期。'
+  return `继续聊申请已发出，等待 ${post.value?.authorName || '发帖人'} 确认。`
 }
 
 async function openGiftModal() {
@@ -261,26 +326,52 @@ function playGiftCelebration(gift: GiftProduct) {
 
 async function submitComment() {
   if (submitting.value) return
-  if (!commentDraft.value.trim()) {
+  const text = commentDraft.value.trim()
+  const hidden = privateComment.value
+  if (!text) {
     commentError.value = '先写一点内容，才能发送'
     showToast('先写一点内容，才能发送')
     return
   }
   submitting.value = true
   try {
-    post.value = await content.commentPlazaPost(postId.value, commentDraft.value.trim(), {
-      hiddenForOwnerOnly: privateComment.value
+    post.value = await content.commentPlazaPost(postId.value, text, {
+      hiddenForOwnerOnly: hidden
     })
+    appendLocalComment(text, hidden)
     commentDraft.value = ''
     privateComment.value = false
     commentError.value = ''
-    await loadComments()
+    void loadComments()
     showToast('留言已发送')
   } catch {
     commentError.value = '留言发送失败，请稍后再试'
   } finally {
     submitting.value = false
   }
+}
+
+function appendLocalComment(contentText: string, hidden: boolean) {
+  const user = app.user
+  if (!user || !post.value) return
+  if (hidden && user.id !== post.value.authorId) return
+  const localComment: PlazaComment = {
+    id: `local_${Date.now()}`,
+    postId: post.value.id,
+    authorId: hidden ? 'anonymous' : user.id,
+    authorName: hidden ? '匿名留言' : user.nickname,
+    iconText: hidden ? '匿' : user.avatarText,
+    iconUrl: hidden ? undefined : user.avatarUrl,
+    authorGender: hidden ? 'unknown' : user.gender || 'unknown',
+    authorAgeRange: hidden ? undefined : user.ageRange,
+    authorVerified: hidden ? false : Boolean(user.faceVerified && user.genderVerified),
+    authorCity: hidden ? undefined : user.city,
+    content: contentText,
+    hiddenForOwnerOnly: hidden,
+    visibleToOwnerOnly: hidden,
+    createdAt: '刚刚'
+  }
+  comments.value = [...comments.value, localComment]
 }
 
 function imageGridClass(count: number) {
@@ -297,6 +388,24 @@ function genderLabel(gender?: 'female' | 'male' | 'unknown') {
   if (gender === 'female') return '女'
   if (gender === 'male') return '男'
   return '未知'
+}
+
+function formatCommentTime(value: string) {
+  if (!value || value === '刚刚') return '刚刚'
+  const normalizedValue = /^\d{4}-\d{2}-\d{2}T/.test(value) && !/(Z|[+-]\d{2}:?\d{2})$/.test(value)
+    ? `${value}Z`
+    : value
+  const time = Date.parse(normalizedValue)
+  if (Number.isNaN(time)) return value
+  const diffMs = Date.now() - time
+  if (diffMs < 2 * 60 * 1000) return '刚刚'
+  if (diffMs < 60 * 60 * 1000) return `${Math.max(1, Math.floor(diffMs / 60000))} 分钟前`
+  const date = new Date(time)
+  const month = `${date.getMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getDate()}`.padStart(2, '0')
+  const hour = `${date.getHours()}`.padStart(2, '0')
+  const minute = `${date.getMinutes()}`.padStart(2, '0')
+  return `${month}-${day} ${hour}:${minute}`
 }
 
 function avatarColor(text?: string) {
@@ -734,6 +843,28 @@ function stopVoice() {
   margin-top: 8rpx;
   color: #8a969b;
   font-size: 21rpx;
+}
+
+.context-chat-copy {
+  display: block;
+  margin-top: 10rpx;
+  color: #65757b;
+  font-size: 21rpx;
+  line-height: 1.35;
+}
+
+.context-chat-button {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 9rpx 16rpx;
+  color: #236c72;
+  background: rgba(35, 108, 114, 0.1);
+  font-size: 22rpx;
+  font-weight: 900;
+}
+
+.context-chat-button.disabled {
+  opacity: 0.58;
 }
 
 .comment-composer {

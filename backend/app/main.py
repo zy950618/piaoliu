@@ -8,7 +8,7 @@ from app.errors import register_error_handlers
 from app import db_business
 from app.db import engine
 from app.models import Base
-from app.routes import ads, admin, bottle, checkin, dare, game, membership, me, messages, moderation, plaza, quota, relation, treehole, truth, wallet
+from app.routes import ads, admin, bottle, chat, checkin, dare, game, membership, me, messages, moderation, plaza, quota, relation, treehole, truth, wallet
 from app.settings import get_settings
 
 settings = get_settings()
@@ -64,6 +64,7 @@ app.include_router(relation.router)
 app.include_router(plaza.router)
 app.include_router(wallet.router)
 app.include_router(messages.router)
+app.include_router(chat.router)
 app.include_router(admin.router)
 
 

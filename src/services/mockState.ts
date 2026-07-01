@@ -70,7 +70,17 @@ const adReward: AdRewardState = {
   canWatch: true,
   cooldownSeconds: 0,
   cooldownMinutes: 30,
-  rewardPerQuota: 10
+  rewardPerQuota: 10,
+  displayType: 'video',
+  provider: 'mock_alliance',
+  placementId: 'reward_video_default',
+  title: '漂流岛激励视频',
+  description: '完整观看倒计时后，所有玩法次数都会增加。',
+  mediaUrl: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
+  clickUrl: 'https://example.com/drift-ad',
+  countdownSeconds: 5,
+  miniProgramAppId: 'wx-drift-bottle-demo',
+  miniProgramPath: 'pages/ad/reward'
 }
 
 const checkin: CheckinState = {
@@ -596,6 +606,7 @@ const conversationThreads: ConversationThread[] = [
   {
     id: 'thread_bottle_001',
     bottleId: 'bottle_001',
+    status: 'active',
     participantUserId: 'creator_001',
     participantName: '匿名海岛客',
     participantTag: '漂流瓶回应',
@@ -630,6 +641,7 @@ const conversationThreads: ConversationThread[] = [
   {
     id: 'thread_bottle_002',
     bottleId: 'bottle_002',
+    status: 'active',
     participantUserId: 'creator_002',
     participantName: '晚风',
     participantTag: '好友申请中',
@@ -721,6 +733,12 @@ const privatePhotos: PrivatePhoto[] = [
     priceCoins: 30,
     blurred: true,
     status: 'approved',
+    reviewStatus: 'ai_approved',
+    riskLevel: 'low_risk',
+    revenueState: 'eligible',
+    modelLabels: ['non_explicit', 'safe_context'],
+    modelConfidence: 0.96,
+    auditNote: 'AI 高置信低风险，自动通过',
     purchased: false
   },
   {
@@ -731,7 +749,30 @@ const privatePhotos: PrivatePhoto[] = [
     coverTone: '#f6dfb6',
     priceCoins: 20,
     blurred: true,
-    status: 'approved',
+    status: 'pending',
+    reviewStatus: 'manual_required',
+    riskLevel: 'medium_risk',
+    revenueState: 'frozen',
+    modelLabels: ['borderline_pose'],
+    modelConfidence: 0.68,
+    auditNote: '边界内容进入人工复核，审核完成前收益冻结',
+    purchased: false
+  },
+  {
+    id: 'photo_003',
+    ownerId: 'creator_003',
+    ownerName: '星夜',
+    title: '站外导流截图',
+    coverTone: '#e9d5d5',
+    priceCoins: 40,
+    blurred: true,
+    status: 'rejected',
+    reviewStatus: 'frozen',
+    riskLevel: 'high_risk',
+    revenueState: 'ineligible',
+    modelLabels: ['offsite_contact', 'fraud_risk'],
+    modelConfidence: 0.91,
+    auditNote: '高风险内容冻结，不产生收益',
     purchased: false
   }
 ]
@@ -1050,7 +1091,9 @@ const adminReports: AdminReportItem[] = [
     reason: '疑似骚扰回复',
     status: 'pending',
     priority: 'high',
-    createdAt: '2026-06-23 10:20'
+    createdAt: '2026-06-23 10:20',
+    evidenceRefs: ['report:report_001', 'treehole:tree_002', 'reporter:user_mock_001'],
+    auditRefs: []
   },
   {
     id: 'report_002',
@@ -1061,7 +1104,9 @@ const adminReports: AdminReportItem[] = [
     reason: '低俗内容复核',
     status: 'reviewing',
     priority: 'normal',
-    createdAt: '2026-06-23 09:40'
+    createdAt: '2026-06-23 09:40',
+    evidenceRefs: ['report:report_002', 'bottle:bottle_001', 'reporter:user_mock_002'],
+    auditRefs: ['audit_report_002']
   },
   {
     id: 'report_003',
@@ -1072,7 +1117,9 @@ const adminReports: AdminReportItem[] = [
     reason: '私信骚扰',
     status: 'resolved',
     priority: 'high',
-    createdAt: '2026-06-22 22:18'
+    createdAt: '2026-06-22 22:18',
+    evidenceRefs: ['report:report_003', 'user:bad_user_001', 'reporter:user_mock_003'],
+    auditRefs: ['audit_report_003']
   }
 ]
 

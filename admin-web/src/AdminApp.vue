@@ -158,8 +158,7 @@
                 </td>
                 <td>
                   <div class="user-cell">
-                    <img v-if="user.avatarUrl" class="avatar-img" :src="user.avatarUrl" :alt="user.nickname" />
-                    <span v-else class="avatar">{{ userAvatarText(user.nickname, user.avatarText) }}</span>
+                    <img class="avatar-img" :src="adminAvatarUrl(user.avatarUrl, user.id || user.nickname)" :alt="user.nickname" />
                     <div>
                       <strong>{{ user.nickname }}</strong>
                   <small>{{ visibleCode(user.id, '账号编号') }}</small>
@@ -251,12 +250,10 @@
                 <td>
                   <div class="user-cell">
                     <img
-                      v-if="item.authorAvatarUrl"
                       class="avatar-img avatar-small"
-                      :src="item.authorAvatarUrl"
+                      :src="adminAvatarUrl(item.authorAvatarUrl, item.authorId || item.authorName)"
                       :alt="item.authorName"
                     />
-                    <span v-else class="avatar avatar-small">{{ userAvatarText(item.authorName, item.authorAvatarText) }}</span>
                     <div>
                       <strong>{{ item.authorName }}</strong>
                       <small>{{ categoryLabel(item.category) }}作者</small>
@@ -332,14 +329,10 @@
                     :key="`${selectedChat.id}-${participant}-${index}`"
                   >
                     <img
-                      v-if="selectedChat.participantAvatarUrls?.[index]"
-                      class="avatar avatar-small"
-                      :src="selectedChat.participantAvatarUrls[index] || ''"
+                      class="avatar-img avatar-small"
+                      :src="adminAvatarUrl(selectedChat.participantAvatarUrls?.[index], participant)"
                       :alt="participant"
                     />
-                    <span v-else class="avatar avatar-small">
-                      {{ userAvatarText(participant, selectedChat.participantAvatarTexts?.[index] || undefined) }}
-                    </span>
                     {{ participant }}
                   </span>
                 </div>
@@ -406,8 +399,159 @@
           </div>
         </section>
 
+        <section v-if="activeTab === 'contextChats'" class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>上下文私聊审核</h2>
+              <p>核对来源、双向确认、频控、举报和拉黑状态</p>
+            </div>
+          </div>
+
+          <div class="review-workbench">
+            <table>
+              <thead>
+                <tr>
+                  <th>申请</th>
+                  <th>来源</th>
+                  <th>上下文</th>
+                  <th>状态</th>
+                  <th>频控</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="item in dashboard.contextChatRequests"
+                  :key="item.id"
+                  :class="{ selected: selectedContextChat?.id === item.id }"
+                  @click="selectedContextChatId = item.id"
+                >
+                  <td>{{ visibleCode(item.id, '申请') }}</td>
+                  <td>{{ contextSourceText(item.sourceType) }}</td>
+                  <td>
+                    <strong>{{ item.sourceTitle }}</strong>
+                    <small>{{ item.sourceId || '-' }}</small>
+                  </td>
+                  <td><span class="pill" :class="contextStatusClass(item.status)">{{ contextStatusText(item.status) }}</span></td>
+                  <td>{{ item.rateLimitText }}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <aside v-if="selectedContextChat" class="review-detail">
+              <h3>会话来源详情</h3>
+              <dl>
+                <dt>申请编号</dt>
+                <dd>{{ selectedContextChat.id }}</dd>
+                <dt>会话编号</dt>
+                <dd>{{ selectedContextChat.conversationId || '待确认' }}</dd>
+                <dt>来源类型</dt>
+                <dd>{{ contextSourceText(selectedContextChat.sourceType) }}</dd>
+                <dt>来源 ID</dt>
+                <dd>{{ selectedContextChat.sourceId || '-' }}</dd>
+                <dt>参与关系</dt>
+                <dd>{{ selectedContextChat.participantSummary }}</dd>
+                <dt>频控策略</dt>
+                <dd>{{ selectedContextChat.rateLimitText }}</dd>
+                <dt>审计要求</dt>
+                <dd>保留来源、双向回应/确认、举报、拉黑、风控和处理记录。</dd>
+              </dl>
+            </aside>
+          </div>
+        </section>
+
+        <section v-if="activeTab === 'photoReviews'" class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>私密照片审核</h2>
+              <p>查看 AI 风险分级、人工复核和收益冻结状态</p>
+            </div>
+          </div>
+
+          <div class="photo-risk-strip">
+            <article>
+              <span>低风险</span>
+              <strong>{{ dashboard.privatePhotoRiskSummary.lowRisk }}</strong>
+            </article>
+            <article>
+              <span>中风险</span>
+              <strong>{{ dashboard.privatePhotoRiskSummary.mediumRisk }}</strong>
+            </article>
+            <article>
+              <span>高风险</span>
+              <strong>{{ dashboard.privatePhotoRiskSummary.highRisk }}</strong>
+            </article>
+            <article>
+              <span>人工复核</span>
+              <strong>{{ dashboard.privatePhotoRiskSummary.manualRequired }}</strong>
+            </article>
+            <article>
+              <span>冻结</span>
+              <strong>{{ dashboard.privatePhotoRiskSummary.frozen }}</strong>
+            </article>
+          </div>
+
+          <div class="review-workbench">
+            <table>
+              <thead>
+                <tr>
+                  <th>照片</th>
+                  <th>审核状态</th>
+                  <th>风险</th>
+                  <th>置信度</th>
+                  <th>收益</th>
+                  <th>举报</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="item in dashboard.privatePhotoReviews"
+                  :key="item.id"
+                  :class="{ selected: selectedPrivatePhotoReview?.id === item.id }"
+                  @click="selectedPrivatePhotoReviewId = item.id"
+                >
+                  <td>
+                    <strong>{{ visibleCode(item.photoId, '照片') }}</strong>
+                    <small>{{ visibleCode(item.userId, '用户') }}</small>
+                  </td>
+                  <td><span class="pill" :class="photoStatusClass(item.reviewStatus)">{{ photoReviewStatusText(item.reviewStatus) }}</span></td>
+                  <td><span class="pill" :class="photoRiskClass(item.riskLevel)">{{ photoRiskText(item.riskLevel) }}</span></td>
+                  <td>{{ Math.round(item.confidence * 100) }}%</td>
+                  <td>{{ revenueStateText(item.revenueState) }}</td>
+                  <td>{{ item.reportCount }}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <aside v-if="selectedPrivatePhotoReview" class="review-detail">
+              <h3>复核详情</h3>
+              <dl>
+                <dt>审核编号</dt>
+                <dd>{{ selectedPrivatePhotoReview.id }}</dd>
+                <dt>自动动作</dt>
+                <dd>{{ photoAutoActionText(selectedPrivatePhotoReview.autoAction) }}</dd>
+                <dt>模型标签</dt>
+                <dd>
+                  <span class="chip" v-for="label in selectedPrivatePhotoReview.modelLabels" :key="label">{{ label }}</span>
+                </dd>
+                <dt>收益状态</dt>
+                <dd>{{ revenueStateText(selectedPrivatePhotoReview.revenueState) }}</dd>
+                <dt>处理人</dt>
+                <dd>{{ selectedPrivatePhotoReview.assignedAdminId || '待分配' }}</dd>
+                <dt>更新时间</dt>
+                <dd>{{ formatDateTime(selectedPrivatePhotoReview.updatedAt) }}</dd>
+                <dt>审计要求</dt>
+                <dd>记录模型标签、置信度、风险等级、自动动作、人工复核原因和收益冻结/解冻。</dd>
+              </dl>
+            </aside>
+          </div>
+        </section>
+
         <section v-if="activeTab === 'reports'" class="panel">
           <h2>举报处置台</h2>
+          <div class="report-searchbar">
+            <input v-model="reportKeyword" type="search" placeholder="搜索目标、原因、证据编号" />
+            <span class="filter-summary">当前 {{ filteredReports.length }} 条</span>
+          </div>
           <div class="toolbar-actions">
             <button
               v-for="filter in reportStatusFilters"
@@ -444,18 +588,21 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="item in filteredReports" :key="item.id">
+              <tr
+                v-for="item in filteredReports"
+                :key="item.id"
+                :class="{ selected: selectedReport?.id === item.id }"
+                @click="selectedReportId = item.id"
+              >
                 <td>{{ formatDateTime(item.createdAt) }}</td>
                 <td>{{ item.targetTypeText || formatReportTypeLabel(item.targetType) }}</td>
                 <td>
                   <div class="user-cell">
                     <img
-                      v-if="item.targetAvatarUrl"
                       class="avatar-img avatar-small"
-                      :src="item.targetAvatarUrl"
+                      :src="adminAvatarUrl(item.targetAvatarUrl, item.targetDisplayName || item.targetType)"
                       :alt="item.targetDisplayName || '目标'"
                     />
-                    <span v-else class="avatar avatar-small">{{ userAvatarText(item.targetDisplayName || item.targetType, item.targetAvatarText) }}</span>
                     <div>
                       <strong>{{ item.targetDisplayName || '未命名目标' }}</strong>
                       <small>{{ visibleCode(item.targetId, '对象编号') }}</small>
@@ -472,6 +619,138 @@
               </tr>
             </tbody>
           </table>
+          <aside v-if="selectedReport" class="review-detail report-evidence-panel">
+            <h3>举报证据链</h3>
+            <dl>
+              <dt>举报编号</dt>
+              <dd>{{ selectedReport.id }}</dd>
+              <dt>举报人</dt>
+              <dd>{{ selectedReport.reporterId || selectedReport.reporterName }}</dd>
+              <dt>目标对象</dt>
+              <dd>{{ selectedReport.targetDisplayName || selectedReport.targetId }}</dd>
+              <dt>举报原因</dt>
+              <dd>{{ selectedReport.reason }}</dd>
+              <dt>内容摘要</dt>
+              <dd>{{ selectedReport.targetPreview || '-' }}</dd>
+              <dt>证据引用</dt>
+              <dd>
+                <span v-for="ref in selectedReport.evidenceRefs" :key="`${selectedReport.id}-${ref}`" class="chip">{{ ref }}</span>
+              </dd>
+              <dt>审计引用</dt>
+              <dd>
+                <span v-if="!selectedReport.auditRefs.length">待处置后生成</span>
+                <span v-for="ref in selectedReport.auditRefs" :key="`${selectedReport.id}-audit-${ref}`" class="chip">{{ ref }}</span>
+              </dd>
+            </dl>
+            <div class="report-resolve-box">
+              <label>
+                处理原因
+                <textarea v-model="reportResolveReason" rows="3" placeholder="填写处置原因，会写入审计日志"></textarea>
+              </label>
+              <label>
+                处置动作
+                <select v-model="reportPenaltyAction">
+                  <option value="none">仅标记已处理</option>
+                  <option value="limit_user">限制被举报用户</option>
+                  <option value="freeze_chat">冻结聊天</option>
+                  <option value="offline_content">下线目标内容</option>
+                </select>
+              </label>
+              <button
+                type="button"
+                class="primary-button"
+                :disabled="operationBusy || selectedReport.status === 'resolved' || !reportResolveReason.trim()"
+                @click="resolveSelectedReport"
+              >
+                标记已处理
+              </button>
+              <button
+                v-if="canRestoreSelectedReport"
+                type="button"
+                class="ghost-button report-restore-button"
+                :disabled="operationBusy || !reportResolveReason.trim()"
+                @click="restoreSelectedReport"
+              >
+                恢复聊天
+              </button>
+            </div>
+          </aside>
+
+          <div class="subsection-head">
+            <div>
+              <h3>聊天申诉工单</h3>
+              <p>处理用户对冻结聊天的复核请求</p>
+            </div>
+            <span class="filter-summary">待处理 {{ dashboard.chatAppeals.filter((item) => item.status === 'pending').length }} 条</span>
+          </div>
+          <div class="review-workbench appeal-workbench">
+            <table>
+              <thead>
+                <tr>
+                  <th>时间</th>
+                  <th>用户</th>
+                  <th>聊天</th>
+                  <th>申诉理由</th>
+                  <th>状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="item in dashboard.chatAppeals"
+                  :key="item.id"
+                  :class="{ selected: selectedChatAppeal?.id === item.id }"
+                  @click="selectedChatAppealId = item.id"
+                >
+                  <td>{{ formatDateTime(item.createdAt) }}</td>
+                  <td>{{ item.userName || visibleCode(item.userId, '用户') }}</td>
+                  <td>{{ item.participantName || visibleCode(item.threadId, '聊天') }}</td>
+                  <td class="preview-cell"><p>{{ item.reason }}</p></td>
+                  <td><span class="pill" :class="item.status">{{ chatAppealStatusText(item.status) }}</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <aside v-if="selectedChatAppeal" class="review-detail report-evidence-panel chat-appeal-panel">
+              <h3>申诉详情</h3>
+              <dl>
+                <dt>申诉编号</dt>
+                <dd>{{ selectedChatAppeal.id }}</dd>
+                <dt>聊天线程</dt>
+                <dd>{{ selectedChatAppeal.threadId }}</dd>
+                <dt>申诉用户</dt>
+                <dd>{{ selectedChatAppeal.userName || selectedChatAppeal.userId }}</dd>
+                <dt>对方</dt>
+                <dd>{{ selectedChatAppeal.participantName || '-' }}</dd>
+                <dt>用户说明</dt>
+                <dd>{{ selectedChatAppeal.reason }}</dd>
+                <dt>审计引用</dt>
+                <dd>
+                  <span v-for="ref in selectedChatAppeal.auditRefs" :key="`${selectedChatAppeal.id}-${ref}`" class="chip">{{ ref }}</span>
+                </dd>
+              </dl>
+              <div class="report-resolve-box">
+                <label>
+                  处理原因
+                  <textarea v-model="chatAppealReviewReason" rows="3" placeholder="填写申诉处理原因，会写入审计"></textarea>
+                </label>
+                <button
+                  type="button"
+                  class="primary-button"
+                  :disabled="operationBusy || selectedChatAppeal.status !== 'pending' || !chatAppealReviewReason.trim()"
+                  @click="reviewSelectedChatAppeal('approve')"
+                >
+                  通过并恢复聊天
+                </button>
+                <button
+                  type="button"
+                  class="danger-button"
+                  :disabled="operationBusy || selectedChatAppeal.status !== 'pending' || !chatAppealReviewReason.trim()"
+                  @click="reviewSelectedChatAppeal('reject')"
+                >
+                  驳回申诉
+                </button>
+              </div>
+            </aside>
+          </div>
         </section>
 
         <section v-if="activeTab === 'wallet'" class="panel">
@@ -498,36 +777,126 @@
           </table>
         </section>
 
+        <section v-if="activeTab === 'adConfig'" class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>广告与小程序桥接</h2>
+              <p>配置广告联盟位、展示素材、倒计时和激励次数</p>
+            </div>
+            <button type="button" class="ghost-button" :disabled="operationBusy" @click="saveAdConfig">保存配置</button>
+          </div>
+
+          <div class="config-grid">
+            <label>
+              展示类型
+              <select v-model="adConfigDraft.adDisplayType">
+                <option value="video">视频</option>
+                <option value="image">图片</option>
+                <option value="link">链接</option>
+              </select>
+            </label>
+            <label>
+              广告联盟
+              <input v-model="adConfigDraft.adProvider" type="text" />
+            </label>
+            <label>
+              广告位 ID
+              <input v-model="adConfigDraft.adPlacementId" type="text" />
+            </label>
+            <label>
+              倒计时秒数
+              <input v-model.number="adConfigDraft.adCountdownSeconds" type="number" min="3" max="60" />
+            </label>
+            <label>
+              每次奖励次数
+              <input v-model.number="adConfigDraft.adRewardPerQuota" type="number" min="1" max="50" />
+            </label>
+            <label>
+              冷却分钟
+              <input v-model.number="adConfigDraft.adCooldownMinutes" type="number" min="0" max="1440" />
+            </label>
+            <label class="wide">
+              广告标题
+              <input v-model="adConfigDraft.adTitle" type="text" />
+            </label>
+            <label class="wide">
+              广告说明
+              <input v-model="adConfigDraft.adDescription" type="text" />
+            </label>
+            <label class="wide">
+              视频/图片 URL
+              <input v-model="adConfigDraft.adMediaUrl" type="url" />
+            </label>
+            <label class="wide">
+              链接落地页
+              <input v-model="adConfigDraft.adClickUrl" type="url" />
+            </label>
+            <label>
+              小程序 AppID
+              <input v-model="adConfigDraft.miniProgramAppId" type="text" />
+            </label>
+            <label>
+              小程序路径
+              <input v-model="adConfigDraft.miniProgramPath" type="text" />
+            </label>
+          </div>
+        </section>
+
         <section v-if="activeTab === 'audit'" class="panel">
           <h2>后台审计</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>时间</th>
-                <th>操作者</th>
-                <th>动作</th>
-                <th>目标</th>
-                <th>说明</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="item in dashboard.auditLogs" :key="item.id">
-                <td>{{ formatDateTime(item.createdAt) }}</td>
-                <td>
-                  <div class="user-cell">
-                    <span class="avatar">{{ userAvatarText(item.operator) }}</span>
-                    <div>
-                      <strong>{{ item.operator }}</strong>
-                      <small>管理员</small>
+          <div class="review-workbench">
+            <table>
+              <thead>
+                <tr>
+                  <th>时间</th>
+                  <th>操作者</th>
+                  <th>动作</th>
+                  <th>目标</th>
+                  <th>说明</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="item in dashboard.auditLogs"
+                  :key="item.id"
+                  :class="{ selected: selectedAudit?.id === item.id }"
+                  @click="selectedAuditId = item.id"
+                >
+                  <td>{{ formatDateTime(item.createdAt) }}</td>
+                  <td>
+                    <div class="user-cell">
+                      <img class="avatar-img" :src="adminAvatarUrl(undefined, item.operator)" :alt="item.operator" />
+                      <div>
+                        <strong>{{ item.operator }}</strong>
+                        <small>管理员</small>
+                      </div>
                     </div>
-                  </div>
-                </td>
-                <td>{{ item.action }}</td>
-                <td>{{ item.target }}</td>
-                <td>{{ item.detail }}</td>
-              </tr>
-            </tbody>
-          </table>
+                  </td>
+                  <td>{{ item.action }}</td>
+                  <td>{{ item.target }}</td>
+                  <td>{{ item.detail }}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <aside v-if="selectedAudit" class="review-detail audit-detail-panel">
+              <h3>审计详情</h3>
+              <dl>
+                <dt>审计编号</dt>
+                <dd>{{ selectedAudit.id }}</dd>
+                <dt>操作者</dt>
+                <dd>{{ selectedAudit.operator }}</dd>
+                <dt>动作</dt>
+                <dd>{{ selectedAudit.action }}</dd>
+                <dt>目标</dt>
+                <dd>{{ selectedAudit.target }}</dd>
+                <dt>记录时间</dt>
+                <dd>{{ formatDateTime(selectedAudit.createdAt) }}</dd>
+                <dt>详情</dt>
+                <dd>{{ selectedAudit.detail }}</dd>
+              </dl>
+            </aside>
+          </div>
         </section>
       </template>
     </section>
@@ -543,13 +912,16 @@ import type {
   AdminUserSummary,
   AdminContentReviewItem,
   AdminChatReviewItem,
+  AdminContextChatRequestItem,
+  AdminPrivatePhotoReviewItem,
   AdminReportItem,
+  AdminAuditLogItem,
   ConversationTurn,
   ContentStatus,
   AdminContentReviewItem as ContentReviewItemAlias
 } from '@/types/domain'
 
-type TabKey = 'overview' | 'users' | 'content' | 'chats' | 'reports' | 'wallet' | 'audit'
+type TabKey = 'overview' | 'users' | 'content' | 'chats' | 'contextChats' | 'photoReviews' | 'reports' | 'wallet' | 'adConfig' | 'audit'
 type UserStatus = AdminUserSummary['status']
 type WalletRisk = AdminUserSummary['walletRisk']
 type ContentCategory = 'all' | ContentReviewItemAlias['category']
@@ -558,6 +930,7 @@ type ContentStatusFilter = 'all' | ContentStatus
 type UserStatusFilter = '' | UserStatus
 type ReportCategory = 'all' | AdminReportItem['targetType']
 type ReportStatusFilter = 'all' | AdminReportItem['status']
+type ReportPenaltyAction = 'none' | 'limit_user' | 'freeze_chat' | 'offline_content'
 type ChatSourceFilter = 'all' | AdminChatReviewItem['source']
 
 type DashTab = { key: TabKey; label: string; badge?: number }
@@ -593,6 +966,16 @@ const initialDashboard: AdminDashboard = {
     adRewardPerQuota: 10,
     adReward: '每次+10金币',
     checkinRewards: [],
+    adDisplayType: 'video',
+    adProvider: 'mock_alliance',
+    adPlacementId: 'reward_video_default',
+    adTitle: '漂流岛激励视频',
+    adDescription: '完整观看倒计时后，所有玩法次数都会增加。',
+    adMediaUrl: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
+    adClickUrl: 'https://example.com/drift-ad',
+    adCountdownSeconds: 5,
+    miniProgramAppId: 'wx-drift-bottle-demo',
+    miniProgramPath: 'pages/ad/reward',
     quotaNames: {
       fish_bottle: '捞瓶',
       throw_bottle: '扔瓶',
@@ -604,6 +987,16 @@ const initialDashboard: AdminDashboard = {
   users: [],
   contentReviews: [],
   chatReviews: [],
+  chatAppeals: [],
+  contextChatRequests: [],
+  privatePhotoReviews: [],
+  privatePhotoRiskSummary: {
+    lowRisk: 0,
+    mediumRisk: 0,
+    highRisk: 0,
+    manualRequired: 0,
+    frozen: 0
+  },
   reports: [],
   adRewardRecords: [],
   orders: [],
@@ -616,8 +1009,11 @@ const tabs: DashTab[] = [
   { key: 'users', label: '用户与认证' },
   { key: 'content', label: '内容池治理' },
   { key: 'chats', label: '聊天互动' },
+  { key: 'contextChats', label: '上下文私聊' },
+  { key: 'photoReviews', label: '照片审核' },
   { key: 'reports', label: '举报处置' },
   { key: 'wallet', label: '会员钱包' },
+  { key: 'adConfig', label: '广告配置' },
   { key: 'audit', label: '后台审计' }
 ]
 
@@ -625,7 +1021,8 @@ const dashboard = ref<AdminDashboard>(initialDashboard)
 const loading = ref(true)
 const operationBusy = ref(false)
 const operationMessage = ref('')
-const activeTab = ref<TabKey>('overview')
+const initialTab = new URLSearchParams(window.location.search).get('tab') as TabKey | null
+const activeTab = ref<TabKey>(initialTab && tabs.some((tab) => tab.key === initialTab) ? initialTab : 'overview')
 
 const userKeyword = ref('')
 const userStatusFilter = ref<UserStatusFilter>('')
@@ -636,6 +1033,11 @@ const userBatchReason = ref('')
 const selectedUserIds = ref<string[]>([])
 const selectedContentIds = ref<string[]>([])
 const selectedChatId = ref('')
+const selectedContextChatId = ref('')
+const selectedPrivatePhotoReviewId = ref('')
+const selectedReportId = ref('')
+const selectedChatAppealId = ref('')
+const selectedAuditId = ref('')
 
 const activeContentCategory = ref<ContentCategory>('all')
 const contentRiskFilter = ref<RiskLevel>('all')
@@ -644,6 +1046,11 @@ const activeChatSourceFilter = ref<ChatSourceFilter>('all')
 const activeChatRiskFilter = ref<RiskLevel>('all')
 const activeReportTypeFilter = ref<ReportCategory>('all')
 const activeReportStatusFilter = ref<ReportStatusFilter>('all')
+const reportKeyword = ref('')
+const reportResolveReason = ref('证据已核对，按平台规则关闭举报')
+const reportPenaltyAction = ref<ReportPenaltyAction>('freeze_chat')
+const chatAppealReviewReason = ref('已核对上下文和处置记录，按规则处理申诉')
+const adConfigDraft = ref<AdminDashboard['rewardConfig']>({ ...initialDashboard.rewardConfig })
 
 const loadingError = ref('')
 
@@ -658,8 +1065,14 @@ const tabsWithCounts = computed(() =>
     if (tab.key === 'chats') {
       return { ...tab, badge: dashboard.value.chatReviews.length }
     }
+    if (tab.key === 'contextChats') {
+      return { ...tab, badge: dashboard.value.contextChatRequests.length }
+    }
+    if (tab.key === 'photoReviews') {
+      return { ...tab, badge: dashboard.value.privatePhotoReviews.length }
+    }
     if (tab.key === 'reports') {
-      return { ...tab, badge: dashboard.value.reports.length }
+      return { ...tab, badge: dashboard.value.reports.length + dashboard.value.chatAppeals.filter((item) => item.status === 'pending').length }
     }
     return tab
   })
@@ -836,6 +1249,18 @@ const selectedChat = computed(() => {
   return filteredChats.value.find((item) => item.id === selectedChatId.value) || filteredChats.value[0]
 })
 
+const selectedContextChat = computed(() => {
+  const rows = dashboard.value.contextChatRequests
+  if (!rows.length) return undefined
+  return rows.find((item) => item.id === selectedContextChatId.value) || rows[0]
+})
+
+const selectedPrivatePhotoReview = computed(() => {
+  const rows = dashboard.value.privatePhotoReviews
+  if (!rows.length) return undefined
+  return rows.find((item) => item.id === selectedPrivatePhotoReviewId.value) || rows[0]
+})
+
 const chatRisksBySource = computed(() => {
   let rows = dashboard.value.chatReviews
   if (activeChatSourceFilter.value !== 'all') {
@@ -851,13 +1276,49 @@ const chatRisksBySource = computed(() => {
 
 const filteredReports = computed(() => {
   let rows = dashboard.value.reports
+  const keyword = reportKeyword.value.trim().toLowerCase()
   if (activeReportTypeFilter.value !== 'all') {
     rows = rows.filter((item) => item.targetType === activeReportTypeFilter.value)
   }
   if (activeReportStatusFilter.value !== 'all') {
     rows = rows.filter((item) => item.status === activeReportStatusFilter.value)
   }
+  if (keyword) {
+    rows = rows.filter((item) => [
+      item.id,
+      item.reporterId || '',
+      item.targetId,
+      item.targetTypeText || '',
+      item.targetDisplayName || '',
+      item.targetPreview,
+      item.reason,
+      ...item.evidenceRefs,
+      ...item.auditRefs
+    ].join(' ').toLowerCase().includes(keyword))
+  }
   return rows
+})
+
+const selectedReport = computed(() => {
+  if (!filteredReports.value.length) return undefined
+  return filteredReports.value.find((item) => item.id === selectedReportId.value) || filteredReports.value[0]
+})
+
+const selectedChatAppeal = computed(() => {
+  if (!dashboard.value.chatAppeals.length) return undefined
+  return dashboard.value.chatAppeals.find((item) => item.id === selectedChatAppealId.value) || dashboard.value.chatAppeals[0]
+})
+
+const canRestoreSelectedReport = computed(() => Boolean(
+  selectedReport.value
+  && selectedReport.value.status === 'resolved'
+  && selectedReport.value.targetType === 'chat'
+  && selectedReport.value.evidenceRefs.includes('thread_status:risk_frozen')
+))
+
+const selectedAudit = computed<AdminAuditLogItem | undefined>(() => {
+  if (!dashboard.value.auditLogs.length) return undefined
+  return dashboard.value.auditLogs.find((item) => item.id === selectedAuditId.value) || dashboard.value.auditLogs[0]
 })
 
 const allUsersChecked = computed(
@@ -932,6 +1393,19 @@ function contentTypeLabel(type: AdminChatReviewItem['source']) {
   return contentTypeLabelMap[type]
 }
 
+function contextSourceText(type: AdminContextChatRequestItem['sourceType']) {
+  const map: Record<AdminContextChatRequestItem['sourceType'], string> = {
+    bottle_reply: '漂流瓶回应',
+    plaza_comment: '广场评论',
+    treehole_comment: '树洞评论',
+    game_room: '游戏房间',
+    private_room: '私密房间',
+    match_expand: '扩列匹配',
+    friend: '好友'
+  }
+  return map[type]
+}
+
 function sourceTreatmentText(source: AdminChatReviewItem['source']) {
   const map: Record<AdminChatReviewItem['source'], string> = {
     bottle: '漂流瓶回信复核',
@@ -995,6 +1469,12 @@ function reportStatusLabel(status: AdminReportItem['status']) {
   return reportStatusLabelMap[status]
 }
 
+function chatAppealStatusText(status: AdminDashboard['chatAppeals'][number]['status']) {
+  if (status === 'approved') return '已通过'
+  if (status === 'rejected') return '已驳回'
+  return '待处理'
+}
+
 function genderText(gender: AdminUserSummary['gender']) {
   return gender === 'male' ? '男' : gender === 'female' ? '女' : '未知'
 }
@@ -1021,6 +1501,78 @@ function contentStatusText(status: ContentStatus) {
 
 function chatStatusText(status: 'pending' | 'reviewing' | 'resolved') {
   return status === 'resolved' ? '完成' : status === 'reviewing' ? '处理中' : '待处理'
+}
+
+function contextStatusText(status: AdminContextChatRequestItem['status']) {
+  const map: Record<AdminContextChatRequestItem['status'], string> = {
+    pending: '待确认',
+    active: '已开启',
+    muted: '已静音',
+    blocked: '已拉黑',
+    expired: '已过期',
+    reported: '已举报',
+    risk_frozen: '风控冻结'
+  }
+  return map[status]
+}
+
+function contextStatusClass(status: AdminContextChatRequestItem['status']) {
+  if (status === 'blocked' || status === 'reported' || status === 'risk_frozen') return 'high'
+  if (status === 'pending' || status === 'muted') return 'medium'
+  return 'low'
+}
+
+function photoReviewStatusText(status: AdminPrivatePhotoReviewItem['reviewStatus']) {
+  const map: Record<AdminPrivatePhotoReviewItem['reviewStatus'], string> = {
+    ai_pending: 'AI 审核中',
+    ai_approved: 'AI 通过',
+    manual_required: '人工复核',
+    manual_approved: '人工通过',
+    rejected: '已拒绝',
+    frozen: '已冻结',
+    appeal_pending: '申诉中'
+  }
+  return map[status]
+}
+
+function photoStatusClass(status: AdminPrivatePhotoReviewItem['reviewStatus']) {
+  if (status === 'rejected' || status === 'frozen') return 'high'
+  if (status === 'manual_required' || status === 'appeal_pending' || status === 'ai_pending') return 'medium'
+  return 'low'
+}
+
+function photoRiskText(level: AdminPrivatePhotoReviewItem['riskLevel']) {
+  const map: Record<AdminPrivatePhotoReviewItem['riskLevel'], string> = {
+    low_risk: '低风险',
+    medium_risk: '中风险',
+    high_risk: '高风险'
+  }
+  return map[level]
+}
+
+function photoRiskClass(level: AdminPrivatePhotoReviewItem['riskLevel']) {
+  if (level === 'high_risk') return 'high'
+  if (level === 'medium_risk') return 'medium'
+  return 'low'
+}
+
+function photoAutoActionText(action: AdminPrivatePhotoReviewItem['autoAction']) {
+  const map: Record<AdminPrivatePhotoReviewItem['autoAction'], string> = {
+    approve: '自动通过',
+    manual_review: '转人工复核',
+    reject: '自动拒绝',
+    freeze: '自动冻结'
+  }
+  return map[action]
+}
+
+function revenueStateText(state: AdminPrivatePhotoReviewItem['revenueState']) {
+  const map: Record<AdminPrivatePhotoReviewItem['revenueState'], string> = {
+    frozen: '收益冻结',
+    eligible: '可产生收益',
+    ineligible: '不可收益'
+  }
+  return map[state]
 }
 
 function triggerText(trigger: string) {
@@ -1133,8 +1685,32 @@ function formatDateTime(value?: string | null) {
   })
 }
 
-function userAvatarText(name: string, avatarText?: string) {
-  return (avatarText || name || '').trim().slice(0, 1) || '用'
+function adminAvatarUrl(explicitUrl: string | null | undefined, seed: string) {
+  if (explicitUrl) return explicitUrl
+  const avatarSeed = stableAdminAvatarSeed(seed) || 'bottle-wave-01'
+  return `https://api.dicebear.com/9.x/open-peeps/svg?seed=${encodeURIComponent(avatarSeed)}&backgroundColor=b6e3f4,c0aede,d1d4f9`
+}
+
+function stableAdminAvatarSeed(value: string) {
+  const seeds = [
+    'bottle-wave-01',
+    'bottle-wave-02',
+    'bottle-wave-03',
+    'bottle-wave-04',
+    'bottle-wave-05',
+    'bottle-wave-06',
+    'bottle-wave-07',
+    'bottle-wave-08',
+    'bottle-wave-09',
+    'bottle-wave-10',
+    'bottle-wave-11',
+    'bottle-wave-12'
+  ]
+  let hash = 0
+  for (const char of value || 'admin') {
+    hash = ((hash << 5) - hash + char.charCodeAt(0)) | 0
+  }
+  return seeds[Math.abs(hash) % seeds.length] || seeds[0]
 }
 
 function getBlockOptions() {
@@ -1207,11 +1783,64 @@ async function batchReview(status: ContentStatus) {
   })
 }
 
+async function resolveSelectedReport() {
+  if (!selectedReport.value) return
+  const reportId = selectedReport.value.id
+  await runAdminOperation('举报已处理并写入审计', async () => {
+    await adminApi.resolveReport(reportId, reportResolveReason.value.trim(), reportPenaltyAction.value)
+    dashboard.value = await adminApi.listAdminData({ autoLogin: false })
+    selectedReportId.value = reportId
+  })
+}
+
+async function restoreSelectedReport() {
+  if (!selectedReport.value) return
+  const reportId = selectedReport.value.id
+  await runAdminOperation('聊天已恢复并写入审计', async () => {
+    await adminApi.restoreReport(reportId, reportResolveReason.value.trim())
+    dashboard.value = await adminApi.listAdminData({ autoLogin: false })
+    selectedReportId.value = reportId
+  })
+}
+
+async function reviewSelectedChatAppeal(action: 'approve' | 'reject') {
+  if (!selectedChatAppeal.value) return
+  const appealId = selectedChatAppeal.value.id
+  await runAdminOperation(action === 'approve' ? '申诉已通过并写入审计' : '申诉已驳回并写入审计', async () => {
+    await adminApi.reviewChatAppeal(appealId, action, chatAppealReviewReason.value.trim())
+    dashboard.value = await adminApi.listAdminData({ autoLogin: false })
+    selectedChatAppealId.value = appealId
+  })
+}
+
+async function saveAdConfig() {
+  await runAdminOperation('广告配置已保存', async () => {
+    dashboard.value = await adminApi.saveAdminRewardConfig({
+      baseQuotas: adConfigDraft.value.baseQuotas,
+      adCooldownMinutes: adConfigDraft.value.adCooldownMinutes,
+      adRewardPerQuota: adConfigDraft.value.adRewardPerQuota,
+      checkinRewards: adConfigDraft.value.checkinRewards,
+      adDisplayType: adConfigDraft.value.adDisplayType,
+      adProvider: adConfigDraft.value.adProvider,
+      adPlacementId: adConfigDraft.value.adPlacementId,
+      adTitle: adConfigDraft.value.adTitle,
+      adDescription: adConfigDraft.value.adDescription,
+      adMediaUrl: adConfigDraft.value.adMediaUrl,
+      adClickUrl: adConfigDraft.value.adClickUrl,
+      adCountdownSeconds: adConfigDraft.value.adCountdownSeconds,
+      miniProgramAppId: adConfigDraft.value.miniProgramAppId,
+      miniProgramPath: adConfigDraft.value.miniProgramPath
+    })
+    adConfigDraft.value = { ...dashboard.value.rewardConfig }
+  })
+}
+
 async function refresh(options: { autoLogin?: boolean } = { autoLogin: true }) {
   loading.value = true
   loadingError.value = ''
   try {
     dashboard.value = await adminApi.listAdminData(options)
+    adConfigDraft.value = { ...dashboard.value.rewardConfig }
   } catch (err) {
     loadingError.value = (err as Error).message
   } finally {
@@ -1243,7 +1872,10 @@ const pageTitle = computed(() => {
     content: '内容池治理',
     chats: '聊天互动安全',
     reports: '举报处置',
+    contextChats: '上下文私聊审核',
+    photoReviews: '私密照片审核',
     wallet: '会员钱包风控',
+    adConfig: '广告配置',
     audit: '后台审计'
   }
   return title[activeTab.value]

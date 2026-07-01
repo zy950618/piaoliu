@@ -48,6 +48,14 @@
         <text class="room-entry-title">多人房间</text>
         <text class="room-entry-meta">邀请制进入</text>
       </view>
+      <view class="room-entry random-entry" @tap="openRandomMatch">
+        <view class="room-entry-top">
+          <text class="room-entry-label">随机匹配</text>
+          <text class="room-entry-icon random-icon" />
+        </view>
+        <text class="room-entry-title">按条件找玩伴</text>
+        <text class="room-entry-meta">性别 / 年龄 / 次数同步</text>
+      </view>
     </view>
 
     <view class="section activity-system" :class="{ rolling: diceRolling }">
@@ -76,12 +84,6 @@
         <view class="planet-ring"></view>
         <view class="planet-surface"></view>
         <text class="planet-label">摇骰子</text>
-      </view>
-      <view class="activity-planet treehole-entry" @tap="goTreehole">
-        <view class="planet-ring"></view>
-        <view class="planet-surface"></view>
-        <text class="planet-badge">心情</text>
-        <text class="planet-label">树洞</text>
       </view>
     </view>
 
@@ -263,10 +265,6 @@ function rollDice() {
   }, 520)
 }
 
-function goTreehole() {
-  navigateTo('/pages/treehole/index')
-}
-
 function gameQuotaLeft(type: ActivityEntry['quotaType']) {
   return app.quotas?.[type]?.remaining ?? 0
 }
@@ -370,6 +368,10 @@ function openRoomConcept(kind: RoomKind) {
 
 function closeRoomConcept() {
   roomConceptOpen.value = false
+}
+
+function openRandomMatch() {
+  navigateTo('/pages/game/match')
 }
 
 function enterRoomConcept() {
@@ -833,6 +835,14 @@ function enterRoomConcept() {
     linear-gradient(145deg, rgba(244, 114, 182, 0.94), rgba(124, 58, 237, 0.88));
 }
 
+.random-entry {
+  grid-column: 1 / -1;
+  min-height: 116rpx;
+  background:
+    radial-gradient(circle at 14% 10%, rgba(255, 255, 255, 0.24), transparent 28%),
+    linear-gradient(135deg, rgba(34, 211, 238, 0.94), rgba(16, 185, 129, 0.88));
+}
+
 .room-entry-top {
   position: relative;
   z-index: 1;
@@ -918,6 +928,24 @@ function enterRoomConcept() {
   height: 13rpx;
   border: 3rpx solid rgba(255, 255, 255, 0.9);
   border-radius: 14rpx 14rpx 6rpx 6rpx;
+}
+
+.random-icon::before {
+  left: 9rpx;
+  top: 10rpx;
+  width: 24rpx;
+  height: 24rpx;
+  border: 4rpx solid #fff;
+  border-radius: 50%;
+}
+
+.random-icon::after {
+  right: 8rpx;
+  top: 8rpx;
+  width: 15rpx;
+  height: 15rpx;
+  border-top: 4rpx solid #fff;
+  border-right: 4rpx solid #fff;
 }
 
 .activity-system {
@@ -1259,38 +1287,6 @@ function enterRoomConcept() {
 .dice-entry .planet-surface::after {
   background:
     repeating-linear-gradient(24deg, rgba(35, 108, 114, 0.05) 0 16rpx, transparent 17rpx 38rpx);
-}
-
-.treehole-entry {
-  right: 78rpx;
-  bottom: 236rpx;
-  width: 146rpx;
-  height: 146rpx;
-  animation: planet-float-b 5.6s ease-in-out infinite;
-}
-
-.treehole-entry .planet-ring {
-  opacity: 1;
-  width: 216rpx;
-  height: 56rpx;
-  border-color: rgba(154, 214, 145, 0.5);
-  border-left-color: rgba(154, 214, 145, 0.13);
-  border-bottom-color: rgba(154, 214, 145, 0.2);
-  transform: rotate(14deg);
-}
-
-.treehole-entry .planet-surface {
-  background:
-    radial-gradient(circle at 34% 28%, rgba(226, 255, 190, 0.48) 0 15rpx, transparent 16rpx),
-    radial-gradient(circle at 68% 66%, rgba(52, 88, 40, 0.34) 0 22rpx, transparent 23rpx),
-    repeating-linear-gradient(142deg, rgba(247, 255, 210, 0.16) 0 16rpx, transparent 17rpx 35rpx),
-    linear-gradient(145deg, #8ecf7c 0%, #3d9b73 52%, #1f665d 100%);
-}
-
-.treehole-entry .planet-surface::after {
-  background:
-    radial-gradient(circle at 26% 66%, rgba(255, 255, 255, 0.24) 0 8rpx, transparent 9rpx),
-    repeating-linear-gradient(20deg, transparent 0 20rpx, rgba(237, 255, 210, 0.12) 21rpx 30rpx);
 }
 
 .activity-system.rolling .dice-entry .planet-surface {

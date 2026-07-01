@@ -65,8 +65,17 @@ export const useAppStore = defineStore('app', () => {
 
   async function watchRewardAd(completed = true) {
     const prepared = await meApi.prepareAdReward()
-    const watched = completed ? await playRewardVideoAd() : false
-    const status = await meApi.commitAdReward(prepared.sessionId, watched)
+    const watched = completed ? await playRewardVideoAd(prepared.countdownSeconds) : false
+    const status = await commitRewardAd(prepared.sessionId, watched)
+    return status
+  }
+
+  async function prepareRewardAd() {
+    return meApi.prepareAdReward()
+  }
+
+  async function commitRewardAd(sessionId: string, completed: boolean) {
+    const status = await meApi.commitAdReward(sessionId, completed)
     user.value = status.user
     quotas.value = status.quotas
     adReward.value = status.adReward
@@ -127,6 +136,8 @@ export const useAppStore = defineStore('app', () => {
     applyUserProfile,
     saveUserProfile,
     runCheckin,
+    prepareRewardAd,
+    commitRewardAd,
     watchRewardAd,
     tickAdCooldown
   }

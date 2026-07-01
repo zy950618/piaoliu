@@ -40,6 +40,30 @@
     </view>
 
     <view class="section panel">
+      <view class="between">
+        <view>
+          <text class="h2">私密照片审核</text>
+          <text class="muted">AI 先审，低风险自动通过；边界内容人工复核；高风险冻结或拒绝。</text>
+        </view>
+      </view>
+      <view class="photo-review-list">
+        <view v-for="photo in reviewPhotos" :key="photo.id" class="photo-review-row">
+          <view class="photo-cover" :style="{ background: photo.coverTone }">
+            <text>{{ photo.title.slice(0, 1) }}</text>
+          </view>
+          <view class="photo-review-main">
+            <view class="photo-title-row">
+              <text class="body">{{ photo.title }}</text>
+              <text class="review-chip" :class="reviewClass(photo)">{{ reviewText(photo) }}</text>
+            </view>
+            <text class="muted">{{ photo.auditNote || '审核通过后才会展示并计入收益。' }}</text>
+            <text class="photo-evidence">风险：{{ riskText(photo) }} · 收益：{{ revenueText(photo) }}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="section panel">
       <text class="h2">礼物</text>
       <view class="gift-grid">
         <view v-for="gift in content.gifts" :key="gift.id" class="gift-card" :class="[giftTierClass(gift), { premium: isPremiumGift(gift) }]">
@@ -70,18 +94,50 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import GiftVisual from '@/components/GiftVisual.vue'
 import { showToast } from '@/services/feedback'
 import { useContentStore } from '@/stores/content'
-import type { GiftProduct } from '@/types/domain'
+import type { GiftProduct, PrivatePhoto } from '@/types/domain'
 
 const content = useContentStore()
 const rechargeOptions = [30, 68, 128, 328, 648, 999]
 const paying = ref(false)
+const reviewPhotos = computed<PrivatePhoto[]>(() => {
+  if (content.privatePhotos.some((photo) => photo.reviewStatus)) return content.privatePhotos
+  const rows = content.privatePhotos.map((photo, index) => ({
+    ...photo,
+    reviewStatus: index === 0 ? 'ai_approved' as const : 'manual_required' as const,
+    riskLevel: index === 0 ? 'low_risk' as const : 'medium_risk' as const,
+    revenueState: index === 0 ? 'eligible' as const : 'frozen' as const,
+    auditNote: index === 0 ? 'AI 高置信低风险，自动通过。' : '边界内容进入人工复核，完成前不展示也不结算收益。'
+  }))
+  return [
+    ...rows,
+    {
+      id: 'photo_review_frozen_preview',
+      ownerId: 'creator_risk',
+      ownerName: '风险样例',
+      title: '站外导流截图',
+      coverTone: '#e9d5d5',
+      priceCoins: 40,
+      blurred: true,
+      status: 'rejected',
+      reviewStatus: 'frozen',
+      riskLevel: 'high_risk',
+      revenueState: 'ineligible',
+      modelLabels: ['offsite_contact', 'fraud_risk'],
+      modelConfidence: 0.91,
+      auditNote: '高风险内容冻结，不展示且不产生收益。',
+      purchased: false
+    }
+  ]
+})
 
-onLoad(() => content.loadWallet())
+onLoad(async () => {
+  await Promise.all([content.loadWallet(), content.loadPrivatePhotos()])
+})
 
 async function withdraw() {
   try {
@@ -121,6 +177,39 @@ function giftDescription(gift: GiftProduct) {
   if (isPremiumGift(gift)) return '进场特效'
   if (gift.priceCoins >= 99) return '动态光效'
   return '轻量心意'
+}
+
+function reviewText(photo: PrivatePhoto) {
+  const status = photo.reviewStatus || (photo.status === 'approved' ? 'ai_approved' : photo.status)
+  if (status === 'ai_approved') return 'AI 自动通过'
+  if (status === 'manual_required') return '人工复核'
+  if (status === 'manual_approved') return '人工通过'
+  if (status === 'rejected') return '已拒绝'
+  if (status === 'frozen') return '已冻结'
+  if (status === 'appeal_pending') return '申诉中'
+  return 'AI 审核中'
+}
+
+function reviewClass(photo: PrivatePhoto) {
+  const status = photo.reviewStatus || (photo.status === 'approved' ? 'ai_approved' : photo.status)
+  if (status === 'ai_approved' || status === 'manual_approved') return 'pass'
+  if (status === 'manual_required' || status === 'appeal_pending') return 'pending'
+  if (status === 'rejected' || status === 'frozen') return 'reject'
+  return 'pending'
+}
+
+function riskText(photo: PrivatePhoto) {
+  if (photo.riskLevel === 'low_risk') return '低'
+  if (photo.riskLevel === 'medium_risk') return '中'
+  if (photo.riskLevel === 'high_risk') return '高'
+  return '待评估'
+}
+
+function revenueText(photo: PrivatePhoto) {
+  if (photo.revenueState === 'eligible') return '可结算'
+  if (photo.revenueState === 'frozen') return '冻结中'
+  if (photo.revenueState === 'ineligible') return '不可结算'
+  return photo.status === 'approved' ? '可结算' : '审核中不可结算'
 }
 </script>
 
@@ -223,6 +312,77 @@ function giftDescription(gift: GiftProduct) {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14rpx;
   margin-top: 20rpx;
+}
+
+.photo-review-list {
+  display: grid;
+  gap: 14rpx;
+  margin-top: 20rpx;
+}
+
+.photo-review-row {
+  display: grid;
+  grid-template-columns: 84rpx minmax(0, 1fr);
+  gap: 16rpx;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 8px;
+  padding: 16rpx;
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.photo-cover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 84rpx;
+  height: 84rpx;
+  border-radius: 8px;
+  color: #172126;
+  font-weight: 900;
+}
+
+.photo-review-main,
+.photo-title-row,
+.photo-evidence {
+  min-width: 0;
+}
+
+.photo-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+
+.review-chip {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 6rpx 12rpx;
+  font-size: 20rpx;
+  font-weight: 900;
+}
+
+.review-chip.pass {
+  color: #236c72;
+  background: rgba(35, 108, 114, 0.12);
+}
+
+.review-chip.pending {
+  color: #9a5b00;
+  background: rgba(245, 158, 11, 0.14);
+}
+
+.review-chip.reject {
+  color: #b42318;
+  background: rgba(244, 63, 94, 0.12);
+}
+
+.photo-evidence {
+  display: block;
+  margin-top: 8rpx;
+  color: #475569;
+  font-size: 22rpx;
+  font-weight: 800;
 }
 
 .gift-card {

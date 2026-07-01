@@ -132,6 +132,86 @@ function createAuditLog(action: string, target: string, detail: string) {
   })
 }
 
+function adminReviewExtras(): Pick<AdminDashboard, 'chatAppeals' | 'contextChatRequests' | 'privatePhotoReviews' | 'privatePhotoRiskSummary'> {
+  const privatePhotoReviews: AdminDashboard['privatePhotoReviews'] = [
+    {
+      id: 'mock_photo_review_low',
+      photoId: 'mock_photo_review_low',
+      userId: mockState.user.id,
+      reviewStatus: 'ai_approved',
+      riskLevel: 'low_risk',
+      modelLabels: ['non_explicit', 'no_sensitive_privacy'],
+      confidence: 0.93,
+      autoAction: 'approve',
+      reportCount: 0,
+      revenueState: 'eligible',
+      assignedAdminId: null,
+      updatedAt: nowIso()
+    },
+    {
+      id: 'mock_photo_review_manual',
+      photoId: 'mock_photo_review_manual',
+      userId: mockState.user.id,
+      reviewStatus: 'manual_required',
+      riskLevel: 'medium_risk',
+      modelLabels: ['low_confidence', 'borderline_content'],
+      confidence: 0.62,
+      autoAction: 'manual_review',
+      reportCount: 1,
+      revenueState: 'frozen',
+      assignedAdminId: null,
+      updatedAt: nowIso()
+    },
+    {
+      id: 'mock_photo_review_frozen',
+      photoId: 'mock_photo_review_frozen',
+      userId: mockState.user.id,
+      reviewStatus: 'frozen',
+      riskLevel: 'high_risk',
+      modelLabels: ['high_risk', 'safety_violation'],
+      confidence: 0.96,
+      autoAction: 'freeze',
+      reportCount: 3,
+      revenueState: 'ineligible',
+      assignedAdminId: null,
+      updatedAt: nowIso()
+    }
+  ]
+  return {
+    chatAppeals: [],
+    contextChatRequests: [
+      {
+        id: 'mock_ctx_bottle_001',
+        status: 'reported',
+        conversationId: 'mock_chat_bottle_001',
+        sourceType: 'bottle_reply',
+        sourceId: 'bottle_001',
+        sourceTitle: '基于本次互动开启',
+        participantSummary: '发瓶人 / 捞瓶回应者',
+        rateLimitText: '非好友上下文：6 条/分钟'
+      },
+      {
+        id: 'mock_ctx_plaza_001',
+        status: 'active',
+        conversationId: 'mock_chat_plaza_001',
+        sourceType: 'plaza_comment',
+        sourceId: 'plaza_001:comment_001',
+        sourceTitle: '广场评论继续聊',
+        participantSummary: '动态作者 / 评论用户',
+        rateLimitText: '非好友上下文：6 条/分钟'
+      }
+    ],
+    privatePhotoReviews,
+    privatePhotoRiskSummary: {
+      lowRisk: privatePhotoReviews.filter((item) => item.riskLevel === 'low_risk').length,
+      mediumRisk: privatePhotoReviews.filter((item) => item.riskLevel === 'medium_risk').length,
+      highRisk: privatePhotoReviews.filter((item) => item.riskLevel === 'high_risk').length,
+      manualRequired: privatePhotoReviews.filter((item) => item.reviewStatus === 'manual_required').length,
+      frozen: privatePhotoReviews.filter((item) => item.reviewStatus === 'frozen').length
+    }
+  }
+}
+
 function getAdminDashboardSnapshot(): AdminDashboard {
   return {
     adminSession: cloneAdminSession(),
@@ -145,6 +225,16 @@ function getAdminDashboardSnapshot(): AdminDashboard {
       adRewardPerQuota: mockState.adReward.rewardPerQuota,
       adReward: `所有玩法次数各 +${mockState.adReward.rewardPerQuota}`,
       checkinRewards: [...mockState.checkin.weekRewards],
+      adDisplayType: mockState.adReward.displayType,
+      adProvider: mockState.adReward.provider,
+      adPlacementId: mockState.adReward.placementId,
+      adTitle: mockState.adReward.title,
+      adDescription: mockState.adReward.description,
+      adMediaUrl: mockState.adReward.mediaUrl,
+      adClickUrl: mockState.adReward.clickUrl,
+      adCountdownSeconds: mockState.adReward.countdownSeconds,
+      miniProgramAppId: mockState.adReward.miniProgramAppId,
+      miniProgramPath: mockState.adReward.miniProgramPath,
       quotaNames: quotaFullLabels
     },
     users: mockState.adminUsers.map((item) => ({ ...item })),
@@ -154,6 +244,7 @@ function getAdminDashboardSnapshot(): AdminDashboard {
       participants: [...item.participants],
       messages: item.messages.map((message) => ({ ...message }))
     })),
+    ...adminReviewExtras(),
     reports: mockState.adminReports.map((item) => ({ ...item })),
     adRewardRecords: mockState.adRewardRecords.map((item) => ({
       ...item,
@@ -313,6 +404,7 @@ export const mockApi = {
         mockState.conversationThreads.unshift({
           id: `thread_${id}`,
           bottleId: id,
+          status: 'active',
           participantUserId: bottle.authorId,
           participantName: bottle.authorName,
           participantTag: '漂流瓶回应',
@@ -397,7 +489,7 @@ export const mockApi = {
     mockState.messages.unshift({
       id: `msg_${Date.now()}`,
       title: '好友申请已发送',
-      body: '对方通过后才会打开私信，避免被陌生人直接打扰。',
+      body: '好友用于长期关系沉淀；明确互动上下文内仍可按规则继续聊。',
       createdAt: nowIso(),
       unread: true
     })
@@ -406,8 +498,9 @@ export const mockApi = {
 
   async reportBottle(bottleId: string, reason: string) {
     const bottle = mockState.bottles.find((item) => item.id === bottleId)
+    const reportId = `report_${Date.now()}`
     mockState.adminReports.unshift({
-      id: `report_${Date.now()}`,
+      id: reportId,
       reporterName: mockState.user.nickname,
       targetType: 'bottle',
       targetId: bottleId,
@@ -415,7 +508,9 @@ export const mockApi = {
       reason,
       status: 'pending',
       priority: reason.includes('骚扰') || reason.includes('违规') ? 'high' : 'normal',
-      createdAt: nowIso()
+      createdAt: nowIso(),
+      evidenceRefs: [`report:${reportId}`, `bottle:${bottleId}`, `reporter:${mockState.user.id}`],
+      auditRefs: []
     })
     mockState.messages.unshift({
       id: `msg_${Date.now()}`,
@@ -425,6 +520,57 @@ export const mockApi = {
       unread: true
     })
     return delay({ ok: true })
+  },
+
+  async resolveAdminReport(reportId: string, reason: string, penaltyAction: 'none' | 'limit_user' | 'freeze_chat' = 'none') {
+    const report = mockState.adminReports.find((item) => item.id === reportId)
+    if (!report) throw new Error('REPORT_NOT_FOUND')
+    const beforeStatus = report.status
+    const auditId = `audit_${Date.now()}`
+    const penaltyAuditId = penaltyAction !== 'none' ? `audit_penalty_${Date.now()}` : undefined
+    report.status = 'resolved'
+    report.auditRefs = penaltyAuditId ? [...report.auditRefs, penaltyAuditId, auditId] : [...report.auditRefs, auditId]
+    if (penaltyAction === 'limit_user') {
+      const targetUser = mockState.adminUsers.find((item) => item.nickname === report.targetDisplayName)
+      if (targetUser) targetUser.status = 'limited'
+      mockState.auditLogs.unshift({
+        id: penaltyAuditId || `audit_penalty_${Date.now()}`,
+        operator: '系统管理员',
+        action: '举报限制用户',
+        target: targetUser?.id || report.targetId,
+        detail: `report=${reportId};reason=${reason}`,
+        createdAt: nowIso()
+      })
+    } else if (penaltyAction === 'freeze_chat') {
+      mockState.auditLogs.unshift({
+        id: penaltyAuditId || `audit_penalty_${Date.now()}`,
+        operator: '系统管理员',
+        action: '举报冻结聊天',
+        target: report.targetId,
+        detail: `report=${reportId};after_status=risk_frozen;reason=${reason}`,
+        createdAt: nowIso()
+      })
+    }
+    mockState.auditLogs.unshift({
+      id: auditId,
+      operator: '系统管理员',
+      action: '举报处置',
+      target: reportId,
+      detail: `before=${beforeStatus};after=resolved;reason=${reason};penalty_action=${penaltyAction}`,
+      createdAt: nowIso()
+    })
+    return delay({
+      reportId,
+      beforeStatus,
+      afterStatus: 'resolved' as const,
+      reason,
+      auditId,
+      resolvedAt: nowIso(),
+      penaltyAction,
+      penaltyTargetUserId: undefined,
+      penaltyTargetThreadId: penaltyAction === 'freeze_chat' ? report.targetId : undefined,
+      penaltyAuditId
+    })
   },
 
   async blockUser(userId: string, reason: string) {
@@ -726,6 +872,16 @@ export const mockApi = {
     })
     mockState.adReward.cooldownMinutes = Number(config.adCooldownMinutes)
     mockState.adReward.rewardPerQuota = Number(config.adRewardPerQuota)
+    mockState.adReward.displayType = config.adDisplayType
+    mockState.adReward.provider = config.adProvider
+    mockState.adReward.placementId = config.adPlacementId
+    mockState.adReward.title = config.adTitle
+    mockState.adReward.description = config.adDescription
+    mockState.adReward.mediaUrl = config.adMediaUrl
+    mockState.adReward.clickUrl = config.adClickUrl
+    mockState.adReward.countdownSeconds = Number(config.adCountdownSeconds)
+    mockState.adReward.miniProgramAppId = config.miniProgramAppId
+    mockState.adReward.miniProgramPath = config.miniProgramPath
     mockState.checkin.weekRewards = config.checkinRewards.map((item) => Number(item))
     createAuditLog('保存奖励配置', 'reward_config', '更新玩法基础次数、广告奖励与签到奖励')
     return delay(getAdminDashboardSnapshot())
@@ -765,6 +921,16 @@ export const mockApi = {
         adRewardPerQuota: mockState.adReward.rewardPerQuota,
         adReward: `所有玩法次数各 +${mockState.adReward.rewardPerQuota}`,
         checkinRewards: mockState.checkin.weekRewards,
+        adDisplayType: mockState.adReward.displayType,
+        adProvider: mockState.adReward.provider,
+        adPlacementId: mockState.adReward.placementId,
+        adTitle: mockState.adReward.title,
+        adDescription: mockState.adReward.description,
+        adMediaUrl: mockState.adReward.mediaUrl,
+        adClickUrl: mockState.adReward.clickUrl,
+        adCountdownSeconds: mockState.adReward.countdownSeconds,
+        miniProgramAppId: mockState.adReward.miniProgramAppId,
+        miniProgramPath: mockState.adReward.miniProgramPath,
         quotaNames: quotaFullLabels
       },
       users: mockState.adminUsers.map((item) => ({ ...item })),
@@ -774,6 +940,7 @@ export const mockApi = {
         participants: [...item.participants],
         messages: item.messages.map((message) => ({ ...message }))
       })),
+      ...adminReviewExtras(),
       reports: mockState.adminReports.map((item) => ({ ...item })),
       adRewardRecords: mockState.adRewardRecords.map((item) => ({
         ...item,

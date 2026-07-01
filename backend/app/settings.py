@@ -12,6 +12,8 @@ class Settings(BaseModel):
     admin_mock_username: str = "admin"
     admin_mock_password: str = "admin_mock_password"
     admin_mock_token: str = "mock-admin-token"
+    admin_accounts: str = "admin:admin_mock_password:admin,moderator;moderator:moderator_mock_password:moderator;risk:risk_mock_password:risk"
+    admin_token_secret: str = "dev-admin-token-secret"
     admin_token_expires_seconds: int = 3600
 
 
@@ -25,6 +27,8 @@ def get_settings() -> Settings:
         admin_mock_username=os.getenv("ADMIN_MOCK_USERNAME", Settings.model_fields["admin_mock_username"].default),
         admin_mock_password=os.getenv("ADMIN_MOCK_PASSWORD", Settings.model_fields["admin_mock_password"].default),
         admin_mock_token=os.getenv("ADMIN_MOCK_TOKEN", Settings.model_fields["admin_mock_token"].default),
+        admin_accounts=os.getenv("ADMIN_ACCOUNTS", Settings.model_fields["admin_accounts"].default),
+        admin_token_secret=os.getenv("ADMIN_TOKEN_SECRET", Settings.model_fields["admin_token_secret"].default),
         admin_token_expires_seconds=int(
             os.getenv(
                 "ADMIN_TOKEN_EXPIRES_SECONDS",

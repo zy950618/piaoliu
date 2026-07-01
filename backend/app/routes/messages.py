@@ -4,6 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import db_business
 from app.db import get_db_session
 from app.schemas import (
+    ChatAppealCreateRequest,
+    ChatAppealOut,
     ConversationGiftResponse,
     ConversationGiftRequest,
     ConversationThreadOut,
@@ -26,9 +28,24 @@ async def mark_messages_read(session: AsyncSession = Depends(get_db_session)) ->
     return await db_business.mark_messages_read(session)
 
 
+@router.post("/messages/{message_id}/read", response_model=MessageItemOut)
+async def mark_message_read(message_id: str, session: AsyncSession = Depends(get_db_session)) -> MessageItemOut:
+    return await db_business.mark_message_read(session, message_id)
+
+
 @router.get("/conversations", response_model=list[ConversationThreadOut])
 async def list_conversations(session: AsyncSession = Depends(get_db_session)) -> list[ConversationThreadOut]:
     return await db_business.list_threads(session)
+
+
+@router.post("/conversations/{thread_id}/read", response_model=ConversationThreadOut)
+async def mark_conversation_read(thread_id: str, session: AsyncSession = Depends(get_db_session)) -> ConversationThreadOut:
+    return await db_business.mark_thread_read(session, thread_id)
+
+
+@router.post("/conversations/{thread_id}/appeal", response_model=ChatAppealOut)
+async def create_chat_appeal(thread_id: str, payload: ChatAppealCreateRequest, session: AsyncSession = Depends(get_db_session)) -> ChatAppealOut:
+    return await db_business.create_chat_appeal(session, thread_id, payload.reason)
 
 
 @router.post("/conversations/{thread_id}/turns", response_model=ConversationThreadOut)

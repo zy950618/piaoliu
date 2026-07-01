@@ -19,9 +19,15 @@ _audit_logs = [
 ]
 
 
-def record_admin_audit(actor: str, action: str, target_type: str, target_id: str) -> AdminAuditLogOut:
+def record_admin_audit(
+    actor: str,
+    action: str,
+    target_type: str,
+    target_id: str,
+    audit_id: str | None = None,
+) -> AdminAuditLogOut:
     entry = AdminAuditLogOut(
-        id=f"audit_{len(_audit_logs) + 1:03d}",
+        id=audit_id or f"audit_{len(_audit_logs) + 1:03d}",
         actor=actor,
         action=action,
         target_type=target_type,

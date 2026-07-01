@@ -4,13 +4,16 @@ import sqlite3
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app import db_business
+from app import chat_store, db_business
 
 
 client = TestClient(app)
 DEFAULT_USER_ID = "100000000001"
 CREATOR_001_ID = "200000000001"
+CREATOR_002_ID = "200000000002"
+CREATOR_003_ID = "200000000003"
 CREATOR_004_ID = "200000000004"
+CREATOR_006_ID = "200000000006"
 
 
 def admin_headers() -> dict[str, str]:
@@ -187,6 +190,52 @@ def test_prompt_and_membership_configs_are_database_backed():
     assert product_count >= 3
 
 
+def test_game_random_match_uses_game_quota_and_filters():
+    before = client.get("/quota/today").json()["truth"]["remaining"]
+    payload = {
+        "mode": "truth",
+        "gender": "female",
+        "age_range": "25-30",
+        "client_match_id": "contract_match_001",
+    }
+    first = client.post("/game/random-match", json=payload)
+    second = client.post("/game/random-match", json=payload)
+    after = client.get("/quota/today").json()["truth"]["remaining"]
+
+    assert first.status_code == 200
+    data = first.json()
+    assert data["status"] == "matched"
+    assert data["mode"] == "truth"
+    assert data["source_type"] == "game_room"
+    assert data["source_id"] == data["room_id"]
+    assert data["evidence_id"] == f"game_random_match:{data['room_id']}"
+    assert data["next_action"] == "wait_confirm"
+    assert data["target_user"]["gender"] == "female"
+    assert data["target_user"]["age_range"] == "25-30"
+    assert data["quota"]["type"] == "truth"
+    assert data["quota"]["remaining"] == before - 1
+    assert second.status_code == 200
+    assert second.json()["quota"]["remaining"] == before - 1
+    assert after == before - 1
+
+
+def test_game_random_match_no_match_does_not_consume_quota():
+    before = client.get("/quota/today").json()["dare"]["remaining"]
+    response = client.post(
+        "/game/random-match",
+        json={
+            "mode": "dare",
+            "gender": "female",
+            "age_range": "77-88",
+            "client_match_id": "contract_match_no_result",
+        },
+    )
+    after = client.get("/quota/today").json()["dare"]["remaining"]
+
+    assert response.status_code == 404
+    assert after == before
+
+
 def test_ad_reward_commit_is_idempotent():
     prepared = client.post("/ads/reward/prepare").json()
     first = client.post(
@@ -228,6 +277,174 @@ def test_private_photo_unlock_spends_recharge_coin_only():
     assert after < before
 
 
+def test_private_photo_low_risk_ai_auto_approved_and_unlockable():
+    uploaded = client.post(
+        "/private-photos",
+        json={
+            "file_id": "safe_low_contract_001",
+            "caption": "safe daily photo",
+            "client_upload_id": "upload_low_contract_001",
+        },
+    )
+    photo_id = uploaded.json()["id"]
+    detail = client.get(f"/private-photos/{photo_id}")
+    unlocked = client.post(f"/private-photos/{photo_id}/unlock")
+
+    assert uploaded.status_code == 200
+    assert uploaded.json()["review_status"] == "ai_approved"
+    assert uploaded.json()["risk_level"] == "low_risk"
+    assert uploaded.json()["revenue_state"] == "eligible"
+    assert "non_explicit" in uploaded.json()["model_labels"]
+    assert detail.status_code == 200
+    assert detail.json()["id"] == photo_id
+    assert unlocked.status_code == 200
+    assert unlocked.json()["creator_revenue_state"] == "eligible"
+    assert unlocked.json()["audit_id"].startswith("audit_")
+
+
+def test_private_photo_medium_risk_requires_manual_review_then_can_release_revenue():
+    headers = admin_headers()
+    uploaded = client.post(
+        "/private-photos",
+        json={
+            "file_id": "manual_borderline_contract_001",
+            "caption": "manual borderline low_confidence",
+            "client_upload_id": "upload_manual_contract_001",
+        },
+    )
+    photo_id = uploaded.json()["id"]
+    pending_unlock = client.post(f"/private-photos/{photo_id}/unlock")
+    reviewed = client.post(
+        f"/admin/private-photos/reviews/{photo_id}/review",
+        json={
+            "action": "approve",
+            "reason": "人工复核通过",
+            "manual_labels": ["manual_safe"],
+            "revenue_action": "release",
+        },
+        headers=headers,
+    )
+    unlocked = client.post(f"/private-photos/{photo_id}/unlock")
+
+    assert uploaded.status_code == 200
+    assert uploaded.json()["review_status"] == "manual_required"
+    assert uploaded.json()["risk_level"] == "medium_risk"
+    assert uploaded.json()["revenue_state"] == "frozen"
+    assert pending_unlock.status_code == 409
+    assert pending_unlock.json()["error"]["code"] == "PHOTO_REVIEW_PENDING"
+    assert reviewed.status_code == 200
+    assert reviewed.json()["before_status"] == "manual_required"
+    assert reviewed.json()["after_status"] == "manual_approved"
+    assert reviewed.json()["after_revenue_state"] == "eligible"
+    assert unlocked.status_code == 200
+    assert unlocked.json()["creator_revenue_state"] == "eligible"
+
+
+def test_private_photo_high_risk_frozen_and_not_unlockable():
+    uploaded = client.post(
+        "/private-photos",
+        json={
+            "file_id": "minor_fraud_high_contract_001",
+            "caption": "minor fraud high",
+            "client_upload_id": "upload_high_contract_001",
+        },
+    )
+    photo_id = uploaded.json()["id"]
+    unlocked = client.post(f"/private-photos/{photo_id}/unlock")
+
+    assert uploaded.status_code == 200
+    assert uploaded.json()["review_status"] == "frozen"
+    assert uploaded.json()["risk_level"] == "high_risk"
+    assert uploaded.json()["revenue_state"] == "ineligible"
+    assert unlocked.status_code == 409
+    assert unlocked.json()["error"]["code"] == "PHOTO_FROZEN"
+
+
+def test_private_photo_frozen_asset_can_be_appealed_and_persists():
+    uploaded = client.post(
+        "/private-photos",
+        json={
+            "file_id": "minor_fraud_high_contract_appeal",
+            "caption": "minor fraud high appeal",
+            "client_upload_id": "upload_high_contract_appeal",
+        },
+    )
+    photo_id = uploaded.json()["id"]
+    appealed = client.post(
+        f"/private-photos/{photo_id}/appeal",
+        json={"reason": "误判申诉，要求人工复核"},
+    )
+    detail = client.get(f"/private-photos/{photo_id}")
+    pending_unlock = client.post(f"/private-photos/{photo_id}/unlock")
+
+    assert uploaded.status_code == 200
+    assert uploaded.json()["review_status"] == "frozen"
+    assert appealed.status_code == 200
+    assert appealed.json()["review_status"] == "appeal_pending"
+    assert appealed.json()["revenue_state"] == "frozen"
+    assert appealed.json()["audit_id"].startswith("audit_")
+    audit_id = appealed.json()["audit_id"]
+    assert detail.status_code == 200
+    assert detail.json()["appeal_state"].startswith("pending:")
+    assert audit_id in detail.json()["audit_refs"]
+    assert pending_unlock.status_code == 409
+    assert pending_unlock.json()["error"]["code"] == "PHOTO_REVIEW_PENDING"
+
+    with sqlite3.connect(os.environ["PLAZA_SQLITE_PATH"]) as conn:
+        persisted = conn.execute(
+            "select status, revenue_state, appeal_state from private_photo_assets where id = ?",
+            (photo_id,),
+        ).fetchone()
+        audit_persisted = conn.execute(
+            "select action, target_id from admin_audit_logs where id = ?",
+            (audit_id,),
+        ).fetchone()
+    assert audit_persisted == ("private_photo_appeal", photo_id)
+    assert persisted == ("appeal_pending", "frozen", "pending:误判申诉，要求人工复核")
+
+
+def test_validation_error_includes_field_codes():
+    response = client.post("/private-photos/photo_missing/appeal", json={"reason": ""})
+
+    assert response.status_code == 422
+    payload = response.json()["error"]
+    assert payload["code"] == "VALIDATION_ERROR"
+    field_errors = payload["details"]["field_errors"]
+    assert field_errors[0]["field"] == "body.reason"
+    assert field_errors[0]["code"] == "FIELD_TOO_SHORT"
+    assert payload["details"]["raw_errors"]
+
+
+def test_admin_private_photo_reviews_filter_and_risk_summary():
+    headers = admin_headers()
+    client.post(
+        "/private-photos",
+        json={
+            "file_id": "safe_low_contract_002",
+            "caption": "safe second photo",
+            "client_upload_id": "upload_low_contract_002",
+        },
+    )
+    client.post(
+        "/private-photos",
+        json={
+            "file_id": "manual_contract_002",
+            "caption": "manual borderline",
+            "client_upload_id": "upload_manual_contract_002",
+        },
+    )
+    reviews = client.get("/admin/private-photos/reviews", params={"risk_level": "medium_risk"}, headers=headers)
+    summary = client.get("/admin/private-photos/risk-summary", headers=headers)
+
+    assert reviews.status_code == 200
+    assert reviews.json()
+    assert all(item["risk_level"] == "medium_risk" for item in reviews.json())
+    assert summary.status_code == 200
+    assert summary.json()["low_risk"] >= 1
+    assert summary.json()["medium_risk"] >= 1
+    assert "manual_required" in summary.json()
+
+
 def test_verification_and_nearby_contracts_exist():
     verification = client.get("/verification")
     nearby = client.get("/nearby/users")
@@ -235,6 +452,7 @@ def test_verification_and_nearby_contracts_exist():
     assert verification.status_code == 200
     assert verification.json()["verification"]["gender_verified"] is True
     assert nearby.status_code == 200
+    assert nearby.json()[0]["icon_url"].startswith("https://api.dicebear.com/9.x/open-peeps/svg")
     assert plaza.status_code == 200
     media_post = next(item for item in plaza.json() if item["media"])
     assert "view_count" in media_post
@@ -440,10 +658,12 @@ def test_plaza_hidden_comments_visibility_contract():
 
 
 def test_nearby_users_filters_contract():
-    filtered = client.get("/nearby/users", params={"gender": "女", "age_range": "25-30", "distance_km": 3})
+    filtered = client.get("/nearby/users", params={"city": "杭州", "gender": "女", "age_range": "24-31"})
     assert filtered.status_code == 200
     assert filtered.json()
-    assert all(item["gender"] == "female" and item["age_range"] == "25-30" and item["distance_km"] <= 3 for item in filtered.json())
+    assert all(item["city"] == "杭州" and item["gender"] == "female" for item in filtered.json())
+    assert {item["age_range"] for item in filtered.json()} <= {"18-24", "25-30"}
+    assert all(item["icon_url"].startswith("https://api.dicebear.com/9.x/open-peeps/svg") for item in filtered.json())
 
 
 def test_checkin_is_idempotent_for_today():
@@ -513,6 +733,271 @@ def test_chat_moderation_and_flash_view_are_backend_controlled():
     assert viewed.json()["turns"][-1]["flash_viewed"] is True
 
 
+def test_context_chat_requires_interaction_source():
+    response = client.post(
+        "/chat/context-requests",
+        json={
+            "target_user_id": CREATOR_001_ID,
+            "source_type": "bottle_reply",
+            "initiator_action": "continue_chat",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "CHAT_CONTEXT_REQUIRED"
+
+
+def test_context_chat_bottle_reply_accept_creates_active_conversation():
+    target_headers = {"X-User-Id": CREATOR_001_ID}
+    created = client.post(
+        "/chat/context-requests",
+        json={
+            "target_user_id": CREATOR_001_ID,
+            "source_type": "bottle_reply",
+            "source_id": "bottle_001",
+            "reply_id": "reply_contract_001",
+            "initiator_action": "continue_chat",
+            "evidence_id": "reply_contract_001",
+        },
+    )
+    accepted = client.post(
+        f"/chat/context-requests/{created.json()['id']}/accept",
+        json={"confirm_action": "reply", "evidence_id": "author_reply_contract_001"},
+        headers=target_headers,
+    )
+    conversation_id = accepted.json()["conversation_id"]
+    listed = client.get("/chat/conversations")
+    detail = client.get(f"/chat/conversations/{conversation_id}")
+    sent = client.post(
+        f"/chat/conversations/{conversation_id}/messages",
+        json={"content_type": "text", "content": "基于这次瓶子回应继续聊。", "client_message_id": "msg_context_contract_001"},
+    )
+
+    assert created.status_code == 200
+    assert created.json()["status"] == "pending"
+    assert created.json()["source_type"] == "bottle_reply"
+    assert accepted.status_code == 200
+    assert accepted.json()["status"] == "active"
+    assert listed.status_code == 200
+    assert any(item["id"] == conversation_id and item["status"] == "active" for item in listed.json())
+    assert detail.status_code == 200
+    assert detail.json()["source_id"] == "bottle_001"
+    assert detail.json()["source_summary"]["title"] == "基于本次互动开启"
+    assert sent.status_code == 200
+    assert sent.json()["status"] == "sent"
+    assert sent.json()["audit_id"].startswith("audit_")
+
+
+def test_message_invitation_card_accept_reject_and_second_open_contract():
+    invitation_headers = {"X-Client-Id": "loop20_invitation_user"}
+    listed = client.get("/chat/context-requests", headers=invitation_headers)
+    pending = next(item for item in listed.json() if item["status"] == "pending" and item["source_type"] == "game_room")
+    accepted = client.post(
+        f"/chat/context-requests/{pending['id']}/accept",
+        json={"confirm_action": "room_confirm", "evidence_id": f"message_invite_accept:{pending['id']}"},
+        headers=invitation_headers,
+    )
+    second_list = client.get("/chat/context-requests", headers=invitation_headers)
+    active_card = next(item for item in second_list.json() if item["id"] == pending["id"])
+    detail = client.get(f"/chat/conversations/{accepted.json()['conversation_id']}", headers=invitation_headers)
+
+    reject_headers = {"X-Client-Id": "loop20_reject_user"}
+    reject_list = client.get("/chat/context-requests", headers=reject_headers)
+    reject_pending = next(item for item in reject_list.json() if item["status"] == "pending")
+    rejected = client.post(
+        f"/chat/context-requests/{reject_pending['id']}/reject",
+        json={"reason": "user_cancel_from_messages"},
+        headers=reject_headers,
+    )
+
+    assert listed.status_code == 200
+    assert pending["source_summary"]["title"] == "游戏房间邀请"
+    assert accepted.status_code == 200
+    assert accepted.json()["status"] == "active"
+    assert accepted.json()["conversation_id"]
+    assert second_list.status_code == 200
+    assert active_card["status"] == "active"
+    assert active_card["conversation_id"] == accepted.json()["conversation_id"]
+    assert detail.status_code == 200
+    assert detail.json()["status"] == "active"
+    assert detail.json()["source_type"] == "game_room"
+    assert rejected.status_code == 200
+    assert rejected.json()["status"] == "expired"
+
+
+def test_context_conversation_survives_memory_store_reset():
+    headers = {"X-Client-Id": "loop21_persist_user"}
+    target_headers = {"X-User-Id": CREATOR_003_ID}
+    created = client.post(
+        "/chat/context-requests",
+        json={
+            "target_user_id": CREATOR_003_ID,
+            "source_type": "plaza_comment",
+            "source_id": "plaza_001:loop21_comment",
+            "initiator_action": "continue_chat",
+            "evidence_id": "loop21_comment_evidence",
+        },
+        headers=headers,
+    )
+    accepted = client.post(
+        f"/chat/context-requests/{created.json()['id']}/accept",
+        json={"confirm_action": "reply", "evidence_id": "loop21_accept"},
+        headers=target_headers,
+    )
+    conversation_id = accepted.json()["conversation_id"]
+    sent = client.post(
+        f"/chat/conversations/{conversation_id}/messages",
+        json={"content_type": "text", "content": "restart persistence message", "client_message_id": "msg_loop21_persist"},
+        headers=headers,
+    )
+
+    chat_store.context_requests.clear()
+    chat_store.conversations.clear()
+    chat_store.blocked_pairs.clear()
+    chat_store.reports.clear()
+
+    detail = client.get(f"/chat/conversations/{conversation_id}", headers=headers)
+    listed = client.get("/chat/conversations", headers=headers)
+
+    assert created.status_code == 200
+    assert accepted.status_code == 200
+    assert sent.status_code == 200
+    assert detail.status_code == 200
+    assert detail.json()["id"] == conversation_id
+    assert detail.json()["messages"][-1]["content"] == "restart persistence message"
+    assert any(item["id"] == conversation_id for item in listed.json())
+
+
+def test_context_chat_report_is_visible_to_admin_queue():
+    headers = admin_headers()
+    target_headers = {"X-User-Id": CREATOR_004_ID}
+    created = client.post(
+        "/chat/context-requests",
+        json={
+            "target_user_id": CREATOR_004_ID,
+            "source_type": "plaza_comment",
+            "source_id": "plaza_001:comment_contract_001",
+            "initiator_action": "continue_chat",
+            "evidence_id": "comment_contract_001",
+        },
+    )
+    accepted = client.post(
+        f"/chat/context-requests/{created.json()['id']}/accept",
+        json={"confirm_action": "reply", "evidence_id": "plaza_author_reply_contract_001"},
+        headers=target_headers,
+    )
+    conversation_id = accepted.json()["conversation_id"]
+    reported = client.post(
+        f"/chat/conversations/{conversation_id}/report",
+        json={"reason": "harassment", "message_ids": [], "description": "contract report"},
+    )
+    admin_detail = client.get(f"/admin/chat/conversations/{conversation_id}", headers=headers)
+    admin_requests = client.get("/admin/chat/context-requests", headers=headers)
+
+    assert reported.status_code == 200
+    assert reported.json()["conversation_status"] == "reported"
+    assert admin_detail.status_code == 200
+    assert admin_detail.json()["status"] == "reported"
+    assert admin_detail.json()["report_state"] == "reported"
+    assert admin_detail.json()["source_type"] == "plaza_comment"
+    assert admin_requests.status_code == 200
+    assert any(item["id"] == created.json()["id"] for item in admin_requests.json())
+
+
+def test_match_expand_context_request_is_free_for_vip_user():
+    before = client.get("/me/status").json()["user"]["drift_coins"]
+    response = client.post("/chat/match-expand-requests", json={"target_user_id": CREATOR_006_ID})
+    after = client.get("/me/status").json()["user"]["drift_coins"]
+    thread = client.post(f"/conversations/{response.json()['thread_id']}/read")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["gate"] == "vip"
+    assert data["cost_coins"] == 0
+    assert data["remaining_drift_coins"] == before
+    assert after == before
+    assert data["thread_id"]
+    assert data["request"]["status"] == "active"
+    assert data["request"]["conversation_id"] == data["thread_id"]
+    assert data["request"]["source_type"] == "match_expand"
+    assert data["request"]["source_id"] == f"nearby:{CREATOR_006_ID}"
+    assert thread.status_code == 200
+    assert thread.json()["participant_user_id"] == CREATOR_006_ID
+    assert thread.json()["participant_avatar_url"].startswith("https://api.dicebear.com/9.x/open-peeps/svg")
+
+
+def test_match_expand_context_request_costs_five_coins_for_non_vip_user():
+    headers = {"X-User-Id": CREATOR_002_ID}
+    before = client.get("/me/status", headers=headers).json()["user"]["drift_coins"]
+    response = client.post("/chat/match-expand-requests", json={"target_user_id": CREATOR_003_ID}, headers=headers)
+    after = client.get("/me/status", headers=headers).json()["user"]["drift_coins"]
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["gate"] == "drift_coins"
+    assert data["cost_coins"] == 5
+    assert data["remaining_drift_coins"] == before - 5
+    assert after == before - 5
+    assert data["thread_id"]
+    assert data["request"]["status"] == "active"
+    assert data["request"]["conversation_id"] == data["thread_id"]
+    assert data["request"]["source_type"] == "match_expand"
+    assert data["request"]["source_id"] == f"nearby:{CREATOR_003_ID}"
+
+
+def test_match_expand_context_request_reuses_existing_chat_without_second_charge():
+    headers = {"X-User-Id": CREATOR_002_ID}
+    before = client.get("/me/status", headers=headers).json()["user"]["drift_coins"]
+    first = client.post("/chat/match-expand-requests", json={"target_user_id": CREATOR_004_ID}, headers=headers)
+    after_first = client.get("/me/status", headers=headers).json()["user"]["drift_coins"]
+    second = client.post("/chat/match-expand-requests", json={"target_user_id": CREATOR_004_ID}, headers=headers)
+    after_second = client.get("/me/status", headers=headers).json()["user"]["drift_coins"]
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["request"]["id"] == second.json()["request"]["id"]
+    assert first.json()["thread_id"] == second.json()["thread_id"]
+    assert first.json()["cost_coins"] == 5
+    assert second.json()["cost_coins"] == 0
+    assert second.json()["request"]["status"] == "active"
+    assert before - after_first == 5
+    assert after_second == after_first
+
+
+def test_context_chat_block_prevents_messages():
+    target_headers = {"X-User-Id": CREATOR_004_ID}
+    created = client.post(
+        "/chat/context-requests",
+        json={
+            "target_user_id": CREATOR_004_ID,
+            "source_type": "treehole_comment",
+            "source_id": "tree_001:comment_contract_001",
+            "initiator_action": "continue_chat",
+            "evidence_id": "tree_comment_contract_001",
+        },
+    )
+    accepted = client.post(
+        f"/chat/context-requests/{created.json()['id']}/accept",
+        json={"confirm_action": "reply", "evidence_id": "tree_author_reply_contract_001"},
+        headers=target_headers,
+    )
+    conversation_id = accepted.json()["conversation_id"]
+    blocked = client.post(
+        f"/chat/conversations/{conversation_id}/block",
+        json={"target_user_id": DEFAULT_USER_ID, "reason": "不再接收"},
+        headers=target_headers,
+    )
+    denied = client.post(
+        f"/chat/conversations/{conversation_id}/messages",
+        json={"content_type": "text", "content": "blocked message"},
+    )
+
+    assert blocked.status_code == 200
+    assert blocked.json()["conversation_status"] == "blocked"
+    assert denied.status_code == 403
+    assert denied.json()["error"]["code"] == "CHAT_BLOCKED"
+
+
 def test_conversations_are_user_scoped_and_admin_chats_are_monitored():
     headers = admin_headers()
     conversations = client.get("/conversations")
@@ -541,6 +1026,348 @@ def test_conversations_are_user_scoped_and_admin_chats_are_monitored():
     assert game_chat["room_mode"] in {"truth", "dare", "mixed"}
 
 
+def test_conversation_read_endpoint_clears_thread_unread_count():
+    conversations = client.get("/conversations")
+    assert conversations.status_code == 200
+    rows = conversations.json()
+    thread = next((item for item in rows if item["unread_count"] > 0), rows[0])
+
+    marked = client.post(f"/conversations/{thread['id']}/read")
+    listed = client.get("/conversations")
+    updated = next(item for item in listed.json() if item["id"] == thread["id"])
+
+    assert marked.status_code == 200
+    assert marked.json()["id"] == thread["id"]
+    assert marked.json()["unread_count"] == 0
+    assert updated["unread_count"] == 0
+
+
+def test_message_read_endpoint_clears_only_one_notification():
+    messages = client.get("/messages")
+    assert messages.status_code == 200
+    unread_messages = [item for item in messages.json() if item["unread"]]
+    message = unread_messages[0] if unread_messages else messages.json()[0]
+
+    marked = client.post(f"/messages/{message['id']}/read")
+    listed = client.get("/messages")
+    updated = next(item for item in listed.json() if item["id"] == message["id"])
+
+    assert marked.status_code == 200
+    assert marked.json()["id"] == message["id"]
+    assert marked.json()["unread"] is False
+    assert updated["unread"] is False
+
+
+def test_admin_reports_support_evidence_search_filters():
+    headers = admin_headers()
+    reports = client.get("/admin/reports", headers=headers)
+    assert reports.status_code == 200
+    rows = reports.json()
+    assert rows
+    assert all(item["evidence_refs"] for item in rows)
+
+    chat = next(item for item in rows if item["target_type"] == "chat")
+    filtered = client.get(
+        "/admin/reports",
+        params={"target_type": "chat", "status": chat["status"], "q": chat["target_id"]},
+        headers=headers,
+    )
+    assert filtered.status_code == 200
+    filtered_rows = filtered.json()
+    assert filtered_rows
+    assert all(item["target_type"] == "chat" for item in filtered_rows)
+    assert all(item["status"] == chat["status"] for item in filtered_rows)
+    assert any(chat["target_id"] in item["evidence_refs"] or item["target_id"] == chat["target_id"] for item in filtered_rows)
+
+
+def test_admin_report_resolve_updates_status_and_writes_audit():
+    headers = admin_headers()
+    reports = client.get("/admin/reports", headers=headers)
+    assert reports.status_code == 200
+    report = next(item for item in reports.json() if item["status"] != "resolved")
+
+    resolved = client.post(
+        f"/admin/reports/{report['id']}/resolve",
+        json={"action": "resolve", "reason": "证据已核对，关闭举报"},
+        headers=headers,
+    )
+    listed = client.get("/admin/reports", headers=headers)
+    updated = next(item for item in listed.json() if item["id"] == report["id"])
+    audit = client.get("/admin/audit", headers=headers)
+
+    assert resolved.status_code == 200
+    assert resolved.json()["report_id"] == report["id"]
+    assert resolved.json()["before_status"] == report["status"]
+    assert resolved.json()["after_status"] == "resolved"
+    assert resolved.json()["audit_id"]
+    assert updated["status"] == "resolved"
+    assert resolved.json()["audit_id"] in updated["audit_refs"]
+    assert any(item["id"] == resolved.json()["audit_id"] and item["action"] == "report_resolve" for item in audit.json())
+
+
+def test_admin_report_resolve_can_limit_reported_chat_user_and_expose_audit_detail():
+    headers = admin_headers()
+    reports = client.get("/admin/reports", headers=headers)
+    assert reports.status_code == 200
+    report = next(item for item in reports.json() if item["target_type"] == "chat")
+    chats = client.get("/admin/chats", headers=headers)
+    assert chats.status_code == 200
+    chat = next(item for item in chats.json() if item["thread_id"] == report["target_id"])
+    target_user_id = next(user_id for user_id in chat["participant_user_ids"] if user_id != report["reporter_id"])
+
+    resolved = client.post(
+        f"/admin/reports/{report['id']}/resolve",
+        json={"action": "resolve", "reason": "聊天违规，限制账号", "penalty_action": "limit_user"},
+        headers=headers,
+    )
+    users = client.get("/admin/users", headers=headers)
+    target_user = next(item for item in users.json() if item["id"] == target_user_id)
+    audit = client.get("/admin/audit", headers=headers)
+    resolve_audit = next(item for item in audit.json() if item["id"] == resolved.json()["audit_id"])
+
+    assert resolved.status_code == 200
+    assert resolved.json()["after_status"] == "resolved"
+    assert resolved.json()["penalty_action"] == "limit_user"
+    assert resolved.json()["penalty_target_user_id"] == target_user_id
+    assert resolved.json()["penalty_audit_id"]
+    assert target_user["status"] == "limited"
+    assert "penalty_action=limit_user" in resolve_audit["detail"]
+    assert target_user_id in resolve_audit["detail"]
+
+
+def test_admin_report_resolve_can_freeze_chat_and_block_new_message():
+    headers = admin_headers()
+    threads = client.get("/conversations")
+    assert threads.status_code == 200
+    thread = next(item for item in threads.json() if item["status"] == "active")
+    report_created = client.post(
+        "/reports",
+        json={"target_type": "chat", "target_id": thread["id"], "reason": "LOOP-39 冻结通知测试"},
+    )
+    assert report_created.status_code == 200
+    report = report_created.json()
+
+    resolved = client.post(
+        f"/admin/reports/{report['id']}/resolve",
+        json={"action": "resolve", "reason": "聊天风险冻结", "penalty_action": "freeze_chat"},
+        headers=headers,
+    )
+    listed = client.get("/admin/reports", params={"q": report["id"]}, headers=headers)
+    updated = next(item for item in listed.json() if item["id"] == report["id"])
+    denied = client.post(
+        f"/conversations/{report['target_id']}/turns",
+        json={"body": "frozen chat message"},
+    )
+    messages = client.get("/messages")
+    freeze_notice = next(
+        item
+        for item in messages.json()
+        if item["business_type"] == "chat_freeze" and item["business_id"] == report["target_id"]
+    )
+    frozen_thread = client.post(f"/conversations/{report['target_id']}/read")
+    audit = client.get("/admin/audit", headers=headers)
+    resolve_audit = next(item for item in audit.json() if item["id"] == resolved.json()["audit_id"])
+
+    assert resolved.status_code == 200
+    assert resolved.json()["after_status"] == "resolved"
+    assert resolved.json()["penalty_action"] == "freeze_chat"
+    assert resolved.json()["penalty_target_thread_id"] == report["target_id"]
+    assert resolved.json()["penalty_audit_id"]
+    assert "thread_status:risk_frozen" in updated["evidence_refs"]
+    assert denied.status_code == 403
+    assert denied.json()["error"]["code"] == "CHAT_RISK_FROZEN"
+    assert messages.status_code == 200
+    assert "申诉" in freeze_notice["body"]
+    assert frozen_thread.status_code == 200
+    assert frozen_thread.json()["status"] == "risk_frozen"
+    assert "申诉" in frozen_thread.json()["frozen_notice"]
+    assert "penalty_action=freeze_chat" in resolve_audit["detail"]
+    assert report["target_id"] in resolve_audit["detail"]
+
+
+def test_admin_report_resolve_can_offline_reported_content_and_expose_audit_detail():
+    headers = admin_headers()
+    bottle = client.post("/bottles", json={"content": "LOOP-43 被举报下线的漂流瓶"})
+    plaza = client.post("/plaza/posts", json={"content": "LOOP-43 被举报下线的广场帖子", "media_type": "text", "media_count": 0})
+    comment = client.post(f"/plaza/posts/{plaza.json()['id']}/comments", json={"content": "LOOP-43 被举报下线的留言"})
+    comment_id = next(item["id"] for item in client.get(f"/plaza/posts/{plaza.json()['id']}/comments").json() if item["content"] == "LOOP-43 被举报下线的留言")
+
+    targets = [
+        ("bottle", bottle.json()["id"], "bottle"),
+        ("plaza", plaza.json()["id"], "plaza"),
+        ("reply", comment_id, "plaza_comment"),
+    ]
+    resolved_payloads = []
+    for target_type, target_id, content_type in targets:
+        report = client.post(
+            "/reports",
+            json={"target_type": target_type, "target_id": target_id, "reason": f"LOOP-43 offline {content_type}"},
+        )
+        assert report.status_code == 200
+        resolved = client.post(
+            f"/admin/reports/{report.json()['id']}/resolve",
+            json={"action": "resolve", "reason": "举报属实，下线目标内容", "penalty_action": "offline_content"},
+            headers=headers,
+        )
+        assert resolved.status_code == 200
+        assert resolved.json()["penalty_action"] == "offline_content"
+        assert resolved.json()["penalty_target_content_id"] == target_id
+        assert resolved.json()["penalty_target_content_type"] == content_type
+        assert resolved.json()["penalty_audit_id"]
+        resolved_payloads.append((report.json()["id"], target_id, content_type, resolved.json()))
+
+    bottles = client.get("/bottles")
+    plaza_posts = client.get("/plaza/posts")
+    comments = client.get(f"/plaza/posts/{plaza.json()['id']}/comments")
+    reports = client.get("/admin/reports", params={"q": "LOOP-43 offline"}, headers=headers)
+    messages = client.get("/messages")
+    audit = client.get("/admin/audit", headers=headers)
+
+    assert bottles.status_code == 200
+    assert plaza_posts.status_code == 200
+    assert comments.status_code == 200
+    assert all(item["id"] != bottle.json()["id"] for item in bottles.json())
+    assert all(item["id"] != plaza.json()["id"] for item in plaza_posts.json())
+    assert all(item["id"] != comment_id for item in comments.json())
+    assert len(reports.json()) >= 3
+    assert all("content_status:rejected" in item["evidence_refs"] for item in reports.json() if item["reason"].startswith("LOOP-43 offline"))
+    assert any(item["business_type"] == "content_offline" and item["business_id"] == bottle.json()["id"] for item in messages.json())
+    assert any(item["action"] == "report_penalty_offline_content" for item in audit.json())
+    for _, target_id, content_type, resolved in resolved_payloads:
+        penalty_audit = next(item for item in audit.json() if item["id"] == resolved["penalty_audit_id"])
+        resolve_audit = next(item for item in audit.json() if item["id"] == resolved["audit_id"])
+        assert penalty_audit["target_type"] == content_type
+        assert penalty_audit["target_id"] == target_id
+        assert "after_status=rejected" in penalty_audit["detail"]
+        assert f"penalty_target_content_id={target_id}" in resolve_audit["detail"]
+
+
+def test_admin_report_restore_chat_reactivates_thread_and_writes_audit():
+    headers = admin_headers()
+    thread = next(item for item in client.get("/conversations").json() if item["status"] == "active")
+    report = client.post(
+        "/reports",
+        json={"target_type": "chat", "target_id": thread["id"], "reason": "LOOP-40 恢复聊天测试"},
+    ).json()
+    frozen = client.post(
+        f"/admin/reports/{report['id']}/resolve",
+        json={"action": "resolve", "reason": "先冻结再恢复", "penalty_action": "freeze_chat"},
+        headers=headers,
+    )
+    restored = client.post(
+        f"/admin/reports/{report['id']}/restore",
+        json={"reason": "误冻结，恢复聊天"},
+        headers=headers,
+    )
+    restored_thread = client.post(f"/conversations/{thread['id']}/read")
+    sent = client.post(
+        f"/conversations/{thread['id']}/turns",
+        json={"body": "restored chat message"},
+    )
+    messages = client.get("/messages")
+    restore_notice = next(
+        item
+        for item in messages.json()
+        if item["business_type"] == "chat_restore" and item["business_id"] == thread["id"]
+    )
+    audit = client.get("/admin/audit", headers=headers)
+    restore_audit = next(item for item in audit.json() if item["id"] == restored.json()["audit_id"])
+
+    assert frozen.status_code == 200
+    assert restored.status_code == 200
+    assert restored.json()["thread_id"] == thread["id"]
+    assert restored.json()["before_thread_status"] == "risk_frozen"
+    assert restored.json()["after_thread_status"] == "active"
+    assert restored_thread.json()["status"] == "active"
+    assert sent.status_code == 200
+    assert sent.json()["last_message"] == "restored chat message"
+    assert "恢复" in restore_notice["title"]
+    assert restore_audit["action"] == "report_restore_chat"
+    assert "after_status=active" in restore_audit["detail"]
+
+
+def test_chat_appeal_submit_approve_and_reject_contract():
+    headers = admin_headers()
+
+    approve_user_headers = {"X-Client-Id": "loop42_appeal_approve_user"}
+    approve_thread = client.post(
+        "/chat/match-expand-requests",
+        json={"target_user_id": CREATOR_006_ID},
+        headers=approve_user_headers,
+    ).json()["thread_id"]
+    approve_report = client.post(
+        "/reports",
+        json={"target_type": "chat", "target_id": approve_thread, "reason": "LOOP-42 申诉通过测试"},
+        headers=approve_user_headers,
+    ).json()
+    client.post(
+        f"/admin/reports/{approve_report['id']}/resolve",
+        json={"action": "resolve", "reason": "先冻结用于申诉通过", "penalty_action": "freeze_chat"},
+        headers=headers,
+    )
+    submitted = client.post(
+        f"/conversations/{approve_thread}/appeal",
+        json={"reason": "这是误冻结，请恢复聊天"},
+        headers=approve_user_headers,
+    )
+    listed = client.get("/admin/chat-appeals", headers=headers)
+    approved = client.post(
+        f"/admin/chat-appeals/{submitted.json()['id']}/review",
+        json={"action": "approve", "reason": "复核通过，恢复聊天"},
+        headers=headers,
+    )
+    approved_thread = client.post(f"/conversations/{approve_thread}/read", headers=approve_user_headers)
+    approved_messages = client.get("/messages", headers=approve_user_headers)
+
+    reject_user_headers = {"X-Client-Id": "loop42_appeal_reject_user"}
+    reject_thread = client.post(
+        "/chat/match-expand-requests",
+        json={"target_user_id": CREATOR_004_ID},
+        headers=reject_user_headers,
+    ).json()["thread_id"]
+    reject_report = client.post(
+        "/reports",
+        json={"target_type": "chat", "target_id": reject_thread, "reason": "LOOP-42 申诉驳回测试"},
+        headers=reject_user_headers,
+    ).json()
+    client.post(
+        f"/admin/reports/{reject_report['id']}/resolve",
+        json={"action": "resolve", "reason": "先冻结用于申诉驳回", "penalty_action": "freeze_chat"},
+        headers=headers,
+    )
+    rejected_submit = client.post(
+        f"/conversations/{reject_thread}/appeal",
+        json={"reason": "我不同意冻结"},
+        headers=reject_user_headers,
+    )
+    rejected = client.post(
+        f"/admin/chat-appeals/{rejected_submit.json()['id']}/review",
+        json={"action": "reject", "reason": "证据成立，维持冻结"},
+        headers=headers,
+    )
+    rejected_thread = client.post(f"/conversations/{reject_thread}/read", headers=reject_user_headers)
+    rejected_messages = client.get("/messages", headers=reject_user_headers)
+    audit = client.get("/admin/audit", headers=headers)
+
+    assert submitted.status_code == 200
+    assert submitted.json()["status"] == "pending"
+    assert submitted.json()["thread_id"] == approve_thread
+    assert submitted.json()["audit_refs"]
+    assert any(item["id"] == submitted.json()["id"] for item in listed.json())
+    assert approved.status_code == 200
+    assert approved.json()["after_status"] == "approved"
+    assert approved.json()["thread_status"] == "active"
+    assert approved_thread.json()["status"] == "active"
+    assert any(item["business_type"] == "chat_appeal_approved" and item["business_id"] == approve_thread for item in approved_messages.json())
+    assert rejected.status_code == 200
+    assert rejected.json()["after_status"] == "rejected"
+    assert rejected.json()["thread_status"] == "risk_frozen"
+    assert rejected_thread.json()["status"] == "risk_frozen"
+    assert any(item["business_type"] == "chat_appeal_rejected" and item["business_id"] == reject_thread for item in rejected_messages.json())
+    assert any(item["id"] == approved.json()["audit_id"] and item["action"] == "chat_appeal_approve" for item in audit.json())
+    assert any(item["id"] == rejected.json()["audit_id"] and item["action"] == "chat_appeal_reject" for item in audit.json())
+
+
 def test_treehole_react_is_idempotent_for_same_post():
     post_id = client.get("/treehole/feed").json()[0]["id"]
     first = client.post(f"/treehole/{post_id}/react")
@@ -557,14 +1384,14 @@ def test_admin_business_skeleton_contracts_exist():
         json={"action": "reject", "reason": "policy"},
         headers=headers,
     )
-    audit = client.get("/admin/audit")
-    wallet = client.get("/admin/wallet")
-    verification = client.get("/admin/verification")
-    referral = client.get("/admin/referral")
-    nearby = client.get("/admin/nearby")
-    plaza = client.get("/admin/plaza")
-    content = client.get("/admin/content")
-    users = client.get("/admin/users")
+    audit = client.get("/admin/audit", headers=headers)
+    wallet = client.get("/admin/wallet", headers=headers)
+    verification = client.get("/admin/verification", headers=headers)
+    referral = client.get("/admin/referral", headers=headers)
+    nearby = client.get("/admin/nearby", headers=headers)
+    plaza = client.get("/admin/plaza", headers=headers)
+    content = client.get("/admin/content", headers=headers)
+    users = client.get("/admin/users", headers=headers)
 
     assert moderation.status_code == 200
     assert moderation.json()["action"] == "reject"
@@ -611,6 +1438,21 @@ def test_follow_state_is_reflected_in_backend_bottle_data():
 
     assert follow.status_code == 200
     assert any(item["author_id"] == target_user_id and item["is_following"] is True for item in bottles.json())
+
+
+def test_friend_request_notification_keeps_context_chat_rule():
+    target_user_id = "200000000006"
+    response = client.post("/relations/friend-request", json={"target_user_id": target_user_id})
+    messages = client.get("/messages")
+
+    assert response.status_code == 200
+    assert messages.status_code == 200
+    assert any(
+        item["title"] == "好友申请已发送"
+        and "明确互动上下文内仍可按规则继续聊" in item["body"]
+        and "通过后才会打开私信" not in item["body"]
+        for item in messages.json()
+    )
 
 
 def test_random_bottle_respects_filter_query_params():
@@ -669,10 +1511,10 @@ def test_admin_auth_login_me_logout_and_write_audit():
     headers = admin_headers()
 
     me = client.get("/admin/auth/me", headers=headers)
-    logout = client.post("/admin/auth/logout", headers=headers)
-    reward_config = client.get("/admin/reward-config").json()
+    reward_config = client.get("/admin/reward-config", headers=headers).json()
     update = client.patch("/admin/reward-config", json=reward_config, headers=headers)
-    audit = client.get("/admin/audit")
+    logout = client.post("/admin/auth/logout", headers=headers)
+    audit = client.get("/admin/audit", headers=headers)
 
     assert me.status_code == 200
     assert me.json()["roles"] == ["admin", "moderator"]
@@ -682,7 +1524,51 @@ def test_admin_auth_login_me_logout_and_write_audit():
     assert any(item["action"] == "update_reward_config" for item in audit.json())
 
 
-def test_admin_write_requires_mock_token_with_unified_error():
+def test_admin_ad_config_controls_reward_video_bridge():
+    headers = admin_headers()
+    config = client.get("/admin/reward-config", headers=headers).json()
+    config.update(
+        {
+            "ad_cooldown_minutes": 0,
+            "ad_reward_per_quota": 2,
+            "ad_display_type": "video",
+            "ad_provider": "loop29_alliance",
+            "ad_placement_id": "loop29_reward_video",
+            "ad_title": "LOOP-29 激励视频",
+            "ad_description": "倒计时完成后发放次数",
+            "ad_media_url": "https://example.com/reward.mp4",
+            "ad_click_url": "https://example.com/reward",
+            "ad_countdown_seconds": 3,
+            "mini_program_app_id": "wx-loop29",
+            "mini_program_path": "pages/ad/reward",
+        }
+    )
+    update = client.patch("/admin/reward-config", json=config, headers=headers)
+    user_headers = {"X-Client-Id": "loop29_ad_user"}
+    before = client.get("/me/status", headers=user_headers).json()
+    prepared = client.post("/ads/reward/prepare", headers=user_headers)
+    committed = client.post(
+        "/ads/reward/commit",
+        json={"reward_session_id": prepared.json()["reward_session_id"], "completed": True},
+        headers=user_headers,
+    )
+    audit = client.get("/admin/audit", headers=headers)
+
+    assert update.status_code == 200
+    assert update.json()["ad_provider"] == "loop29_alliance"
+    assert before["ad_reward"]["provider"] == "loop29_alliance"
+    assert before["ad_reward"]["placement_id"] == "loop29_reward_video"
+    assert before["ad_reward"]["countdown_seconds"] == 3
+    assert before["ad_reward"]["mini_program_path"] == "pages/ad/reward"
+    assert prepared.status_code == 200
+    assert prepared.json()["reward_per_quota"] == 2
+    assert prepared.json()["provider"] == "loop29_alliance"
+    assert committed.status_code == 200
+    assert committed.json()["quotas"]["fish_bottle"]["remaining"] == before["quotas"]["fish_bottle"]["remaining"] + 2
+    assert any(item["action"] == "update_ad_reward_config" for item in audit.json())
+
+
+def test_admin_write_requires_token_with_unified_error():
     response = client.post("/admin/moderation/job_auth_required", json={"action": "reject"})
 
     assert response.status_code == 401
@@ -692,6 +1578,29 @@ def test_admin_write_requires_mock_token_with_unified_error():
             "message": "Admin bearer token is required",
         }
     }
+
+
+def test_admin_reads_require_token_and_roles_are_enforced():
+    no_auth = client.get("/admin/summary")
+    bad_token = client.get("/admin/summary", headers={"Authorization": "Bearer invalid-admin-token"})
+    moderator_login = client.post(
+        "/admin/auth/login",
+        json={"username": "moderator", "password": "moderator_mock_password"},
+    )
+    moderator_headers = {"Authorization": f"Bearer {moderator_login.json()['access_token']}"}
+    moderator_summary = client.get("/admin/summary", headers=moderator_headers)
+    reward_config = client.get("/admin/reward-config", headers=moderator_headers)
+    forbidden_update = client.patch("/admin/reward-config", json=reward_config.json(), headers=moderator_headers)
+
+    assert no_auth.status_code == 401
+    assert no_auth.json()["error"]["code"] == "ADMIN_UNAUTHORIZED"
+    assert bad_token.status_code == 401
+    assert bad_token.json()["error"]["code"] == "ADMIN_UNAUTHORIZED"
+    assert moderator_login.status_code == 200
+    assert moderator_login.json()["admin"]["roles"] == ["moderator"]
+    assert moderator_summary.status_code == 200
+    assert forbidden_update.status_code == 403
+    assert forbidden_update.json()["error"]["code"] == "ADMIN_FORBIDDEN"
 
 
 def test_blocked_user_is_rejected_from_user_scope():

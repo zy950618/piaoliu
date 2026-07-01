@@ -45,9 +45,10 @@ async def like_plaza_post(post_id: str, session: AsyncSession = Depends(get_db_s
 
 @router.get("/nearby/users", response_model=list[NearbyUser])
 async def list_nearby_users(
+    city: str | None = None,
     gender: str | None = None,
     age_range: str | None = None,
     distance_km: float | None = None,
     session: AsyncSession = Depends(get_db_session),
 ) -> list[NearbyUser]:
-    return await db_business.list_nearby(session, gender=gender, age_range=age_range, distance_km=distance_km)
+    return await db_business.list_nearby(session, city=city, gender=gender, age_range=age_range, distance_km=distance_km)

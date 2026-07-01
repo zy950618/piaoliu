@@ -76,6 +76,7 @@ describe('content profile sync', () => {
     content.conversationThreads = [{
       id: 'thread_sync_001',
       bottleId: 'bottle_sync_001',
+      status: 'active',
       participantUserId: 'other_user',
       participantName: 'other',
       participantTag: 'chat',

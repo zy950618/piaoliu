@@ -3,8 +3,7 @@
     <view class="account-card">
       <view class="account-row">
         <view class="avatar-shell">
-          <image v-if="app.user?.avatarUrl" class="avatar-image" :src="app.user.avatarUrl" mode="aspectFill" />
-          <text v-else>{{ app.user?.avatarText || '海' }}</text>
+          <image class="avatar-image" :src="resolveAvatarUrl(app.user?.avatarUrl, app.user?.id || 'current-user')" mode="aspectFill" />
         </view>
         <view class="account-main">
           <view class="name-row">
@@ -124,6 +123,7 @@ import { onLoad } from '@dcloudio/uni-app'
 import { showToast } from '@/services/feedback'
 import { useAppStore } from '@/stores/app'
 import { useContentStore } from '@/stores/content'
+import { resolveAvatarUrl } from '@/utils/avatar'
 
 const app = useAppStore()
 const content = useContentStore()

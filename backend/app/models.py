@@ -56,6 +56,15 @@ try:
         created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
 
+    class AppConfig(Base):
+        __tablename__ = "app_configs"
+
+        key: Mapped[str] = mapped_column(String(80), primary_key=True)
+        value: Mapped[str] = mapped_column(Text, nullable=False)
+        updated_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
+        updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+
     class Bottle(Base):
         __tablename__ = "bottles"
 
@@ -301,7 +310,22 @@ try:
         price_coins: Mapped[int] = mapped_column(Integer(), nullable=False)
         status: Mapped[str] = mapped_column(String(24), nullable=False, default="approved")
         purchased_by_user_ids: Mapped[str] = mapped_column(Text, nullable=False, default="")
+        file_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+        upload_token: Mapped[str | None] = mapped_column(String(120), nullable=True)
+        client_upload_id: Mapped[str | None] = mapped_column(String(120), nullable=True, unique=True)
+        risk_level: Mapped[str] = mapped_column(String(24), nullable=False, default="low_risk")
+        model_labels: Mapped[str] = mapped_column(Text, nullable=False, default="")
+        confidence: Mapped[str] = mapped_column(String(16), nullable=False, default="0.93")
+        auto_action: Mapped[str] = mapped_column(String(24), nullable=False, default="approve")
+        revenue_state: Mapped[str] = mapped_column(String(24), nullable=False, default="eligible")
+        user_visible_message: Mapped[str] = mapped_column(Text, nullable=False, default="")
+        manual_review: Mapped[str | None] = mapped_column(Text, nullable=True)
+        appeal_state: Mapped[str | None] = mapped_column(String(120), nullable=True)
+        report_count: Mapped[int] = mapped_column(Integer(), nullable=False, default=0)
+        assigned_admin_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+        audit_refs: Mapped[str] = mapped_column(Text, nullable=False, default="")
         created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+        updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
 
     class PaymentOrder(Base):
@@ -419,6 +443,21 @@ try:
         created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
 
+    class ChatAppeal(Base):
+        __tablename__ = "chat_appeals"
+
+        id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        thread_id: Mapped[str] = mapped_column(String(64), ForeignKey("conversation_threads.id"), nullable=False, index=True)
+        user_id: Mapped[str] = mapped_column(String(64), ForeignKey("users.id"), nullable=False, index=True)
+        reason: Mapped[str] = mapped_column(String(240), nullable=False)
+        status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending", index=True)
+        admin_reason: Mapped[str | None] = mapped_column(String(240), nullable=True)
+        audit_refs: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+        created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+        updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+        __table_args__ = (UniqueConstraint("thread_id", "user_id", "status", name="uq_chat_appeals_open_once"),)
+
+
     class ConversationThread(Base):
         __tablename__ = "conversation_threads"
 
@@ -462,6 +501,86 @@ try:
         mode: Mapped[str] = mapped_column(String(24), nullable=False)
         status: Mapped[str] = mapped_column(String(24), nullable=False, default="open")
         created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+
+    class ChatContextRequestRecord(Base):
+        __tablename__ = "chat_context_requests"
+
+        id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        initiator_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+        target_user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+        source_type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+        source_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+        source_title: Mapped[str | None] = mapped_column(String(120), nullable=True)
+        reply_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+        initiator_action: Mapped[str] = mapped_column(String(40), nullable=False)
+        evidence_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+        status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending", index=True)
+        conversation_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+        confirm_action: Mapped[str | None] = mapped_column(String(40), nullable=True)
+        confirm_evidence_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+        reject_reason: Mapped[str | None] = mapped_column(String(160), nullable=True)
+        audit_refs: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+        created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+        updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+
+    class ChatConversationRecord(Base):
+        __tablename__ = "chat_conversations"
+
+        id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        status: Mapped[str] = mapped_column(String(24), nullable=False, default="active", index=True)
+        source_type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+        source_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+        source_title: Mapped[str | None] = mapped_column(String(120), nullable=True)
+        participant_a_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+        participant_b_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+        friendship_state: Mapped[str] = mapped_column(String(24), nullable=False, default="none")
+        expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+        last_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
+        risk_state: Mapped[str] = mapped_column(String(24), nullable=False, default="clear")
+        report_state: Mapped[str] = mapped_column(String(24), nullable=False, default="none")
+        audit_refs: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+        created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+        updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+
+    class ChatMessageRecord(Base):
+        __tablename__ = "chat_messages"
+
+        id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        conversation_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+        sender_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+        content_type: Mapped[str] = mapped_column(String(32), nullable=False, default="text")
+        content: Mapped[str] = mapped_column(Text, nullable=False)
+        status: Mapped[str] = mapped_column(String(24), nullable=False, default="sent")
+        created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+
+    class ChatConversationReportRecord(Base):
+        __tablename__ = "chat_conversation_reports"
+
+        id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        conversation_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+        reporter_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+        reason: Mapped[str] = mapped_column(String(160), nullable=False)
+        message_ids: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+        description: Mapped[str | None] = mapped_column(Text, nullable=True)
+        audit_id: Mapped[str] = mapped_column(String(64), nullable=False)
+        created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+
+    class ChatConversationBlockRecord(Base):
+        __tablename__ = "chat_conversation_blocks"
+
+        id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        conversation_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+        blocker_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+        blocked_user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+        reason: Mapped[str | None] = mapped_column(String(160), nullable=True)
+        audit_id: Mapped[str] = mapped_column(String(64), nullable=False)
+        created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+        __table_args__ = (UniqueConstraint("blocker_id", "blocked_user_id", name="uq_chat_blocks_pair"),)
 
 
     class TreeholePost(Base):
@@ -515,6 +634,9 @@ except ModuleNotFoundError:
 
     class AdminAuditLog:
         __tablename__ = "admin_audit_logs"
+
+    class AppConfig:
+        __tablename__ = "app_configs"
 
     class Bottle:
         __tablename__ = "bottles"
@@ -597,6 +719,9 @@ except ModuleNotFoundError:
     class MessageNotification:
         __tablename__ = "message_notifications"
 
+    class ChatAppeal:
+        __tablename__ = "chat_appeals"
+
     class ConversationThread:
         __tablename__ = "conversation_threads"
 
@@ -605,6 +730,21 @@ except ModuleNotFoundError:
 
     class GameRoom:
         __tablename__ = "game_rooms"
+
+    class ChatContextRequestRecord:
+        __tablename__ = "chat_context_requests"
+
+    class ChatConversationRecord:
+        __tablename__ = "chat_conversations"
+
+    class ChatMessageRecord:
+        __tablename__ = "chat_messages"
+
+    class ChatConversationReportRecord:
+        __tablename__ = "chat_conversation_reports"
+
+    class ChatConversationBlockRecord:
+        __tablename__ = "chat_conversation_blocks"
 
     class TreeholePost:
         __tablename__ = "treehole_posts"
@@ -617,6 +757,7 @@ except ModuleNotFoundError:
 
     Base.metadata.tables[User.__tablename__] = User
     Base.metadata.tables[AdminAuditLog.__tablename__] = AdminAuditLog
+    Base.metadata.tables[AppConfig.__tablename__] = AppConfig
     Base.metadata.tables[AdminUserRestriction.__tablename__] = AdminUserRestriction
     Base.metadata.tables[Bottle.__tablename__] = Bottle
     Base.metadata.tables[BottleReply.__tablename__] = BottleReply
@@ -644,9 +785,15 @@ except ModuleNotFoundError:
     Base.metadata.tables[ContentReport.__tablename__] = ContentReport
     Base.metadata.tables[FriendRequest.__tablename__] = FriendRequest
     Base.metadata.tables[MessageNotification.__tablename__] = MessageNotification
+    Base.metadata.tables[ChatAppeal.__tablename__] = ChatAppeal
     Base.metadata.tables[ConversationThread.__tablename__] = ConversationThread
     Base.metadata.tables[ConversationTurn.__tablename__] = ConversationTurn
     Base.metadata.tables[GameRoom.__tablename__] = GameRoom
+    Base.metadata.tables[ChatContextRequestRecord.__tablename__] = ChatContextRequestRecord
+    Base.metadata.tables[ChatConversationRecord.__tablename__] = ChatConversationRecord
+    Base.metadata.tables[ChatMessageRecord.__tablename__] = ChatMessageRecord
+    Base.metadata.tables[ChatConversationReportRecord.__tablename__] = ChatConversationReportRecord
+    Base.metadata.tables[ChatConversationBlockRecord.__tablename__] = ChatConversationBlockRecord
     Base.metadata.tables[TreeholePost.__tablename__] = TreeholePost
     Base.metadata.tables[TreeholeReply.__tablename__] = TreeholeReply
     Base.metadata.tables[TreeholeReaction.__tablename__] = TreeholeReaction

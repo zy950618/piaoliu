@@ -30,9 +30,11 @@
       }
     },
     {
-      "path": "pages/treehole/index",
+      "path": "pages/game/match",
       "style": {
-        "navigationBarTitleText": "树洞"
+        "navigationBarTitleText": "随机匹配",
+        "navigationBarBackgroundColor": "#07111F",
+        "navigationBarTextStyle": "white"
       }
     },
     {
@@ -86,6 +88,14 @@
       }
     },
     {
+      "path": "pages/ad/reward",
+      "style": {
+        "navigationBarTitleText": "激励视频",
+        "navigationBarBackgroundColor": "#07111F",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
       "path": "pages/nearby/index",
       "style": {
         "navigationBarTitleText": "附近的人"
@@ -106,7 +116,8 @@
     {
       "path": "pages/messages/index",
       "style": {
-        "navigationBarTitleText": "消息"
+        "navigationBarTitleText": "消息",
+        "navigationStyle": "custom"
       }
     },
     {

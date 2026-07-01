@@ -2,9 +2,11 @@
 
 import asyncio
 import hashlib
+import json
 from contextvars import ContextVar
 from datetime import UTC, date, datetime, timedelta
 from random import choice
+from urllib.parse import quote
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -15,9 +17,12 @@ from app.models import (
     AdRewardSession,
     AdminAuditLog,
     AdminUserRestriction,
+    AppConfig,
     BlacklistEntry,
     Bottle,
     BottleReply,
+    ChatAppeal,
+    ChatContextRequestRecord,
     CheckinRecord,
     CoinLedger,
     ContentReport,
@@ -49,10 +54,13 @@ from app.models import (
     WalletAccount,
 )
 from app.schemas import (
+    AdminRewardConfig,
     AdRewardState,
     BlacklistItem,
     BlockOut,
     BottleOut,
+    ChatContextRequestCreate,
+    ChatAppealOut,
     CheckinState,
     CoinLedgerItem,
     AdminChatReviewOut,
@@ -60,8 +68,11 @@ from app.schemas import (
     ConversationTurnOut,
     CreatorProfile,
     GiftProduct as GiftProductOut,
+    GameRandomMatchRequest,
+    GameRandomMatchResponse,
     GamePromptOut,
     MeStatus,
+    MatchExpandContextResponse,
     MembershipProduct,
     MessageItemOut,
     MembershipOrderOut,
@@ -109,6 +120,10 @@ BASE_QUOTAS: dict[QuotaType, tuple[str, int]] = {
     QuotaType.dare: ("大冒险", 5),
     QuotaType.treehole_post: ("树洞", 4),
 }
+SYSTEM_AVATAR_SEEDS = [f"bottle-wave-{index:02d}" for index in range(1, 31)]
+MATCH_EXPAND_CHAT_COST = 5
+AD_REWARD_CONFIG_KEY = "ad_reward_config"
+DEFAULT_AD_MEDIA_URL = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
 CHAT_RISK_WORDS = ["wechat", "wx", "qq", "telegram", "phone", "mobile", "bank", "transfer", "cash", "微信", "QQ", "手机号", "站外", "私下", "转账"]
 GAME_DISCIPLINE_WORDS = ["刷屏", "辱骂", "威胁", "约线下", "越界", "站外", "私下", "转账", "微信", "QQ", "手机号", "telegram", "wx"]
 TRUTH_QUESTIONS = [
@@ -116,6 +131,69 @@ TRUTH_QUESTIONS = [
     ("truth_002", "自我", "你最希望别人理解你的哪一面？"),
     ("truth_003", "秘密", "你有没有一个一直没说出口的遗憾？"),
 ]
+
+
+def default_ad_reward_config() -> dict:
+    return {
+        "base_quotas": {quota_type.value: base for quota_type, (_, base) in BASE_QUOTAS.items()},
+        "vip_bonus": {quota_type.value: 5 for quota_type in BASE_QUOTAS},
+        "ad_cooldown_minutes": 15,
+        "ad_reward_per_quota": 10,
+        "checkin_rewards": CHECKIN_REWARDS,
+        "reject_refund_enabled": False,
+        "ad_display_type": "video",
+        "ad_provider": "mock_alliance",
+        "ad_placement_id": "reward_video_default",
+        "ad_title": "漂流岛激励视频",
+        "ad_description": "完整观看倒计时后，所有玩法次数都会增加。",
+        "ad_media_url": DEFAULT_AD_MEDIA_URL,
+        "ad_click_url": "https://example.com/drift-ad",
+        "ad_countdown_seconds": 5,
+        "mini_program_app_id": "wx-drift-bottle-demo",
+        "mini_program_path": "pages/ad/reward",
+    }
+
+
+async def get_admin_reward_config(session: AsyncSession) -> AdminRewardConfig:
+    data = default_ad_reward_config()
+    row = await session.get(AppConfig, AD_REWARD_CONFIG_KEY)
+    if row is not None:
+        try:
+            stored = json.loads(row.value)
+        except json.JSONDecodeError:
+            stored = {}
+        if isinstance(stored, dict):
+            data.update(stored)
+    return AdminRewardConfig(**data)
+
+
+async def update_admin_reward_config(
+    session: AsyncSession,
+    payload: AdminRewardConfig,
+    actor: str,
+) -> AdminRewardConfig:
+    data = default_ad_reward_config()
+    data.update(payload.model_dump())
+    row = await session.get(AppConfig, AD_REWARD_CONFIG_KEY)
+    if row is None:
+        row = AppConfig(key=AD_REWARD_CONFIG_KEY, value="", updated_by=actor, updated_at=now())
+        session.add(row)
+    row.value = json.dumps(data, ensure_ascii=False)
+    row.updated_by = actor
+    row.updated_at = now()
+    session.add(
+        AdminAuditLog(
+            id=new_id("audit"),
+            actor=actor,
+            action="update_ad_reward_config",
+            target_type="reward_config",
+            target_id="ad_reward",
+            detail=f"provider={data['ad_provider']};placement={data['ad_placement_id']}",
+            created_at=now(),
+        )
+    )
+    await session.commit()
+    return AdminRewardConfig(**data)
 DARE_TASKS = [
     ("dare_001", "轻松", "给最近聊天的人发一句真诚夸奖。"),
     ("dare_002", "互动", "用 30 秒语音描述此刻窗外的声音。"),
@@ -147,6 +225,16 @@ def iso(value: datetime | None) -> str:
 
 def new_id(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex}"
+
+
+def system_avatar_url(seed: str) -> str:
+    digest = hashlib.sha1((seed or "anonymous").encode("utf-8")).hexdigest()
+    avatar_seed = SYSTEM_AVATAR_SEEDS[int(digest[:8], 16) % len(SYSTEM_AVATAR_SEEDS)]
+    return f"https://api.dicebear.com/9.x/open-peeps/svg?seed={quote(avatar_seed)}&backgroundColor=b6e3f4,c0aede,d1d4f9"
+
+
+def resolved_avatar_url(user: User | None, seed: str) -> str:
+    return user.avatar_url if user and user.avatar_url else system_avatar_url(seed)
 
 
 def stable_user_seed_id(prefix: str, key: str, user_id: str | None = None) -> str:
@@ -197,6 +285,7 @@ async def _ensure_seed_data_unlocked(session: AsyncSession) -> User:
             nickname="海风来信",
             role="user",
             avatar_text="海",
+            avatar_url=system_avatar_url(current_user_id()),
             platform="h5",
             gender="female",
             city="杭州",
@@ -212,6 +301,8 @@ async def _ensure_seed_data_unlocked(session: AsyncSession) -> User:
         )
         session.add(user)
         await session.flush()
+    elif not user.avatar_url:
+        user.avatar_url = system_avatar_url(user.id)
 
     creators = [
         (CREATOR_IDS["creator_001"], "海岛来信", "证", "female", "上海", "25-30", True, True, "只接受礼貌的关注和好友申请。"),
@@ -225,13 +316,15 @@ async def _ensure_seed_data_unlocked(session: AsyncSession) -> User:
         (CREATOR_IDS["bad_user_001"], "无礼访客", "黑", "unknown", "未知", None, False, False, "已屏蔽用户。"),
     ]
     for user_id, nickname, avatar_text, gender, city, age_range, verified, vip, _ in creators:
-        if await session.get(User, user_id) is None:
+        existing_creator = await session.get(User, user_id)
+        if existing_creator is None:
             session.add(
                 User(
                     id=user_id,
                     nickname=nickname,
                     role="creator",
                     avatar_text=avatar_text,
+                    avatar_url=system_avatar_url(user_id),
                     platform="h5",
                     gender=gender,
                     city=city,
@@ -246,6 +339,8 @@ async def _ensure_seed_data_unlocked(session: AsyncSession) -> User:
                     created_at=now(),
                 )
             )
+        elif not existing_creator.avatar_url:
+            existing_creator.avatar_url = system_avatar_url(user_id)
 
     wallet = await session.get(WalletAccount, current_user_id())
     if wallet is None:
@@ -489,29 +584,29 @@ async def create_seed_plaza(session: AsyncSession) -> None:
         author = await session.get(User, author_id)
         if author is None:
             continue
-        session.add(
-            PlazaPost(
-                id=post_id,
-                author_id=author.id,
-                author_name=author.nickname,
-                icon_text=author.avatar_text or "匿",
-                topic=topic,
-                content=content,
-                media_type=media_type,
-                media_count=media_count,
-                gender=author.gender,
-                verified=author.face_verified and author.gender_verified,
-                city=author.city,
-                age_range=author.age_range,
-                view_count=0,
-                like_count=328 if post_id == "plaza_001" else 89,
-                comment_count=0,
-                comment_preview=None,
-                status="approved",
-                distance_text=distance,
-                created_at=now(),
-            )
+        post = PlazaPost(
+            id=post_id,
+            author_id=author.id,
+            author_name=author.nickname,
+            icon_text=author.avatar_text or "匿",
+            topic=topic,
+            content=content,
+            media_type=media_type,
+            media_count=media_count,
+            gender=author.gender,
+            verified=author.face_verified and author.gender_verified,
+            city=author.city,
+            age_range=author.age_range,
+            view_count=0,
+            like_count=328 if post_id == "plaza_001" else 89,
+            comment_count=0,
+            comment_preview=None,
+            status="approved",
+            distance_text=distance,
+            created_at=now(),
         )
+        session.add(post)
+        await session.flush()
         if media_type != "text":
             media_count_to_seed = media_count if media_type == "image" else 1
             for index in range(media_count_to_seed):
@@ -729,6 +824,10 @@ async def add_notification(session: AsyncSession, title: str, body: str, busines
     session.add(MessageNotification(id=new_id("msg"), user_id=current_user_id(), title=title, body=body, unread=True, business_type=business_type, business_id=business_id, created_at=now()))
 
 
+async def add_user_notification(session: AsyncSession, user_id: str, title: str, body: str, business_type: str | None = None, business_id: str | None = None) -> None:
+    session.add(MessageNotification(id=new_id("msg"), user_id=user_id, title=title, body=body, unread=True, business_type=business_type, business_id=business_id, created_at=now()))
+
+
 async def get_current_user(session: AsyncSession) -> User:
     user = await ensure_seed_data(session)
     latest_restriction = await session.scalar(
@@ -774,6 +873,7 @@ def _coerce_blocked_until(blocked_until: str | None, block_days: int | None) -> 
 
 async def get_status(session: AsyncSession) -> MeStatus:
     user = await get_current_user(session)
+    ad_config = await get_admin_reward_config(session)
     rows = (await session.execute(select(QuotaBalance).where(QuotaBalance.user_id == user.id))).scalars().all()
     quotas = {
         QuotaType(row.quota_type): QuotaItem(
@@ -790,10 +890,35 @@ async def get_status(session: AsyncSession) -> MeStatus:
     }
     latest_checkin = await session.scalar(select(CheckinRecord).where(CheckinRecord.user_id == user.id).order_by(desc(CheckinRecord.created_at)).limit(1))
     last_ad = await session.scalar(select(AdRewardSession).where(AdRewardSession.user_id == user.id).order_by(desc(AdRewardSession.created_at)).limit(1))
+    cooldown_seconds = 0
+    if last_ad and last_ad.status == "settled" and last_ad.settled_at:
+        settled_at = last_ad.settled_at
+        if settled_at.tzinfo is None:
+            settled_at = settled_at.replace(tzinfo=UTC)
+        else:
+            settled_at = settled_at.astimezone(UTC)
+        elapsed = (now() - settled_at).total_seconds()
+        cooldown_seconds = max(0, int(ad_config.ad_cooldown_minutes * 60 - elapsed))
     return MeStatus(
         user=to_user_profile(user),
         quotas=quotas,
-        ad_reward=AdRewardState(can_watch=True, cooldown_seconds=0, cooldown_minutes=15, reward_per_quota=10, active_session_id=last_ad.id if last_ad and last_ad.status == "prepared" else None),
+        ad_reward=AdRewardState(
+            can_watch=cooldown_seconds == 0,
+            cooldown_seconds=cooldown_seconds,
+            cooldown_minutes=ad_config.ad_cooldown_minutes,
+            reward_per_quota=ad_config.ad_reward_per_quota,
+            active_session_id=last_ad.id if last_ad and last_ad.status == "prepared" else None,
+            display_type=ad_config.ad_display_type,
+            provider=ad_config.ad_provider,
+            placement_id=ad_config.ad_placement_id,
+            title=ad_config.ad_title,
+            description=ad_config.ad_description,
+            media_url=ad_config.ad_media_url,
+            click_url=ad_config.ad_click_url,
+            countdown_seconds=ad_config.ad_countdown_seconds,
+            mini_program_app_id=ad_config.mini_program_app_id,
+            mini_program_path=ad_config.mini_program_path,
+        ),
         checkin=CheckinState(
             checked_today=latest_checkin.checkin_date == date.today().isoformat() if latest_checkin else False,
             streak_days=latest_checkin.streak_days if latest_checkin else 0,
@@ -906,7 +1031,7 @@ def to_user_profile(user: User) -> UserProfile:
         id=user.id,
         nickname=user.nickname,
         avatar_text=user.avatar_text or "海",
-        avatar_url=user.avatar_url,
+        avatar_url=resolved_avatar_url(user, user.id),
         platform=user.platform if user.platform in {"wechat", "ios", "android", "h5"} else "h5",
         is_vip=user.is_vip,
         vip_level=user.vip_level if user.vip_level in {"none", "monthly", "season", "yearly"} else "none",
@@ -1030,7 +1155,24 @@ async def checkin_today(session: AsyncSession) -> CheckinState:
 
 async def prepare_ad_reward(session: AsyncSession) -> str:
     await get_current_user(session)
-    reward = AdRewardSession(id=new_id("ad"), user_id=current_user_id(), reward_per_quota=10, reward_coin=1, status="prepared", created_at=now())
+    ad_state = (await get_status(session)).ad_reward
+    if not ad_state.can_watch:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "AD_REWARD_COOLDOWN",
+                "message": "Reward video is cooling down",
+                "details": {"cooldown_seconds": ad_state.cooldown_seconds},
+            },
+        )
+    reward = AdRewardSession(
+        id=new_id("ad"),
+        user_id=current_user_id(),
+        reward_per_quota=ad_state.reward_per_quota,
+        reward_coin=1,
+        status="prepared",
+        created_at=now(),
+    )
     session.add(reward)
     await session.commit()
     return reward.id
@@ -1039,6 +1181,8 @@ async def prepare_ad_reward(session: AsyncSession) -> str:
 async def commit_ad_reward(session: AsyncSession, reward_session_id: str, completed: bool) -> MeStatus:
     await get_current_user(session)
     reward = await session.get(AdRewardSession, reward_session_id)
+    if reward and reward.user_id != current_user_id():
+        raise HTTPException(status_code=404, detail="AD_REWARD_SESSION_NOT_FOUND")
     if reward and completed and reward.status == "prepared":
         reward.status = "settled"
         reward.settled_at = now()
@@ -1514,21 +1658,60 @@ async def list_blacklist(session: AsyncSession) -> list[BlacklistItem]:
     return [BlacklistItem(id=row.id, user_id=row.blocked_user_id, nickname=row.nickname, reason=row.reason, blocked_at=iso(row.blocked_at)) for row in rows]
 
 
-async def list_nearby(session: AsyncSession, gender: str | None = None, age_range: str | None = None, distance_km: float | None = None) -> list[NearbyUser]:
+async def list_nearby(session: AsyncSession, city: str | None = None, gender: str | None = None, age_range: str | None = None, distance_km: float | None = None) -> list[NearbyUser]:
     await get_current_user(session)
     rows = (await session.execute(select(User).where(User.role == "creator", User.status == "active"))).scalars().all()
     normalized = normalize_gender(gender)
+    if city and city not in {"全国", "all", "全部"}:
+        rows = [row for row in rows if row.city == city]
     if normalized:
         rows = [row for row in rows if row.gender == normalized]
     if age_range and age_range not in {"全部", "all"}:
-        rows = [row for row in rows if row.age_range == age_range]
+        rows = [row for row in rows if age_ranges_overlap(row.age_range, age_range)]
     result = []
     for index, row in enumerate(rows, start=1):
         distance = 1.2 + index
         if distance_km is not None and distance > distance_km:
             continue
-        result.append(NearbyUser(id=row.id, nickname=row.nickname, icon_text=row.avatar_text or row.nickname[:1], gender=row.gender, verified=row.face_verified, age_range=row.age_range, distance_km=distance, distance_text=f"{distance:.1f}km", signature="只接受礼貌的关注和好友申请。", is_vip=row.is_vip, online=index % 2 == 1))
+        result.append(NearbyUser(id=row.id, nickname=row.nickname, icon_text=row.avatar_text or row.nickname[:1], icon_url=resolved_avatar_url(row, row.id), gender=row.gender, verified=row.face_verified, age_range=row.age_range, city=row.city, distance_km=distance, distance_text=f"{distance:.1f}km", signature="只接受礼貌的关注和好友申请。", is_vip=row.is_vip, online=index % 2 == 1))
     return result
+
+
+async def create_game_random_match(session: AsyncSession, payload: GameRandomMatchRequest) -> GameRandomMatchResponse:
+    user = await get_current_user(session)
+    age_range = payload.age_range if payload.age_range not in {None, "", "全部", "all"} else None
+    candidates = await list_nearby(session, gender=payload.gender, age_range=age_range)
+    candidates = [candidate for candidate in candidates if candidate.id != user.id]
+    if not candidates:
+        raise HTTPException(status_code=404, detail="GAME_MATCH_NOT_FOUND")
+
+    seed = int(hashlib.sha1(f"{user.id}:{payload.client_match_id}".encode("utf-8")).hexdigest()[:8], 16)
+    target = candidates[seed % len(candidates)]
+    quota_type = QuotaType.truth if payload.mode == "truth" else QuotaType.dare
+    quota = await consume_quota(session, quota_type, f"game_random_match:{payload.client_match_id}")
+
+    room = GameRoom(id=new_id("room"), owner_id=user.id, thread_id=None, mode=payload.mode, status="matched", created_at=now())
+    session.add(room)
+    await add_notification(
+        session,
+        "随机匹配已就绪",
+        "已为你匹配到游戏对象；进入房间后仍需明确互动或确认，才可开启上下文私聊。",
+        "game_match",
+        room.id,
+    )
+    await session.commit()
+    return GameRandomMatchResponse(
+        match_id=f"match_{payload.client_match_id}",
+        room_id=room.id,
+        mode=payload.mode,
+        status="matched",
+        target_user=target,
+        quota=quota,
+        source_type="game_room",
+        source_id=room.id,
+        evidence_id=f"game_random_match:{room.id}",
+        next_action="wait_confirm",
+    )
 
 
 async def follow_user(session: AsyncSession, target_user_id: str) -> dict[str, str]:
@@ -1552,9 +1735,141 @@ async def request_friend(session: AsyncSession, target_user_id: str) -> dict[str
     exists = await session.scalar(select(FriendRequest).where(FriendRequest.requester_id == current_user_id(), FriendRequest.target_user_id == target_user_id))
     if exists is None:
         session.add(FriendRequest(id=new_id("friend"), requester_id=current_user_id(), target_user_id=target_user_id, status="requested", created_at=now()))
-        await add_notification(session, "好友申请已发送", "对方通过后才会打开私信，避免被陌生人直接打扰。", "friend", target_user_id)
+        await add_notification(session, "好友申请已发送", "好友用于长期关系沉淀；明确互动上下文内仍可按规则继续聊。", "friend", target_user_id)
         await session.commit()
     return {"status": "requested", "target_user_id": target_user_id}
+
+
+async def create_match_expand_context_request(session: AsyncSession, target_user_id: str) -> MatchExpandContextResponse:
+    from app import chat_store
+
+    user = await get_current_user(session)
+    target = await session.get(User, target_user_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="USER_NOT_FOUND")
+    if target_user_id == user.id:
+        raise HTTPException(status_code=422, detail={"code": "CHAT_TARGET_INVALID", "message": "Cannot start a context chat with yourself"})
+
+    source_id = f"nearby:{target_user_id}"
+    gate = "vip" if user.is_vip else "drift_coins"
+    existing_request = await session.scalar(
+        select(ChatContextRequestRecord)
+        .where(
+            ChatContextRequestRecord.initiator_id == user.id,
+            ChatContextRequestRecord.target_user_id == target_user_id,
+            ChatContextRequestRecord.source_type == "match_expand",
+            ChatContextRequestRecord.source_id == source_id,
+            ChatContextRequestRecord.status.in_(["pending", "active"]),
+        )
+        .order_by(desc(ChatContextRequestRecord.created_at))
+    )
+    existing_thread = None
+    if existing_request is not None and existing_request.conversation_id:
+        existing_thread = await session.get(ConversationThread, existing_request.conversation_id)
+    if existing_request is not None and existing_thread is not None:
+        return MatchExpandContextResponse(
+            request=chat_store.to_request_out(existing_request),
+            gate=gate,
+            cost_coins=0,
+            remaining_drift_coins=user.drift_coins,
+            user=to_user_profile(user),
+            thread_id=existing_thread.id,
+        )
+
+    cost = 0 if user.is_vip or existing_request is not None else MATCH_EXPAND_CHAT_COST
+    if cost and user.drift_coins < cost:
+        raise HTTPException(status_code=409, detail={"code": "MATCH_EXPAND_COIN_NOT_ENOUGH", "message": "需要 VIP 或至少 5 积分才能开聊。"})
+
+    if cost:
+        user.drift_coins -= cost
+    thread = await _create_nearby_direct_thread(session, user, target)
+    if existing_request is None:
+        existing_request = ChatContextRequestRecord(
+            id=new_id("ctx"),
+            initiator_id=user.id,
+            target_user_id=target_user_id,
+            source_type="match_expand",
+            source_id=source_id,
+            source_title="附近的人直接开聊",
+            reply_id=f"nearby:{user.id}:{target_user_id}",
+            initiator_action="direct_chat",
+            evidence_id=f"nearby_gate:{gate}",
+            status="active",
+            conversation_id=thread.id,
+            confirm_action="direct_chat",
+            confirm_evidence_id=f"nearby_direct:{thread.id}",
+            audit_refs="[]",
+            created_at=now(),
+            updated_at=now(),
+        )
+        session.add(existing_request)
+    else:
+        existing_request.status = "active"
+        existing_request.conversation_id = thread.id
+        existing_request.confirm_action = "direct_chat"
+        existing_request.confirm_evidence_id = f"nearby_direct:{thread.id}"
+        existing_request.updated_at = now()
+    await add_notification(
+        session,
+        "附近的人已开聊",
+        f"已与 {target.nickname} 开启聊天；本次来源、频控、举报和拉黑证据已保留。",
+        "match_expand",
+        thread.id,
+    )
+    await session.commit()
+    await session.refresh(user)
+    await session.refresh(existing_request)
+    return MatchExpandContextResponse(
+        request=chat_store.to_request_out(existing_request),
+        gate=gate,
+        cost_coins=cost,
+        remaining_drift_coins=user.drift_coins,
+        user=to_user_profile(user),
+        thread_id=thread.id,
+    )
+
+
+async def _create_nearby_direct_thread(session: AsyncSession, user: User, target: User) -> ConversationThread:
+    existing_thread = await session.scalar(
+        select(ConversationThread)
+        .where(
+            ConversationThread.user_a_id == user.id,
+            ConversationThread.user_b_id == target.id,
+            ConversationThread.participant_tag == "附近开聊",
+            ConversationThread.status.in_(["active", "risk_frozen"]),
+        )
+        .order_by(desc(ConversationThread.updated_at))
+    )
+    if existing_thread is not None:
+        return existing_thread
+
+    thread = ConversationThread(
+        id=new_id("thread"),
+        bottle_id=None,
+        user_a_id=user.id,
+        user_b_id=target.id,
+        participant_name=target.nickname,
+        participant_tag="附近开聊",
+        bottle_preview=f"附近的人 · {target.city or '同城'} · {target.age_range or '年龄未知'}",
+        last_message="已通过附近的人开聊。",
+        unread_count=0,
+        status="active",
+        created_at=now(),
+        updated_at=now(),
+    )
+    session.add(thread)
+    session.add(
+        ConversationTurn(
+            id=new_id("turn"),
+            thread_id=thread.id,
+            sender_id=user.id,
+            sender_name=user.nickname,
+            body="已通过附近的人开聊。",
+            turn_type="text",
+            created_at=now(),
+        )
+    )
+    return thread
 
 
 async def create_report(session: AsyncSession, target_type: str, target_id: str, reason: str) -> ReportOut:
@@ -1565,12 +1880,17 @@ async def create_report(session: AsyncSession, target_type: str, target_id: str,
         session.add(existing)
         await add_notification(session, "举报已提交", "内容已进入审核队列，审核员会结合上下文处理。", "report", existing.id)
         await session.commit()
-    return ReportOut(id=existing.id, target_type=existing.target_type, target_id=existing.target_id, reason=existing.reason, status=existing.status, created_at=iso(existing.created_at))
+    return ReportOut(id=existing.id, reporter_id=existing.reporter_id, target_type=existing.target_type, target_id=existing.target_id, reason=existing.reason, status=existing.status, created_at=iso(existing.created_at), evidence_refs=[f"{existing.target_type}:{existing.target_id}"])
 
 
-async def list_reports(session: AsyncSession) -> list[ReportOut]:
+async def list_reports(session: AsyncSession, status_filter: str | None = None, target_type_filter: str | None = None, q: str | None = None) -> list[ReportOut]:
     await get_current_user(session)
-    rows = (await session.execute(select(ContentReport).order_by(desc(ContentReport.created_at)))).scalars().all()
+    query = select(ContentReport)
+    if status_filter and status_filter != "all":
+        query = query.where(ContentReport.status == status_filter)
+    if target_type_filter and target_type_filter != "all":
+        query = query.where(ContentReport.target_type == target_type_filter)
+    rows = (await session.execute(query.order_by(desc(ContentReport.created_at)))).scalars().all()
     if not rows:
         return []
 
@@ -1598,6 +1918,8 @@ async def list_reports(session: AsyncSession) -> list[ReportOut]:
             *user_target_ids,
             *([row.author_id for row in (await session.execute(select(Bottle).where(Bottle.id.in_(bottle_target_ids)))).scalars().all()] if bottle_target_ids else []),
             *([row.author_id for row in (await session.execute(select(TreeholePost).where(TreeholePost.id.in_(treehole_target_ids)))).scalars().all()] if treehole_target_ids else []),
+            *([row.author_id for row in (await session.execute(select(BottleReply).where(BottleReply.id.in_(reply_target_ids)))).scalars().all()] if reply_target_ids else []),
+            *([row.author_id for row in (await session.execute(select(PlazaComment).where(PlazaComment.id.in_(reply_target_ids)))).scalars().all()] if reply_target_ids else []),
             *([row.author_id for row in (await session.execute(select(PlazaPost).where(PlazaPost.id.in_(plaza_target_ids)))).scalars().all()] if plaza_target_ids else []),
             *([row.owner_id for row in (await session.execute(select(PrivatePhotoAsset).where(PrivatePhotoAsset.id.in_(private_photo_target_ids)))).scalars().all()] if private_photo_target_ids else []),
         })
@@ -1609,6 +1931,12 @@ async def list_reports(session: AsyncSession) -> list[ReportOut]:
             await session.execute(select(Bottle).where(Bottle.id.in_(bottle_target_ids)))
         ).scalars().all()
     } if bottle_target_ids else {}
+    plaza_comment_rows = {
+        row.id: row
+        for row in (
+            await session.execute(select(PlazaComment).where(PlazaComment.id.in_(reply_target_ids)))
+        ).scalars().all()
+    } if reply_target_ids else {}
     treehole_rows = {
         row.id: row
         for row in (
@@ -1639,6 +1967,12 @@ async def list_reports(session: AsyncSession) -> list[ReportOut]:
             await session.execute(select(ConversationThread).where(ConversationThread.id.in_(chat_target_ids)))
         ).scalars().all()
     } if chat_target_ids else {}
+    audit_rows = {
+        row.target_id: row.id
+        for row in (
+            await session.execute(select(AdminAuditLog).where(AdminAuditLog.target_id.in_([report.id for report in rows])))
+        ).scalars().all()
+    }
 
     result: list[ReportOut] = []
     for row in rows:
@@ -1646,6 +1980,7 @@ async def list_reports(session: AsyncSession) -> list[ReportOut]:
         avatar_text: str | None = None
         avatar_url: str | None = None
         target_preview: str | None = row.reason
+        evidence_refs = [f"report:{row.id}", f"{row.target_type}:{row.target_id}", f"reporter:{row.reporter_id}"]
 
         if row.target_type == "user":
             target_user = users.get(row.target_id)
@@ -1661,6 +1996,7 @@ async def list_reports(session: AsyncSession) -> list[ReportOut]:
             avatar_text = content.author_avatar_text
             avatar_url = target_owner.avatar_url if target_owner else None
             target_preview = content.content[:60]
+            evidence_refs.append(f"content_status:{content.status}")
         elif row.target_type == "treehole" and row.target_id in treehole_rows:
             content = treehole_rows[row.target_id]
             target_owner = users.get(content.author_id)
@@ -1675,6 +2011,15 @@ async def list_reports(session: AsyncSession) -> list[ReportOut]:
             target_preview = reply.content[:60]
             avatar_text = target_owner.avatar_text if target_owner else None
             avatar_url = target_owner.avatar_url if target_owner else None
+            evidence_refs.extend([f"content_type:bottle_reply", f"content_status:{reply.status}"])
+        elif row.target_type == "reply" and row.target_id in plaza_comment_rows:
+            comment = plaza_comment_rows[row.target_id]
+            target_owner = users.get(comment.author_id)
+            display_name = f"{target_owner.nickname if target_owner else comment.author_name} 的广场留言"
+            target_preview = comment.content[:60]
+            avatar_text = target_owner.avatar_text if target_owner else None
+            avatar_url = target_owner.avatar_url if target_owner else None
+            evidence_refs.extend([f"content_type:plaza_comment", f"content_status:{comment.status}", f"plaza:{comment.post_id}"])
         elif row.target_type == "plaza" and row.target_id in plaza_rows:
             content = plaza_rows[row.target_id]
             target_owner = users.get(content.author_id)
@@ -1682,6 +2027,7 @@ async def list_reports(session: AsyncSession) -> list[ReportOut]:
             avatar_text = target_owner.avatar_text if target_owner else None
             avatar_url = target_owner.avatar_url if target_owner else None
             target_preview = (content.content[:60] if content.content else "")
+            evidence_refs.append(f"content_status:{content.status}")
         elif row.target_type == "private_photo" and row.target_id in private_photo_rows:
             private_photo = private_photo_rows[row.target_id]
             target_owner = users.get(private_photo.owner_id)
@@ -1689,6 +2035,8 @@ async def list_reports(session: AsyncSession) -> list[ReportOut]:
             avatar_text = target_owner.avatar_text if target_owner else None
             avatar_url = target_owner.avatar_url if target_owner else None
             target_preview = private_photo.title
+            if private_photo.audit_refs:
+                evidence_refs.extend([ref for ref in private_photo.audit_refs.split(",") if ref])
         elif row.target_type == "chat" and row.target_id in chat_rows:
             thread = chat_rows[row.target_id]
             display_name = thread.participant_name or "匿名对话"
@@ -1696,23 +2044,434 @@ async def list_reports(session: AsyncSession) -> list[ReportOut]:
             participant_user = users.get(thread.user_a_id)
             avatar_text = participant_user.avatar_text if participant_user else None
             avatar_url = participant_user.avatar_url if participant_user else None
+            evidence_refs.extend([f"conversation:{thread.id}", f"thread_status:{thread.status}"])
+            if thread.bottle_id:
+                evidence_refs.append(f"bottle:{thread.bottle_id}")
 
-        result.append(
-            ReportOut(
-                id=row.id,
-                target_type=row.target_type,
-                target_id=row.target_id,
-                reason=row.reason,
-                status=row.status,
-                created_at=iso(row.created_at),
-                target_type_text=target_type_labels.get(row.target_type),
-                target_display_name=display_name,
-                target_avatar_text=avatar_text,
-                target_avatar_url=avatar_url,
-                target_preview=target_preview,
+        audit_refs = [audit_rows[row.id]] if row.id in audit_rows else []
+        item = ReportOut(
+            id=row.id,
+            reporter_id=row.reporter_id,
+            target_type=row.target_type,
+            target_id=row.target_id,
+            reason=row.reason,
+            status=row.status,
+            created_at=iso(row.created_at),
+            target_type_text=target_type_labels.get(row.target_type),
+            target_display_name=display_name,
+            target_avatar_text=avatar_text,
+            target_avatar_url=avatar_url,
+            target_preview=target_preview,
+            evidence_refs=list(dict.fromkeys(evidence_refs)),
+            audit_refs=audit_refs,
+        )
+        keyword = (q or "").strip().lower()
+        searchable = " ".join(
+            [
+                item.id,
+                item.reporter_id or "",
+                item.target_type,
+                item.target_id,
+                item.reason,
+                item.target_type_text or "",
+                item.target_display_name or "",
+                item.target_preview or "",
+                " ".join(item.evidence_refs),
+                " ".join(item.audit_refs),
+            ]
+        ).lower()
+        if keyword and keyword not in searchable:
+            continue
+        result.append(item)
+    return result
+
+
+async def resolve_report(
+    session: AsyncSession,
+    report_id: str,
+    reason: str,
+    actor: str,
+    penalty_action: str = "none",
+) -> dict[str, str | None]:
+    report = await session.get(ContentReport, report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="REPORT_NOT_FOUND")
+
+    before_status = report.status
+    report.status = "resolved"
+    penalty_target_user_id: str | None = None
+    penalty_target_thread_id: str | None = None
+    penalty_target_content_id: str | None = None
+    penalty_target_content_type: str | None = None
+    penalty_audit_id: str | None = None
+    if penalty_action in {"limit_user", "freeze_chat"}:
+        if report.target_type != "chat":
+            raise HTTPException(status_code=422, detail="REPORT_PENALTY_UNSUPPORTED")
+        thread = await session.get(ConversationThread, report.target_id)
+        if thread is None:
+            raise HTTPException(status_code=404, detail="REPORT_TARGET_NOT_FOUND")
+    if penalty_action == "limit_user":
+        penalty_target_user_id = thread.user_b_id if report.reporter_id == thread.user_a_id else thread.user_a_id
+        target_user = await session.get(User, penalty_target_user_id)
+        if target_user is None:
+            raise HTTPException(status_code=404, detail="REPORT_TARGET_USER_NOT_FOUND")
+        target_user.status = "limited"
+        restriction = (await _latest_restriction_map(session, [penalty_target_user_id])).get(penalty_target_user_id)
+        if restriction:
+            restriction.status = "limited"
+            restriction.reason = reason
+            restriction.blocked_until = None
+            restriction.updated_at = now()
+        else:
+            session.add(
+                AdminUserRestriction(
+                    id=new_id("admin_restriction"),
+                    user_id=penalty_target_user_id,
+                    status="limited",
+                    reason=reason,
+                    blocked_until=None,
+                    action_by=actor,
+                    created_at=now(),
+                    updated_at=now(),
+                )
+            )
+        penalty_audit_id = new_id("audit")
+        session.add(
+            AdminAuditLog(
+                id=penalty_audit_id,
+                actor=actor,
+                action="report_penalty_limit_user",
+                target_type="user",
+                target_id=penalty_target_user_id,
+                detail=f"report={report.id};thread={report.target_id};reason={reason}",
+                created_at=now(),
             )
         )
-    return result
+    elif penalty_action == "freeze_chat":
+        penalty_target_thread_id = thread.id
+        before_thread_status = thread.status
+        thread.status = "risk_frozen"
+        await add_user_notification(
+            session,
+            report.reporter_id,
+            "聊天已被冻结",
+            f"你举报的聊天已因风险处置被冻结。原因：{reason}。如需申诉或补充证据，请在客服入口提交说明。",
+            "chat_freeze",
+            thread.id,
+        )
+        penalty_audit_id = new_id("audit")
+        session.add(
+            AdminAuditLog(
+                id=penalty_audit_id,
+                actor=actor,
+                action="report_penalty_freeze_chat",
+                target_type="chat",
+                target_id=thread.id,
+                detail=f"report={report.id};before_status={before_thread_status};after_status=risk_frozen;reason={reason}",
+                created_at=now(),
+            )
+        )
+    elif penalty_action == "offline_content":
+        content_owner_id: str | None = None
+        content_before_status: str | None = None
+        content_after_status = "rejected"
+        if report.target_type == "bottle":
+            content = await session.get(Bottle, report.target_id)
+            penalty_target_content_type = "bottle"
+            if content:
+                content_owner_id = content.author_id
+                content_before_status = content.status
+                content.status = content_after_status
+        elif report.target_type == "plaza":
+            content = await session.get(PlazaPost, report.target_id)
+            penalty_target_content_type = "plaza"
+            if content:
+                content_owner_id = content.author_id
+                content_before_status = content.status
+                content.status = content_after_status
+        elif report.target_type == "reply":
+            plaza_comment = await session.get(PlazaComment, report.target_id)
+            if plaza_comment:
+                penalty_target_content_type = "plaza_comment"
+                content_owner_id = plaza_comment.author_id
+                content_before_status = plaza_comment.status
+                plaza_comment.status = content_after_status
+                post = await session.get(PlazaPost, plaza_comment.post_id)
+                if post and content_before_status == "approved":
+                    post.comment_count = max(0, post.comment_count - 1)
+                    if post.comment_preview == plaza_comment.content:
+                        post.comment_preview = ""
+            else:
+                bottle_reply = await session.get(BottleReply, report.target_id)
+                penalty_target_content_type = "bottle_reply"
+                if bottle_reply:
+                    content_owner_id = bottle_reply.author_id
+                    content_before_status = bottle_reply.status
+                    bottle_reply.status = content_after_status
+        else:
+            raise HTTPException(status_code=422, detail="REPORT_PENALTY_UNSUPPORTED")
+        if content_before_status is None or penalty_target_content_type is None:
+            raise HTTPException(status_code=404, detail="REPORT_TARGET_NOT_FOUND")
+        penalty_target_content_id = report.target_id
+        if content_owner_id:
+            await add_user_notification(
+                session,
+                content_owner_id,
+                "内容已下线",
+                f"你被举报的内容已因审核处置下线。原因：{reason}。如需申诉，请在客服入口提交说明。",
+                "content_offline",
+                report.target_id,
+            )
+        penalty_audit_id = new_id("audit")
+        session.add(
+            AdminAuditLog(
+                id=penalty_audit_id,
+                actor=actor,
+                action="report_penalty_offline_content",
+                target_type=penalty_target_content_type,
+                target_id=report.target_id,
+                detail=f"report={report.id};before_status={content_before_status};after_status={content_after_status};reason={reason}",
+                created_at=now(),
+            )
+        )
+    elif penalty_action != "none":
+        raise HTTPException(status_code=422, detail="REPORT_PENALTY_UNSUPPORTED")
+
+    audit_id = new_id("audit")
+    audit_detail = f"before={before_status};after=resolved;reason={reason};penalty_action={penalty_action}"
+    if penalty_target_user_id:
+        audit_detail = f"{audit_detail};penalty_target_user_id={penalty_target_user_id}"
+    if penalty_target_thread_id:
+        audit_detail = f"{audit_detail};penalty_target_thread_id={penalty_target_thread_id}"
+    if penalty_target_content_id:
+        audit_detail = f"{audit_detail};penalty_target_content_id={penalty_target_content_id};penalty_target_content_type={penalty_target_content_type}"
+    session.add(
+        AdminAuditLog(
+            id=audit_id,
+            actor=actor,
+            action="report_resolve",
+            target_type="report",
+            target_id=report.id,
+            detail=audit_detail,
+            created_at=now(),
+        )
+    )
+    await session.commit()
+    return {
+        "report_id": report.id,
+        "before_status": before_status,
+        "after_status": report.status,
+        "reason": reason,
+        "audit_id": audit_id,
+        "resolved_at": iso(now()),
+        "penalty_action": penalty_action,
+        "penalty_target_user_id": penalty_target_user_id,
+        "penalty_target_thread_id": penalty_target_thread_id,
+        "penalty_target_content_id": penalty_target_content_id,
+        "penalty_target_content_type": penalty_target_content_type,
+        "penalty_audit_id": penalty_audit_id,
+    }
+
+
+async def restore_report_chat(
+    session: AsyncSession,
+    report_id: str,
+    reason: str,
+    actor: str,
+) -> dict[str, str]:
+    report = await session.get(ContentReport, report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="REPORT_NOT_FOUND")
+    if report.target_type != "chat":
+        raise HTTPException(status_code=422, detail="REPORT_PENALTY_UNSUPPORTED")
+    thread = await session.get(ConversationThread, report.target_id)
+    if thread is None:
+        raise HTTPException(status_code=404, detail="REPORT_TARGET_NOT_FOUND")
+    if thread.status != "risk_frozen":
+        raise HTTPException(status_code=409, detail="REPORT_CHAT_NOT_FROZEN")
+
+    before_thread_status = thread.status
+    thread.status = "active"
+    await add_user_notification(
+        session,
+        report.reporter_id,
+        "聊天已恢复",
+        f"你举报的聊天已由管理员恢复。原因：{reason}。",
+        "chat_restore",
+        thread.id,
+    )
+    audit_id = new_id("audit")
+    session.add(
+        AdminAuditLog(
+            id=audit_id,
+            actor=actor,
+            action="report_restore_chat",
+            target_type="chat",
+            target_id=thread.id,
+            detail=f"report={report.id};before_status={before_thread_status};after_status=active;reason={reason}",
+            created_at=now(),
+        )
+    )
+    await session.commit()
+    return {
+        "report_id": report.id,
+        "thread_id": thread.id,
+        "before_thread_status": before_thread_status,
+        "after_thread_status": thread.status,
+        "reason": reason,
+        "audit_id": audit_id,
+        "restored_at": iso(now()),
+    }
+
+
+def _parse_audit_refs(value: str | None) -> list[str]:
+    if not value:
+        return []
+    try:
+        refs = json.loads(value)
+    except json.JSONDecodeError:
+        return []
+    return refs if isinstance(refs, list) else []
+
+
+async def to_chat_appeal(session: AsyncSession, row: ChatAppeal) -> ChatAppealOut:
+    user = await session.get(User, row.user_id)
+    thread = await session.get(ConversationThread, row.thread_id)
+    return ChatAppealOut(
+        id=row.id,
+        thread_id=row.thread_id,
+        user_id=row.user_id,
+        user_name=user.nickname if user else row.user_id,
+        participant_name=thread.participant_name if thread else None,
+        reason=row.reason,
+        status=row.status,
+        admin_reason=row.admin_reason,
+        audit_refs=_parse_audit_refs(row.audit_refs),
+        created_at=iso(row.created_at),
+        updated_at=iso(row.updated_at),
+    )
+
+
+async def create_chat_appeal(session: AsyncSession, thread_id: str, reason: str) -> ChatAppealOut:
+    user = await get_current_user(session)
+    thread = await session.get(ConversationThread, thread_id)
+    if thread is None or thread.user_a_id != user.id:
+        raise HTTPException(status_code=404, detail="THREAD_NOT_FOUND")
+    if thread.status != "risk_frozen":
+        raise HTTPException(status_code=409, detail="CHAT_APPEAL_THREAD_NOT_FROZEN")
+
+    existing = await session.scalar(
+        select(ChatAppeal).where(
+            ChatAppeal.thread_id == thread_id,
+            ChatAppeal.user_id == user.id,
+            ChatAppeal.status == "pending",
+        )
+    )
+    if existing is not None:
+        return await to_chat_appeal(session, existing)
+
+    audit_id = new_id("audit")
+    appeal = ChatAppeal(
+        id=new_id("appeal"),
+        thread_id=thread_id,
+        user_id=user.id,
+        reason=reason,
+        status="pending",
+        audit_refs=json.dumps([audit_id], ensure_ascii=False),
+        created_at=now(),
+        updated_at=now(),
+    )
+    session.add(appeal)
+    session.add(
+        AdminAuditLog(
+            id=audit_id,
+            actor=user.nickname,
+            action="chat_appeal_submit",
+            target_type="chat_appeal",
+            target_id=appeal.id,
+            detail=f"thread={thread_id};user={user.id};reason={reason}",
+            created_at=now(),
+        )
+    )
+    await add_user_notification(
+        session,
+        user.id,
+        "申诉已提交",
+        "你的冻结聊天申诉已进入后台处理，处理结果会通过系统消息通知。",
+        "chat_appeal",
+        appeal.id,
+    )
+    await session.commit()
+    await session.refresh(appeal)
+    return await to_chat_appeal(session, appeal)
+
+
+async def list_chat_appeals(session: AsyncSession, status_filter: str | None = None) -> list[ChatAppealOut]:
+    await get_current_user(session)
+    query = select(ChatAppeal)
+    if status_filter and status_filter != "all":
+        query = query.where(ChatAppeal.status == status_filter)
+    rows = (await session.execute(query.order_by(desc(ChatAppeal.updated_at)))).scalars().all()
+    return [await to_chat_appeal(session, row) for row in rows]
+
+
+async def review_chat_appeal(
+    session: AsyncSession,
+    appeal_id: str,
+    action: str,
+    reason: str,
+    actor: str,
+) -> dict[str, str]:
+    appeal = await session.get(ChatAppeal, appeal_id)
+    if appeal is None:
+        raise HTTPException(status_code=404, detail="CHAT_APPEAL_NOT_FOUND")
+    if appeal.status != "pending":
+        raise HTTPException(status_code=409, detail="CHAT_APPEAL_ALREADY_REVIEWED")
+    thread = await session.get(ConversationThread, appeal.thread_id)
+    if thread is None:
+        raise HTTPException(status_code=404, detail="THREAD_NOT_FOUND")
+
+    before_status = appeal.status
+    appeal.status = "approved" if action == "approve" else "rejected"
+    appeal.admin_reason = reason
+    appeal.updated_at = now()
+    if action == "approve":
+        thread.status = "active"
+        thread.updated_at = now()
+        notice_title = "申诉通过，聊天已恢复"
+        notice_body = f"你的冻结聊天申诉已通过。处理原因：{reason}。"
+        notice_type = "chat_appeal_approved"
+    else:
+        notice_title = "申诉未通过"
+        notice_body = f"你的冻结聊天申诉未通过。处理原因：{reason}。"
+        notice_type = "chat_appeal_rejected"
+
+    audit_id = new_id("audit")
+    refs = _parse_audit_refs(appeal.audit_refs)
+    refs.append(audit_id)
+    appeal.audit_refs = json.dumps(refs, ensure_ascii=False)
+    session.add(
+        AdminAuditLog(
+            id=audit_id,
+            actor=actor,
+            action=f"chat_appeal_{action}",
+            target_type="chat_appeal",
+            target_id=appeal.id,
+            detail=f"thread={thread.id};before={before_status};after={appeal.status};thread_status={thread.status};reason={reason}",
+            created_at=now(),
+        )
+    )
+    await add_user_notification(session, appeal.user_id, notice_title, notice_body, notice_type, thread.id)
+    await session.commit()
+    return {
+        "appeal_id": appeal.id,
+        "thread_id": thread.id,
+        "before_status": before_status,
+        "after_status": appeal.status,
+        "thread_status": thread.status,
+        "audit_id": audit_id,
+        "reviewed_at": iso(now()),
+    }
 
 
 async def block_user(session: AsyncSession, blocked_user_id: str, reason: str = "用户拉黑") -> BlockOut:
@@ -1753,16 +2512,55 @@ async def mark_messages_read(session: AsyncSession) -> dict[str, str]:
     return {"status": "ok"}
 
 
+async def mark_message_read(session: AsyncSession, message_id: str) -> MessageItemOut:
+    await get_current_user(session)
+    row = await session.get(MessageNotification, message_id)
+    if row is None or row.user_id != current_user_id():
+        raise HTTPException(status_code=404, detail="MESSAGE_NOT_FOUND")
+    row.unread = False
+    await session.commit()
+    await session.refresh(row)
+    return MessageItemOut(
+        id=row.id,
+        title=row.title,
+        body=row.body,
+        unread=row.unread,
+        created_at=iso(row.created_at),
+        business_type=row.business_type,
+        business_id=row.business_id,
+    )
+
+
 async def list_threads(session: AsyncSession) -> list[ConversationThreadOut]:
     await get_current_user(session)
-    rows = (await session.execute(select(ConversationThread).where(ConversationThread.user_a_id == current_user_id(), ConversationThread.status == "active").order_by(desc(ConversationThread.updated_at)))).scalars().all()
+    rows = (
+        await session.execute(
+            select(ConversationThread)
+            .where(ConversationThread.user_a_id == current_user_id(), ConversationThread.status.in_(["active", "risk_frozen"]))
+            .order_by(desc(ConversationThread.updated_at))
+        )
+    ).scalars().all()
     return [await to_thread(session, row) for row in rows]
+
+
+async def mark_thread_read(session: AsyncSession, thread_id: str) -> ConversationThreadOut:
+    await get_current_user(session)
+    thread = await session.get(ConversationThread, thread_id)
+    if thread is None or thread.user_a_id != current_user_id():
+        raise HTTPException(status_code=404, detail="THREAD_NOT_FOUND")
+    thread.unread_count = 0
+    await session.commit()
+    await session.refresh(thread)
+    return await to_thread(session, thread)
 
 
 async def to_thread(session: AsyncSession, row: ConversationThread) -> ConversationThreadOut:
     turn_rows = (await session.execute(select(ConversationTurn).where(ConversationTurn.thread_id == row.id).order_by(ConversationTurn.created_at))).scalars().all()
     participant = await session.get(User, row.user_b_id)
-    return ConversationThreadOut(id=row.id, bottle_id=row.bottle_id, participant_user_id=row.user_b_id, participant_name=participant.nickname if participant else row.participant_name, participant_avatar_text=participant.avatar_text if participant else None, participant_avatar_url=participant.avatar_url if participant else None, participant_tag=row.participant_tag, bottle_preview=row.bottle_preview, last_message=row.last_message, updated_at=iso(row.updated_at), unread_count=row.unread_count, turns=[await to_turn(session, turn) for turn in turn_rows])
+    frozen_notice = None
+    if row.status == "risk_frozen":
+        frozen_notice = "该聊天已因举报处置被冻结。若你认为处理有误，可在客服入口提交申诉说明。"
+    return ConversationThreadOut(id=row.id, bottle_id=row.bottle_id, status=row.status, frozen_notice=frozen_notice, participant_user_id=row.user_b_id, participant_name=participant.nickname if participant else row.participant_name, participant_avatar_text=participant.avatar_text if participant else None, participant_avatar_url=resolved_avatar_url(participant, row.user_b_id), participant_tag=row.participant_tag, bottle_preview=row.bottle_preview, last_message=row.last_message, updated_at=iso(row.updated_at), unread_count=row.unread_count, turns=[await to_turn(session, turn) for turn in turn_rows])
 
 
 async def to_turn(session: AsyncSession, row: ConversationTurn) -> ConversationTurnOut:
@@ -1792,6 +2590,10 @@ async def send_turn(session: AsyncSession, thread_id: str, body: str, turn_type:
     thread = await session.get(ConversationThread, thread_id)
     if thread is None:
         raise HTTPException(status_code=404, detail="THREAD_NOT_FOUND")
+    if thread.status == "risk_frozen":
+        raise HTTPException(status_code=403, detail={"code": "CHAT_RISK_FROZEN", "message": "该聊天已因举报处置被冻结。"})
+    if thread.status != "active":
+        raise HTTPException(status_code=409, detail="THREAD_NOT_ACTIVE")
     clean_body, matched_words = moderate_chat_body(body)
     turn = ConversationTurn(id=new_id("turn"), thread_id=thread_id, sender_id=user.id, sender_name=user.nickname, body=clean_body, turn_type=turn_type, media_url=media_url, media_duration=media_duration, flash_viewed=False, created_at=now())
     session.add(turn)
@@ -2162,7 +2964,13 @@ async def admin_content_rows(
                 author_avatar_text = None
                 author_avatar_url = None
                 excerpt = (item.title if item.title else item.owner_name)[:60]
-                status_value = item.status
+                status_value = {
+                    "ai_approved": "approved",
+                    "manual_approved": "approved",
+                    "approved": "approved",
+                    "rejected": "rejected",
+                    "frozen": "rejected",
+                }.get(item.status, "pending")
             rows.append((item.id, source_type, status_value, author_id, author_name, author_avatar_text, author_avatar_url, excerpt, item.created_at))
 
     user_ids = {author_id for _, _, _, author_id, _, _, _, _, _ in rows}

@@ -15,8 +15,7 @@
 
       <view class="row profile-row">
         <view class="avatar" @tap="go('/pages/profile/settings')">
-          <image v-if="app.user?.avatarUrl" class="avatar-image" :src="app.user.avatarUrl" mode="aspectFill" />
-          <text v-else>{{ app.user?.avatarText || '海' }}</text>
+          <image class="avatar-image" :src="resolveAvatarUrl(app.user?.avatarUrl, app.user?.id || 'current-user')" mode="aspectFill" />
         </view>
         <view class="profile-main">
           <view class="row name-row">
@@ -83,6 +82,7 @@ import VipBadge from '@/components/VipBadge.vue'
 import { navigateTo, showToast } from '@/services/feedback'
 import { useAppStore } from '@/stores/app'
 import { useContentStore } from '@/stores/content'
+import { resolveAvatarUrl } from '@/utils/avatar'
 
 const app = useAppStore()
 const content = useContentStore()
@@ -102,7 +102,7 @@ const menuItems = computed(() => {
     { icon: 'settings', title: '用户设置', desc: '头像、昵称和个人资料', url: '/pages/profile/settings', badge: '' },
     { icon: 'invite', title: '拉新活动', desc: '邀请码、邀请进度、会员奖励', url: '/pages/profile/referral', badge: '' },
     { icon: 'block', title: '黑名单', desc: '查看已屏蔽的人和原因', url: '/pages/profile/blacklist', badge: '' },
-    { icon: 'records', title: '我的记录', desc: '瓶子、树洞、游戏和举报记录', url: '/pages/profile/records', badge: '' }
+    { icon: 'records', title: '我的记录', desc: '瓶子、消息、游戏和举报记录', url: '/pages/profile/records', badge: '' }
   ]
   if (!verified.value) {
     items.splice(1, 0, {

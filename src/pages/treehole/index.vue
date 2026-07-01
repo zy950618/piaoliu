@@ -64,8 +64,7 @@
             :class="`mood-card-${index % 4}`"
           >
             <view class="avatar" :class="post.authorGender">
-              <image v-if="post.authorAvatarUrl" class="avatar-image" :src="post.authorAvatarUrl" mode="aspectFill" />
-              <text v-else>{{ post.authorAvatarText }}</text>
+              <image class="avatar-image" :src="resolveAvatarUrl(post.authorAvatarUrl, post.id || post.authorName)" mode="aspectFill" />
             </view>
             <view class="mood-body">
               <view class="mood-top">
@@ -88,8 +87,7 @@
             <text class="muted hint">将以 {{ genderLabel(app.user?.gender || 'unknown') }} 身份匿名发布。</text>
           </view>
           <view class="composer-avatar" :class="app.user?.gender || 'unknown'">
-            <image v-if="app.user?.avatarUrl" class="avatar-image" :src="app.user.avatarUrl" mode="aspectFill" />
-            <text v-else>{{ app.user?.avatarText || '我' }}</text>
+            <image class="avatar-image" :src="resolveAvatarUrl(app.user?.avatarUrl, app.user?.id || 'current-user')" mode="aspectFill" />
           </view>
         </view>
         <textarea
@@ -118,8 +116,7 @@
       <view class="modal-card mood-detail-card" @tap.stop @click.stop>
         <view class="detail-user">
           <view class="detail-avatar" :class="viewedMood.authorGender">
-            <image v-if="viewedMood.authorAvatarUrl" class="avatar-image" :src="viewedMood.authorAvatarUrl" mode="aspectFill" />
-            <text v-else>{{ viewedMood.authorAvatarText }}</text>
+            <image class="avatar-image" :src="resolveAvatarUrl(viewedMood.authorAvatarUrl, viewedMood.id || viewedMood.authorName)" mode="aspectFill" />
           </view>
           <view class="detail-user-main">
             <view class="detail-name-row">
@@ -145,6 +142,7 @@
           @click.stop
         />
         <text v-if="replyError" class="reply-error">{{ replyError }}</text>
+        <text v-if="treeholeContextStatus" class="context-chat-copy">{{ treeholeContextStatus }}</text>
         <view class="detail-actions">
           <view class="button ghost" @tap="closeMoodDetail" @click="closeMoodDetail">放回树洞</view>
           <view
@@ -165,10 +163,11 @@
 import { computed, onUnmounted, ref } from 'vue'
 import { onHide, onLoad, onShow } from '@dcloudio/uni-app'
 import { useQuotaGuard } from '@/composables/useQuotaGuard'
-import { showToast } from '@/services/feedback'
+import { navigateTo, showToast } from '@/services/feedback'
 import { useAppStore } from '@/stores/app'
 import { useContentStore } from '@/stores/content'
 import type { TreeholePost } from '@/types/domain'
+import { resolveAvatarUrl } from '@/utils/avatar'
 
 type TreeholeGender = TreeholePost['authorGender']
 
@@ -182,6 +181,7 @@ const moodDetailOpen = ref(false)
 const replyDraft = ref('')
 const replyError = ref('')
 const replySubmitting = ref(false)
+const treeholeContextStatus = ref('')
 const bodyScrollLockClass = 'treehole-lock-scroll'
 
 const moodLoopItems = computed(() => {
@@ -246,6 +246,7 @@ function closeMoodDetail() {
   replyDraft.value = ''
   replyError.value = ''
   replySubmitting.value = false
+  treeholeContextStatus.value = ''
 }
 
 function maskNickname(name: string) {
@@ -273,6 +274,17 @@ async function publish() {
 
 function clearReplyError() {
   if (replyError.value && replyDraft.value.trim()) replyError.value = ''
+  treeholeContextStatus.value = ''
+}
+
+function contextStatusText(status: string, conversationId?: string) {
+  if (status === 'active') {
+    return conversationId ? '继续聊已开启，正在进入临时会话' : '继续聊已开启'
+  }
+  if (status === 'blocked') return '对方或你已拉黑，无法继续聊'
+  if (status === 'expired') return '继续聊申请已过期'
+  if (status === 'reported' || status === 'risk_frozen') return '继续聊申请已进入风控处理'
+  return '继续聊申请已发出，等待对方确认'
 }
 
 async function replyMood() {
@@ -284,12 +296,29 @@ async function replyMood() {
     return
   }
   replySubmitting.value = true
+  treeholeContextStatus.value = ''
   try {
-    await content.replyTreehole(viewedMood.value.id, replyContent)
-    showToast('已回复心情')
-    closeMoodDetail()
+    const mood = viewedMood.value
+    await content.replyTreehole(mood.id, replyContent)
+    const contextRequest = await content.createContextChatRequest({
+      targetUserId: mood.authorId,
+      sourceType: 'treehole_comment',
+      sourceId: mood.id,
+      replyId: `tree_reply:${mood.id}`,
+      initiatorAction: 'continue_chat',
+      evidenceId: `treehole_reply:${mood.id}`
+    })
+    treeholeContextStatus.value = contextStatusText(contextRequest.status, contextRequest.conversationId)
+    showToast(treeholeContextStatus.value)
+    if (contextRequest.status === 'active' && contextRequest.conversationId) {
+      closeMoodDetail()
+      navigateTo(`/pages/messages/chat?contextConversationId=${contextRequest.conversationId}`)
+      return
+    }
+    replyDraft.value = ''
+    replyError.value = ''
   } catch {
-    replyError.value = '回复失败，请稍后再试'
+    replyError.value = '回复或继续聊申请失败，请稍后再试'
   } finally {
     replySubmitting.value = false
   }
@@ -1046,6 +1075,15 @@ async function replyMood() {
   color: #b94747;
   font-size: 23rpx;
   font-weight: 800;
+}
+
+.context-chat-copy {
+  display: block;
+  margin-top: -4rpx;
+  color: #236c72;
+  font-size: 23rpx;
+  font-weight: 800;
+  line-height: 1.45;
 }
 
 .detail-actions {

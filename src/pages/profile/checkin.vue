@@ -42,7 +42,7 @@
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import CheckinStrip from '@/components/CheckinStrip.vue'
-import { showToast } from '@/services/feedback'
+import { navigateTo, showToast } from '@/services/feedback'
 import { useAppStore } from '@/stores/app'
 
 const app = useAppStore()
@@ -62,15 +62,7 @@ async function watchVideoAd() {
     showToast(app.adCountdownText)
     return
   }
-  adWatching.value = true
-  try {
-    await app.watchRewardAd(true)
-    showToast(`领取成功，金币 +1，所有玩法次数 +${app.adReward?.rewardPerQuota || 10}`)
-  } catch {
-    showToast('视频未看完，暂未发放奖励')
-  } finally {
-    adWatching.value = false
-  }
+  navigateTo('/pages/ad/reward')
 }
 </script>
 

@@ -4,8 +4,7 @@
       <view class="between">
         <view class="row user-row">
           <view class="avatar">
-            <image v-if="app.user?.avatarUrl" class="avatar-image" :src="app.user.avatarUrl" mode="aspectFill" />
-            <text v-else>{{ app.user?.avatarText || '海' }}</text>
+            <image class="avatar-image" :src="resolveAvatarUrl(app.user?.avatarUrl, app.user?.id || 'current-user')" mode="aspectFill" />
           </view>
           <view>
             <view class="row name-row">
@@ -73,9 +72,9 @@
         </view>
         <view class="entry tree" @tap="go('/pages/game/index')">
           <text class="entry-title">游戏星系</text>
-          <text class="entry-copy">树洞、真心话和大冒险</text>
+          <text class="entry-copy">随机匹配、真心话和大冒险</text>
           <view class="entry-badges">
-            <text class="entry-badge">发 +{{ quotaLeft('treehole_post') }}</text>
+            <text class="entry-badge">匹配入口</text>
           </view>
         </view>
         <view class="entry plaza" @tap="go('/pages/plaza/index')">
@@ -112,6 +111,7 @@ import QuotaGrid from '@/components/QuotaGrid.vue'
 import VipBadge from '@/components/VipBadge.vue'
 import { navigateTo, showToast, switchTab } from '@/services/feedback'
 import { useAppStore } from '@/stores/app'
+import { resolveAvatarUrl } from '@/utils/avatar'
 import type { QuotaType } from '@/types/domain'
 
 const app = useAppStore()
@@ -137,8 +137,7 @@ async function watchAd() {
     showToast(app.adCountdownText)
     return
   }
-  await app.watchRewardAd(true)
-  showToast('奖励已到账，所有玩法次数 +1')
+  navigateTo('/pages/ad/reward')
 }
 </script>
 

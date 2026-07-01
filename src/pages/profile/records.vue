@@ -3,7 +3,7 @@
     <view class="page-hero">
       <view>
         <text class="title">我的记录</text>
-        <text class="muted">瓶子、树洞、游戏和举报记录</text>
+        <text class="muted">瓶子、消息、游戏和举报记录</text>
       </view>
     </view>
 
