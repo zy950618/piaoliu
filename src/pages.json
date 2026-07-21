@@ -38,6 +38,14 @@
       }
     },
     {
+      "path": "pages/game/room",
+      "style": {
+        "navigationBarTitleText": "游戏房间",
+        "navigationBarBackgroundColor": "#F5F9FB",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
       "path": "pages/profile/index",
       "style": {
         "navigationBarTitleText": "我的"

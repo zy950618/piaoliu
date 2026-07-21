@@ -10,6 +10,8 @@ export interface ApiRequestOptions {
 }
 
 const CLIENT_ID_KEY = 'piaoliu_client_id'
+const ACCESS_TOKEN_KEY = 'piaoliu_access_token'
+let loginPromise: Promise<string> | undefined
 
 function createClientId() {
   const randomPart = Math.floor(Math.random() * 1_000_000).toString().padStart(6, '0')
@@ -20,7 +22,7 @@ function isNumericClientId(value: unknown): value is string {
   return typeof value === 'string' && /^\d{8,64}$/.test(value)
 }
 
-function getClientId() {
+export function getClientId() {
   if (typeof uni !== 'undefined' && typeof uni.getStorageSync === 'function') {
     const stored = uni.getStorageSync(CLIENT_ID_KEY)
     if (isNumericClientId(stored)) return stored
@@ -38,6 +40,98 @@ function getClientId() {
   return createClientId()
 }
 
+function getStoredToken() {
+  if (typeof uni !== 'undefined' && typeof uni.getStorageSync === 'function') {
+    return String(uni.getStorageSync(ACCESS_TOKEN_KEY) || '')
+  }
+  if (typeof localStorage !== 'undefined') return localStorage.getItem(ACCESS_TOKEN_KEY) || ''
+  return ''
+}
+
+function storeToken(token: string) {
+  if (typeof uni !== 'undefined' && typeof uni.setStorageSync === 'function') {
+    uni.setStorageSync(ACCESS_TOKEN_KEY, token)
+    return
+  }
+  if (typeof localStorage !== 'undefined') localStorage.setItem(ACCESS_TOKEN_KEY, token)
+}
+
+async function platformLoginCode() {
+  // H5 is a local preview surface; WeChat's uni.login provider is unavailable there.
+  if (typeof window !== 'undefined') return `h5-dev-${getClientId()}`
+  if (typeof uni !== 'undefined' && typeof uni.login === 'function') {
+    return new Promise<string>((resolve, reject) => {
+      uni.login({
+        provider: 'weixin',
+        success: (result) => result.code ? resolve(result.code) : reject(new Error('微信登录未返回有效凭证')),
+        fail: () => reject(new Error('微信登录失败，请检查网络后重试'))
+      })
+    })
+  }
+  return `h5-dev-${getClientId()}`
+}
+
+async function requestUserToken() {
+  const code = await platformLoginCode()
+  const url = `${API_BASE_URL}/auth/wechat`
+  const payload = { code }
+  if (typeof uni !== 'undefined' && typeof uni.request === 'function') {
+    return new Promise<string>((resolve, reject) => {
+      uni.request({
+        url,
+        method: 'POST',
+        header: { 'Content-Type': 'application/json' },
+        data: payload,
+        success: (response) => {
+          if ((response.statusCode || 0) < 200 || (response.statusCode || 0) >= 300) {
+            reject(new Error('登录状态初始化失败'))
+            return
+          }
+          const token = String((response.data as { access_token?: string })?.access_token || '')
+          token ? resolve(token) : reject(new Error('登录响应缺少访问凭证'))
+        },
+        fail: () => reject(new Error('无法连接登录服务'))
+      })
+    })
+  }
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+  if (!response.ok) throw new Error('登录状态初始化失败')
+  const body = await response.json() as { access_token?: string }
+  if (!body.access_token) throw new Error('登录响应缺少访问凭证')
+  return body.access_token
+}
+
+export async function getAccessToken(forceRefresh = false) {
+  if (!forceRefresh) {
+    const stored = getStoredToken()
+    if (stored) return stored
+  }
+  if (!loginPromise) {
+    loginPromise = requestUserToken()
+      .then((token) => {
+        storeToken(token)
+        return token
+      })
+      .finally(() => {
+        loginPromise = undefined
+      })
+  }
+  return loginPromise
+}
+
+function readableError(data: unknown, statusCode: number) {
+  if (typeof data === 'string' && data.trim()) return data
+  const payload = data as { error?: { message?: string }; detail?: { message?: string } | string }
+  if (payload?.error?.message) return payload.error.message
+  if (typeof payload?.detail === 'string') return payload.detail
+  if (payload?.detail?.message) return payload.detail.message
+  return `请求失败（${statusCode}）`
+}
+
 function normalizeBody(body: unknown) {
   if (typeof body !== 'string') return body
   try {
@@ -48,9 +142,11 @@ function normalizeBody(body: unknown) {
 }
 
 export async function requestJson<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  const accessToken = path === '/auth/wechat' ? '' : await getAccessToken()
   const headers = {
     'Content-Type': 'application/json',
     'X-Client-Id': getClientId(),
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     ...(options.headers || {})
   }
   const url = `${API_BASE_URL}${path}`
@@ -65,7 +161,7 @@ export async function requestJson<T>(path: string, options: ApiRequestOptions = 
         success: (response) => {
           const statusCode = response.statusCode || 0
           if (statusCode < 200 || statusCode >= 300) {
-            reject(new Error(typeof response.data === 'string' ? response.data : `HTTP_${statusCode}`))
+            reject(new Error(readableError(response.data, statusCode)))
             return
           }
           resolve(response.data as T)
@@ -81,8 +177,10 @@ export async function requestJson<T>(path: string, options: ApiRequestOptions = 
     body: typeof options.body === 'string' ? options.body : options.body == null ? undefined : JSON.stringify(options.body)
   })
   if (!response.ok) {
-    const body = await response.text()
-    throw new Error(body || `HTTP_${response.status}`)
+    const text = await response.text()
+    let body: unknown = text
+    try { body = JSON.parse(text) } catch { /* Keep server text. */ }
+    throw new Error(readableError(body, response.status))
   }
   return response.json() as Promise<T>
 }

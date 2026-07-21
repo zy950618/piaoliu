@@ -15,11 +15,15 @@ from app.schemas import (
     ChatConversationReportRequest,
     ChatConversationReportResponse,
     ChatMessageCreate,
+    ChatMessageSyncResponse,
     ChatMessageSendResponse,
+    ChatReadCursorOut,
+    ChatReadCursorUpdate,
     MatchExpandContextResponse,
     RelationRequest,
 )
 from app.security import AdminPrincipal
+from app.realtime import realtime_hub
 
 router = APIRouter(tags=["chat"])
 
@@ -61,7 +65,49 @@ async def get_context_conversation(conversation_id: str, session: AsyncSession =
 
 @router.post("/chat/conversations/{conversation_id}/messages", response_model=ChatMessageSendResponse)
 async def send_context_message(conversation_id: str, payload: ChatMessageCreate, session: AsyncSession = Depends(get_db_session)) -> ChatMessageSendResponse:
-    return await chat_store.send_message(session, conversation_id, payload)
+    result = await chat_store.send_message(session, conversation_id, payload)
+    if not result.deduplicated:
+        await realtime_hub.broadcast(
+            conversation_id,
+            {
+                "type": "message.created",
+                "conversation_id": conversation_id,
+                "message_id": result.message_id,
+                "sequence": result.sequence,
+                "status": result.status,
+            },
+        )
+    return result
+
+
+@router.get("/chat/conversations/{conversation_id}/messages", response_model=ChatMessageSyncResponse)
+async def sync_context_messages(
+    conversation_id: str,
+    after_sequence: int = 0,
+    limit: int = 100,
+    session: AsyncSession = Depends(get_db_session),
+) -> ChatMessageSyncResponse:
+    bounded_limit = min(max(limit, 1), 200)
+    return await chat_store.sync_messages(session, conversation_id, max(after_sequence, 0), bounded_limit)
+
+
+@router.put("/chat/conversations/{conversation_id}/read-cursor", response_model=ChatReadCursorOut)
+async def update_context_read_cursor(
+    conversation_id: str,
+    payload: ChatReadCursorUpdate,
+    session: AsyncSession = Depends(get_db_session),
+) -> ChatReadCursorOut:
+    result = await chat_store.update_read_cursor(session, conversation_id, payload.last_read_sequence)
+    await realtime_hub.broadcast(
+        conversation_id,
+        {
+            "type": "message.read",
+            "conversation_id": conversation_id,
+            "user_id": result.user_id,
+            "last_read_sequence": result.last_read_sequence,
+        },
+    )
+    return result
 
 
 @router.post("/chat/conversations/{conversation_id}/report", response_model=ChatConversationReportResponse)

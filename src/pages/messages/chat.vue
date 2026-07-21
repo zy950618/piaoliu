@@ -184,47 +184,18 @@
           </view>
 
           <view v-if="activeTool === 'room'" class="room-panel">
-            <view class="room-mode public" @tap="createRoom('truth')">
+            <view class="room-mode private primary" @tap="createPrivateRoom">
               <view class="room-mode-head">
-                <text>公开房间</text>
-                <text class="room-state">公开</text>
+                <text>创建双人私密房</text>
+                <text class="room-state">仅双方可见</text>
               </view>
               <view class="avatar-ring">
                 <view class="room-avatar participant" />
                 <view class="room-avatar self" />
               </view>
               <view class="room-presence">
-                <text class="presence-bar strong" />
-                <text class="presence-bar" />
-                <text class="presence-bar soft" />
-                <text>2 online</text>
+                <text>邀请当前聊天对象，一起玩骰子、真心话或大冒险</text>
               </view>
-            </view>
-            <view class="room-mode private" @tap="createRoom('dare')">
-              <view class="room-mode-head">
-                <text>私密房间</text>
-                <text class="room-state">私密</text>
-              </view>
-              <view class="avatar-ring">
-                <view class="room-avatar participant" />
-                <view class="room-avatar self" />
-              </view>
-              <view class="room-presence">
-                <text class="presence-bar strong" />
-                <text class="presence-bar soft" />
-                <text>2 online</text>
-              </view>
-            </view>
-            <view class="room-mode temporary primary" @tap="createRoom('mixed')">
-              <view class="room-mode-head">
-                <text>临时房间</text>
-                <text class="room-state">限时</text>
-              </view>
-              <view class="avatar-ring">
-                <view class="room-avatar participant" />
-                <view class="room-avatar self" />
-              </view>
-            <view class="room-countdown">15:00</view>
             </view>
             <text v-if="gameRoomContextStatus" class="room-context-status">{{ gameRoomContextStatus }}</text>
           </view>
@@ -261,13 +232,14 @@ import GiftSheet from '@/components/GiftSheet.vue'
 import GiftSplash from '@/components/GiftSplash.vue'
 import { GIFT_CELEBRATION_DURATION_MS } from '@/constants/feedback'
 import { navigateTo, showToast } from '@/services/feedback'
+import { businessApi } from '@/services/businessApi'
+import { connectContextChat, type RealtimeConnection } from '@/services/realtime'
 import { useAppStore } from '@/stores/app'
 import { useContentStore } from '@/stores/content'
 import { resolveAvatarUrl } from '@/utils/avatar'
 import type { ContextChatConversation, ConversationThread, ConversationTurn, GiftProduct } from '@/types/domain'
 
 type MediaType = NonNullable<ConversationTurn['type']>
-type RoomMode = 'truth' | 'dare' | 'mixed'
 
 const content = useContentStore()
 const app = useAppStore()
@@ -282,6 +254,7 @@ const sendingGiftId = ref('')
 const gameRoomContextStatus = ref('')
 const celebrationGift = ref<GiftProduct>()
 let giftTimer: ReturnType<typeof setTimeout> | undefined
+let realtimeConnection: RealtimeConnection | undefined
 
 const selectedThread = computed(() => content.conversationThreads.find((thread) => thread.id === threadId.value))
 const participantDisplayId = computed(() => selectedThread.value?.participantUserId || '-')
@@ -295,7 +268,7 @@ const appealButtonText = computed(() => {
   return '提交申诉'
 })
 const contextConversation = computed(() => content.currentContextConversation)
-const contextCurrentUserId = computed(() => contextConversation.value?.participants[0] || '')
+const contextCurrentUserId = computed(() => app.user?.id || '')
 const canSendText = computed(() => Boolean(draft.value.trim()))
 const contextStatusText = computed(() => {
   if (!contextConversation.value) return '正在加载临时会话'
@@ -321,11 +294,17 @@ onLoad((query) => {
 
 onUnload(() => {
   if (giftTimer) clearTimeout(giftTimer)
+  realtimeConnection?.close()
 })
 
 async function loadPage() {
   if (contextConversationId.value) {
     await Promise.all([app.hydrate(), content.loadContextConversation(contextConversationId.value)])
+    realtimeConnection = await connectContextChat(contextConversationId.value, (event) => {
+      if (event.type === 'message.created' || event.type === 'message.read') {
+        void content.loadContextConversation(contextConversationId.value)
+      }
+    })
     return
   }
   await Promise.all([app.hydrate(), content.loadConversationThreads(), content.loadWallet()])
@@ -523,7 +502,7 @@ async function sendGift(giftId: string) {
   }
 }
 
-async function createRoom(mode: RoomMode) {
+async function createPrivateRoom() {
   if (!selectedThread.value) return
   if (isSelectedThreadFrozen.value) {
     showAppealInfo()
@@ -532,33 +511,14 @@ async function createRoom(mode: RoomMode) {
   gameRoomContextStatus.value = ''
   const thread = selectedThread.value
   try {
-    const result = await content.createGameRoom(thread.id, mode)
-    const contextRequest = await content.createContextChatRequest({
-      targetUserId: thread.participantUserId,
-      sourceType: 'game_room',
-      sourceId: result.roomId,
-      replyId: thread.id,
-      initiatorAction: 'room_confirm',
-      evidenceId: `game_room:${result.roomId}`
-    })
-    gameRoomContextStatus.value = gameRoomStatusText(contextRequest.status, contextRequest.conversationId)
-    showToast(gameRoomContextStatus.value)
-    if (contextRequest.status === 'active' && contextRequest.conversationId) {
-      activeTool.value = ''
-      navigateTo(`/pages/messages/chat?contextConversationId=${contextRequest.conversationId}`)
-    }
-  } catch {
-    gameRoomContextStatus.value = '房间已创建或申请失败，请稍后重试'
+    const room = await businessApi.createPrivateRoom(thread.id, thread.participantUserId)
+    activeTool.value = ''
+    showToast('私密房已创建，邀请已发送')
+    navigateTo(`/pages/game/room?roomId=${room.id}`)
+  } catch (error) {
+    gameRoomContextStatus.value = error instanceof Error ? error.message : '房间创建失败，请稍后重试'
     showToast(gameRoomContextStatus.value)
   }
-}
-
-function gameRoomStatusText(status: string, conversationId?: string) {
-  if (status === 'active') return conversationId ? '房间确认已通过，正在进入临时会话' : '房间确认已通过'
-  if (status === 'blocked') return '对方或你已拉黑，无法开启房间继续聊'
-  if (status === 'expired') return '房间继续聊申请已过期'
-  if (status === 'reported' || status === 'risk_frozen') return '房间继续聊申请已进入风控处理'
-  return '房间已创建，继续聊申请等待对方确认'
 }
 
 function goWallet() {

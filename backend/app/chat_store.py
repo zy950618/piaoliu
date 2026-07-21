@@ -10,10 +10,12 @@ from app import db_business
 from app.audit import record_admin_audit
 from app.models import (
     ChatContextRequestRecord,
+    ChatGrant,
     ChatConversationBlockRecord,
     ChatConversationRecord,
     ChatConversationReportRecord,
     ChatMessageRecord,
+    ConversationUserState,
 )
 from app.schemas import (
     ChatContextRequestAccept,
@@ -26,6 +28,8 @@ from app.schemas import (
     ChatConversationReportResponse,
     ChatMessageCreate,
     ChatMessageOut,
+    ChatMessageSyncResponse,
+    ChatReadCursorOut,
     ChatMessageSendResponse,
 )
 
@@ -216,6 +220,30 @@ async def accept_context_request(session: AsyncSession, request_id: str, payload
         updated_at=now(),
     )
     session.add(conversation)
+    pair = tuple(sorted((row.initiator_id, row.target_user_id)))
+    existing_grant = await session.scalar(
+        select(ChatGrant).where(
+            ChatGrant.user_a_id == pair[0],
+            ChatGrant.user_b_id == pair[1],
+            ChatGrant.source_type == row.source_type,
+            ChatGrant.source_id == row.source_id,
+        )
+    )
+    if existing_grant is None:
+        session.add(
+            ChatGrant(
+                id=new_id("grant"),
+                user_a_id=pair[0],
+                user_b_id=pair[1],
+                source_type=row.source_type,
+                source_id=row.source_id,
+                status="active",
+                created_at=now(),
+            )
+        )
+    else:
+        existing_grant.status = "active"
+        existing_grant.revoked_at = None
     row.status = "active"
     row.conversation_id = conversation_id
     row.confirm_action = payload.confirm_action
@@ -269,7 +297,9 @@ async def get_conversation(session: AsyncSession, conversation_id: str) -> ChatC
 
 
 async def send_message(session: AsyncSession, conversation_id: str, payload: ChatMessageCreate) -> ChatMessageSendResponse:
-    row = await session.get(ChatConversationRecord, conversation_id)
+    row = await session.scalar(
+        select(ChatConversationRecord).where(ChatConversationRecord.id == conversation_id).with_for_update()
+    )
     if row is None:
         raise error(404, "CHAT_CONVERSATION_NOT_FOUND", "Conversation not found")
     await ensure_participant(row)
@@ -278,14 +308,36 @@ async def send_message(session: AsyncSession, conversation_id: str, payload: Cha
     if row.status != "active":
         raise error(409, "CHAT_CONVERSATION_NOT_ACTIVE", "Conversation is not active")
 
+    if payload.client_message_id:
+        existing = await session.scalar(
+            select(ChatMessageRecord).where(
+                ChatMessageRecord.conversation_id == conversation_id,
+                ChatMessageRecord.sender_id == current_user_id(),
+                ChatMessageRecord.client_message_id == payload.client_message_id,
+            )
+        )
+        if existing is not None:
+            return ChatMessageSendResponse(
+                message_id=existing.id,
+                sequence=existing.sequence,
+                deduplicated=True,
+                status=existing.status,
+                risk_labels=[],
+                audit_id="",
+            )
+
     labels = [label for word, label in RISK_WORDS.items() if word in payload.content.lower()]
     message_status = "risk_pending" if labels else "sent"
-    message_id = payload.client_message_id or new_id("msg")
+    message_id = new_id("msg")
+    sequence = row.next_message_sequence
+    row.next_message_sequence += 1
     session.add(
         ChatMessageRecord(
             id=message_id,
             conversation_id=conversation_id,
             sender_id=current_user_id(),
+            client_message_id=payload.client_message_id,
+            sequence=sequence,
             content_type=payload.content_type,
             content=payload.content,
             status=message_status,
@@ -302,7 +354,104 @@ async def send_message(session: AsyncSession, conversation_id: str, payload: Cha
     refs.append(audit.id)
     row.audit_refs = audit_refs_dump(refs)
     await session.commit()
-    return ChatMessageSendResponse(message_id=message_id, status=message_status, risk_labels=labels, audit_id=audit.id)
+    return ChatMessageSendResponse(
+        message_id=message_id,
+        sequence=sequence,
+        status=message_status,
+        risk_labels=labels,
+        audit_id=audit.id,
+    )
+
+
+def to_message_out(message: ChatMessageRecord) -> ChatMessageOut:
+    return ChatMessageOut(
+        id=message.id,
+        sender_id=message.sender_id,
+        client_message_id=message.client_message_id,
+        sequence=message.sequence,
+        content_type=message.content_type,
+        content=message.content,
+        status=message.status,
+        created_at=iso(message.created_at) or "",
+    )
+
+
+async def sync_messages(
+    session: AsyncSession,
+    conversation_id: str,
+    after_sequence: int = 0,
+    limit: int = 100,
+) -> ChatMessageSyncResponse:
+    row = await session.get(ChatConversationRecord, conversation_id)
+    if row is None:
+        raise error(404, "CHAT_CONVERSATION_NOT_FOUND", "Conversation not found")
+    await ensure_participant(row)
+    rows = (
+        await session.execute(
+            select(ChatMessageRecord)
+            .where(
+                ChatMessageRecord.conversation_id == conversation_id,
+                ChatMessageRecord.sequence > after_sequence,
+            )
+            .order_by(ChatMessageRecord.sequence)
+            .limit(limit + 1)
+        )
+    ).scalars().all()
+    has_more = len(rows) > limit
+    page = rows[:limit]
+    latest = page[-1].sequence if page else after_sequence
+    return ChatMessageSyncResponse(
+        conversation_id=conversation_id,
+        after_sequence=after_sequence,
+        latest_sequence=latest,
+        has_more=has_more,
+        messages=[to_message_out(message) for message in page],
+    )
+
+
+async def update_read_cursor(
+    session: AsyncSession,
+    conversation_id: str,
+    last_read_sequence: int,
+) -> ChatReadCursorOut:
+    conversation = await session.get(ChatConversationRecord, conversation_id)
+    if conversation is None:
+        raise error(404, "CHAT_CONVERSATION_NOT_FOUND", "Conversation not found")
+    await ensure_participant(conversation)
+    latest_sequence = max(conversation.next_message_sequence - 1, 0)
+    if last_read_sequence > latest_sequence:
+        raise error(422, "CHAT_READ_CURSOR_INVALID", "Read cursor exceeds the latest message")
+    user_id = current_user_id()
+    row = await session.scalar(
+        select(ConversationUserState).where(
+            ConversationUserState.conversation_id == conversation_id,
+            ConversationUserState.user_id == user_id,
+        )
+    )
+    timestamp = now()
+    if row is None:
+        row = ConversationUserState(
+            id=new_id("cursor"),
+            conversation_id=conversation_id,
+            user_id=user_id,
+            last_read_seq=last_read_sequence,
+            muted=False,
+            history_cleared_before_seq=0,
+            hidden_until_seq=0,
+            updated_at=timestamp,
+        )
+        session.add(row)
+    else:
+        row.last_read_seq = max(row.last_read_seq, last_read_sequence)
+        row.updated_at = timestamp
+    await session.commit()
+    await session.refresh(row)
+    return ChatReadCursorOut(
+        conversation_id=conversation_id,
+        user_id=user_id,
+        last_read_sequence=row.last_read_seq,
+        updated_at=iso(row.updated_at) or "",
+    )
 
 
 async def report_conversation(session: AsyncSession, conversation_id: str, payload: ChatConversationReportRequest) -> ChatConversationReportResponse:
@@ -342,6 +491,7 @@ async def block_conversation(session: AsyncSession, conversation_id: str, payloa
     if payload.target_user_id not in participants(row) or payload.target_user_id == current_user_id():
         raise error(422, "CHAT_TARGET_INVALID", "Target user is not a valid participant")
     block_id = new_id("chat_block")
+    await db_business.block_user(session, payload.target_user_id, payload.reason or "聊天中拉黑")
     audit = record_admin_audit(current_user_id(), "chat_conversation_block", "chat_conversation", conversation_id)
     row.status = "blocked"
     row.risk_state = "blocked"
@@ -388,7 +538,7 @@ def to_request_out(row: ChatContextRequestRecord) -> ChatContextRequestOut:
 
 
 async def to_conversation_out(session: AsyncSession, row: ChatConversationRecord) -> ChatConversationOut:
-    messages = (await session.execute(select(ChatMessageRecord).where(ChatMessageRecord.conversation_id == row.id).order_by(ChatMessageRecord.created_at))).scalars().all()
+    messages = (await session.execute(select(ChatMessageRecord).where(ChatMessageRecord.conversation_id == row.id).order_by(ChatMessageRecord.sequence))).scalars().all()
     return ChatConversationOut(
         id=row.id,
         status=row.status,
@@ -402,16 +552,6 @@ async def to_conversation_out(session: AsyncSession, row: ChatConversationRecord
         rate_limit=rate_limit(row.friendship_state),
         risk_state=row.risk_state,
         report_state=row.report_state,
-        messages=[
-            ChatMessageOut(
-                id=message.id,
-                sender_id=message.sender_id,
-                content_type=message.content_type,
-                content=message.content,
-                status=message.status,
-                created_at=iso(message.created_at) or "",
-            )
-            for message in messages
-        ],
+        messages=[to_message_out(message) for message in messages],
         audit_refs=audit_refs_load(row.audit_refs),
     )

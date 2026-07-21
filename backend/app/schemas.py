@@ -243,6 +243,29 @@ class RelationRequest(BaseModel):
     target_user_id: str
 
 
+class FriendRequestOut(BaseModel):
+    id: str
+    requester_id: str
+    target_user_id: str
+    status: Literal["requested", "accepted", "rejected", "cancelled"]
+    created_at: str
+
+
+class FriendshipOut(BaseModel):
+    id: str
+    user_id: str
+    friend_user_id: str
+    status: Literal["active", "removed"]
+    created_at: str
+
+
+class RelationStateOut(BaseModel):
+    target_user_id: str
+    state: Literal["stranger", "pending_incoming", "pending_outgoing", "friend", "blocked"]
+    can_chat: bool
+    can_request_friend: bool
+
+
 class WalletState(BaseModel):
     recharge_coins: int
     earned_coins: int
@@ -935,7 +958,7 @@ class MatchExpandContextResponse(BaseModel):
 
 
 class ChatMessageCreate(BaseModel):
-    content_type: Literal["text", "image", "voice", "system_source_card"] = "text"
+    content_type: Literal["text", "image", "voice", "video", "system_source_card"] = "text"
     content: str = Field(min_length=1, max_length=500)
     client_message_id: str | None = Field(default=None, max_length=120)
 
@@ -943,7 +966,9 @@ class ChatMessageCreate(BaseModel):
 class ChatMessageOut(BaseModel):
     id: str
     sender_id: str
-    content_type: Literal["text", "image", "voice", "system_source_card"]
+    client_message_id: str | None = None
+    sequence: int
+    content_type: Literal["text", "image", "voice", "video", "system_source_card"]
     content: str
     status: Literal["sent", "risk_pending", "blocked"]
     created_at: str
@@ -968,9 +993,105 @@ class ChatConversationOut(BaseModel):
 
 class ChatMessageSendResponse(BaseModel):
     message_id: str
+    sequence: int
+    deduplicated: bool = False
     status: Literal["sent", "risk_pending", "blocked"]
     risk_labels: list[str] = Field(default_factory=list)
     audit_id: str
+
+
+class ChatMessageSyncResponse(BaseModel):
+    conversation_id: str
+    after_sequence: int
+    latest_sequence: int
+    has_more: bool
+    messages: list[ChatMessageOut] = Field(default_factory=list)
+
+
+class ChatReadCursorUpdate(BaseModel):
+    last_read_sequence: int = Field(ge=0)
+
+
+class ChatReadCursorOut(BaseModel):
+    conversation_id: str
+    user_id: str
+    last_read_sequence: int
+    updated_at: str
+
+
+class RoomCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    visibility: Literal["private", "public"]
+    size_mode: Literal["pair", "group"] = "pair"
+    join_policy: Literal["invite", "approval", "open"] = "invite"
+    capacity: int = Field(default=2, ge=2, le=20)
+    allow_member_invite: bool = False
+    conversation_id: str | None = Field(default=None, max_length=64)
+
+
+class UploadPrepareRequest(BaseModel):
+    filename: str = Field(min_length=1, max_length=160)
+    content_type: Literal["image/jpeg", "image/png", "image/webp", "video/mp4", "audio/mpeg", "audio/mp4"]
+    size_bytes: int = Field(gt=0, le=20 * 1024 * 1024)
+
+
+class UploadPrepareResponse(BaseModel):
+    object_key: str
+    upload_url: str
+    public_url: str
+    expires_in_seconds: int
+
+
+class RoomMemberOut(BaseModel):
+    user_id: str
+    role: Literal["owner", "moderator", "member"]
+    status: Literal["invited", "active", "left", "removed"]
+
+
+class RoomOut(BaseModel):
+    id: str
+    owner_id: str
+    conversation_id: str | None = None
+    name: str
+    visibility: Literal["private", "public"]
+    size_mode: Literal["pair", "group"]
+    join_policy: Literal["invite", "approval", "open"]
+    capacity: int
+    allow_member_invite: bool
+    status: Literal["active", "ended", "closed"]
+    members: list[RoomMemberOut] = Field(default_factory=list)
+    created_at: str
+
+
+class RoomInvitationCreate(BaseModel):
+    invitee_id: str = Field(min_length=1, max_length=64)
+    idempotency_key: str = Field(min_length=3, max_length=120)
+
+
+class RoomInvitationOut(BaseModel):
+    id: str
+    room_id: str
+    inviter_id: str
+    invitee_id: str
+    status: Literal["pending", "accepted", "rejected", "expired"]
+    expires_at: str
+
+
+class GameRoundCreate(BaseModel):
+    mode: Literal["truth", "dare", "dice"]
+
+
+class GameRoundOut(BaseModel):
+    id: str
+    room_id: str
+    initiator_id: str
+    mode: Literal["truth", "dare", "dice"]
+    status: Literal["waiting", "active", "resolved", "expired", "cancelled"]
+    prompt_id: str | None = None
+    prompt_text: str | None = None
+    result: dict = Field(default_factory=dict)
+    created_at: str
+    resolved_at: str | None = None
 
 
 class ChatConversationReportRequest(BaseModel):

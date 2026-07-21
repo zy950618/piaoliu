@@ -5,9 +5,14 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from app.request_context import current_request_id
+
 
 def _error_payload(code: str, message: str, details: Any = None) -> dict[str, Any]:
-    payload: dict[str, Any] = {"error": {"code": code, "message": message}}
+    payload: dict[str, Any] = {
+        "error": {"code": code, "message": message},
+        "request_id": current_request_id(),
+    }
     if details is not None:
         payload["error"]["details"] = details
     return payload
@@ -64,6 +69,14 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(
+        status_code=500,
+        content=_error_payload("INTERNAL_ERROR", "服务暂时无法完成请求，请稍后重试"),
+    )
+
+
 def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(Exception, unhandled_exception_handler)

@@ -66,6 +66,25 @@
     </view>
 
     <view v-else class="notice-list">
+      <view v-if="noticeFilter !== 'system' && roomInvitations.length" class="notice-section-head room-section">
+        <text>游戏房间邀请</text>
+        <text class="notice-section-badge">{{ roomInvitations.length }}</text>
+      </view>
+      <view v-for="invitation in noticeFilter === 'system' ? [] : roomInvitations" :key="invitation.id" class="invite-card room-invite-card">
+        <view class="invite-head">
+          <view>
+            <text class="invite-title">收到私密房间邀请</text>
+            <text class="invite-subtitle">24 小时内有效 · 仅房间成员可见</text>
+          </view>
+          <text class="invite-status">待加入</text>
+        </view>
+        <view class="invite-body">
+          <text>同意后进入房间，可以一起玩骰子、真心话和大冒险。</text>
+        </view>
+        <view class="invite-actions">
+          <view class="invite-button primary" @tap.stop="acceptGameRoomInvitation(invitation.id)">同意并进入</view>
+        </view>
+      </view>
       <view v-if="pendingContextRequests.length" class="notice-section-head">
         <text>待处理邀请</text>
         <text class="notice-section-badge">{{ pendingContextRequests.length }}</text>
@@ -153,7 +172,7 @@
           <text>{{ messageActionLabel(message) }} ›</text>
         </view>
       </view>
-      <EmptyState v-if="visibleMessages.length === 0 && visibleContextRequests.length === 0" title="暂无消息" body="留言、邀请和系统通知会出现在这里。" />
+      <EmptyState v-if="visibleMessages.length === 0 && visibleContextRequests.length === 0 && (noticeFilter === 'system' || roomInvitations.length === 0)" title="暂无消息" body="留言、邀请和系统通知会出现在这里。" />
     </view>
   </view>
 </template>
@@ -162,16 +181,18 @@
 import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import EmptyState from '@/components/EmptyState.vue'
+import { businessApi } from '@/services/businessApi'
 import { navigateTo, showToast, switchTab } from '@/services/feedback'
 import { useContentStore } from '@/stores/content'
 import { resolveAvatarUrl } from '@/utils/avatar'
-import type { ContextChatRequest, ConversationThread, MessageItem } from '@/types/domain'
+import type { ContextChatRequest, ConversationThread, MessageItem, RoomInvitation } from '@/types/domain'
 
 const content = useContentStore()
+const roomInvitations = ref<RoomInvitation[]>([])
 const pendingInvitationCount = computed(() => content.contextChatRequests.filter((item) => item.status === 'pending').length)
 const systemMessageTypes = new Set(['system', 'membership', 'payment', 'verification', 'checkin', 'ad_reward', 'chat_freeze', 'chat_restore'])
 const systemUnreadCount = computed(() => content.messages.filter((item) => item.unread && isSystemMessage(item)).length)
-const noticeUnreadCount = computed(() => content.messages.filter((item) => item.unread && !isSystemMessage(item)).length + pendingInvitationCount.value)
+const noticeUnreadCount = computed(() => content.messages.filter((item) => item.unread && !isSystemMessage(item)).length + pendingInvitationCount.value + roomInvitations.value.length)
 const unreadCount = computed(() => noticeUnreadCount.value + systemUnreadCount.value)
 const historyUnreadCount = computed(() => content.conversationThreads.reduce((sum, thread) => sum + thread.unreadCount, 0))
 const totalUnread = computed(() => unreadCount.value + historyUnreadCount.value)
@@ -208,7 +229,24 @@ onLoad(() => {
 })
 
 async function loadPage() {
-  await Promise.all([content.loadMessages(), content.loadConversationThreads(), content.loadContextChatRequests()])
+  const [, , , invitations] = await Promise.all([
+    content.loadMessages(),
+    content.loadConversationThreads(),
+    content.loadContextChatRequests(),
+    businessApi.listRoomInvitations()
+  ])
+  roomInvitations.value = invitations
+}
+
+async function acceptGameRoomInvitation(invitationId: string) {
+  try {
+    const room = await businessApi.acceptRoomInvitation(invitationId)
+    roomInvitations.value = roomInvitations.value.filter((item) => item.id !== invitationId)
+    showToast('已加入房间')
+    navigateTo(`/pages/game/room?roomId=${room.id}`)
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '加入房间失败，请稍后重试')
+  }
 }
 
 function showMessages(filter: 'all' | 'system') {

@@ -1,0 +1,47 @@
+name: piaoliu-test
+services:
+  postgres:
+    image: postgres:16-alpine
+    env_file: env/test.env
+    volumes: [test-postgres:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"], interval: 5s, timeout: 3s, retries: 20 }
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [test-redis:/data]
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 5s, timeout: 3s, retries: 20 }
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address :9001
+    env_file: env/test.env
+    ports: ["127.0.0.1:19000:9000", "127.0.0.1:19001:9001"]
+    volumes: [test-minio:/data]
+  backend:
+    build: { context: ../backend }
+    env_file: env/test.env
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    ports: ["127.0.0.1:18100:8100"]
+    healthcheck: { test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/health')"], interval: 10s, timeout: 5s, retries: 20 }
+  worker:
+    build: { context: ../backend }
+    command: ["python", "-m", "app.worker"]
+    env_file: env/test.env
+    depends_on: { redis: { condition: service_healthy } }
+  scheduler:
+    build: { context: ../backend }
+    command: ["python", "-m", "app.scheduler"]
+    env_file: env/test.env
+    depends_on: { redis: { condition: service_healthy } }
+  admin:
+    build: { context: .., dockerfile: admin-web/Dockerfile }
+  nginx:
+    image: nginx:1.27-alpine
+    volumes: ["./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro"]
+    depends_on: { backend: { condition: service_healthy }, admin: { condition: service_started } }
+    ports: ["127.0.0.1:15180:80"]
+volumes:
+  test-postgres:
+  test-redis:
+  test-minio:

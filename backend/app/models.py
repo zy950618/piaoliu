@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 try:
-    from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+    from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
     from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -430,6 +430,125 @@ try:
         __table_args__ = (UniqueConstraint("requester_id", "target_user_id", name="uq_friend_requests_pair"),)
 
 
+    class InteractionReceipt(Base):
+        __tablename__ = "interaction_receipts"
+
+        id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        actor_id: Mapped[str] = mapped_column(String(64), ForeignKey("users.id"), nullable=False, index=True)
+        target_user_id: Mapped[str] = mapped_column(String(64), ForeignKey("users.id"), nullable=False, index=True)
+        source_type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+        source_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+        status: Mapped[str] = mapped_column(String(24), nullable=False, default="active")
+        created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+        __table_args__ = (UniqueConstraint("actor_id", "target_user_id", "source_type", "source_id", name="uq_interaction_receipt_source"),)
+
+
+    class ChatGrant(Base):
+        __tablename__ = "chat_grants"
+
+        id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        user_a_id: Mapped[str] = mapped_column(String(64), ForeignKey("users.id"), nullable=False, index=True)
+        user_b_id: Mapped[str] = mapped_column(String(64), ForeignKey("users.id"), nullable=False, index=True)
+        source_type: Mapped[str] = mapped_column(String(40), nullable=False)
+        source_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+        status: Mapped[str] = mapped_column(String(24), nullable=False, default="active")
+        created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+        revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+        __table_args__ = (UniqueConstraint("user_a_id", "user_b_id", "source_type", "source_id", name="uq_chat_grant_source"),)
+
+
+    class Friendship(Base):
+        __tablename__ = "friendships"
+
+        id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        user_a_id: Mapped[str] = mapped_column(String(64), ForeignKey("users.id"), nullable=False, index=True)
+        user_b_id: Mapped[str] = mapped_column(String(64), ForeignKey("users.id"), nullable=False, index=True)
+        status: Mapped[str] = mapped_column(String(24), nullable=False, default="active")
+        created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+        removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+        __table_args__ = (UniqueConstraint("user_a_id", "user_b_id", name="uq_friendship_pair"),)
+
+
+    class ConversationUserState(Base):
+        __tablename__ = "conversation_user_states"
+
+        id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        conversation_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+        user_id: Mapped[str] = mapped_column(String(64), ForeignKey("users.id"), nullable=False, index=True)
+        last_read_seq: Mapped[int] = mapped_column(Integer(), nullable=False, default=0)
+        history_cleared_before_seq: Mapped[int] = mapped_column(Integer(), nullable=False, default=0)
+        hidden_until_seq: Mapped[int] = mapped_column(Integer(), nullable=False, default=0)
+        muted: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
+        cleanup_days: Mapped[int | None] = mapped_column(Integer(), nullable=True)
+        updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+        __table_args__ = (UniqueConstraint("conversation_id", "user_id", name="uq_conversation_user_state"),)
+
+
+    class Room(Base):
+        __tablename__ = "rooms"
+
+        id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        owner_id: Mapped[str] = mapped_column(String(64), ForeignKey("users.id"), nullable=False, index=True)
+        conversation_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+        name: Mapped[str] = mapped_column(String(80), nullable=False)
+        visibility: Mapped[str] = mapped_column(String(24), nullable=False, index=True)
+        size_mode: Mapped[str] = mapped_column(String(24), nullable=False)
+        join_policy: Mapped[str] = mapped_column(String(24), nullable=False)
+        capacity: Mapped[int] = mapped_column(Integer(), nullable=False)
+        allow_member_invite: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
+        status: Mapped[str] = mapped_column(String(24), nullable=False, default="active", index=True)
+        last_active_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+        created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+        dissolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+    class RoomMember(Base):
+        __tablename__ = "room_members"
+
+        id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        room_id: Mapped[str] = mapped_column(String(64), ForeignKey("rooms.id"), nullable=False, index=True)
+        user_id: Mapped[str] = mapped_column(String(64), ForeignKey("users.id"), nullable=False, index=True)
+        role: Mapped[str] = mapped_column(String(24), nullable=False, default="member")
+        status: Mapped[str] = mapped_column(String(24), nullable=False, default="active", index=True)
+        cannot_rejoin: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
+        joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+        left_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+        __table_args__ = (UniqueConstraint("room_id", "user_id", name="uq_room_member"),)
+
+
+    class RoomInvitation(Base):
+        __tablename__ = "room_invitations"
+
+        id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        room_id: Mapped[str] = mapped_column(String(64), ForeignKey("rooms.id"), nullable=False, index=True)
+        inviter_id: Mapped[str] = mapped_column(String(64), ForeignKey("users.id"), nullable=False, index=True)
+        invitee_id: Mapped[str] = mapped_column(String(64), ForeignKey("users.id"), nullable=False, index=True)
+        status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending", index=True)
+        idempotency_key: Mapped[str] = mapped_column(String(120), nullable=False)
+        expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+        created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+        updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+        __table_args__ = (
+            UniqueConstraint("room_id", "invitee_id", "status", name="uq_room_invitation_pending"),
+            UniqueConstraint("inviter_id", "idempotency_key", name="uq_room_invitation_idempotency"),
+        )
+
+
+    class GameRound(Base):
+        __tablename__ = "game_rounds"
+
+        id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        room_id: Mapped[str] = mapped_column(String(64), ForeignKey("rooms.id"), nullable=False, index=True)
+        initiator_id: Mapped[str] = mapped_column(String(64), ForeignKey("users.id"), nullable=False, index=True)
+        mode: Mapped[str] = mapped_column(String(24), nullable=False, index=True)
+        status: Mapped[str] = mapped_column(String(24), nullable=False, default="resolved", index=True)
+        prompt_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+        prompt_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+        result_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+        created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+        resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
     class MessageNotification(Base):
         __tablename__ = "message_notifications"
 
@@ -538,6 +657,7 @@ try:
         friendship_state: Mapped[str] = mapped_column(String(24), nullable=False, default="none")
         expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
         last_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
+        next_message_sequence: Mapped[int] = mapped_column(BigInteger(), nullable=False, default=1)
         risk_state: Mapped[str] = mapped_column(String(24), nullable=False, default="clear")
         report_state: Mapped[str] = mapped_column(String(24), nullable=False, default="none")
         audit_refs: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
@@ -551,10 +671,16 @@ try:
         id: Mapped[str] = mapped_column(String(64), primary_key=True)
         conversation_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
         sender_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+        client_message_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+        sequence: Mapped[int] = mapped_column(BigInteger(), nullable=False)
         content_type: Mapped[str] = mapped_column(String(32), nullable=False, default="text")
         content: Mapped[str] = mapped_column(Text, nullable=False)
         status: Mapped[str] = mapped_column(String(24), nullable=False, default="sent")
         created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+        __table_args__ = (
+            UniqueConstraint("conversation_id", "sequence", name="uq_chat_message_sequence"),
+            UniqueConstraint("conversation_id", "sender_id", "client_message_id", name="uq_chat_message_client_id"),
+        )
 
 
     class ChatConversationReportRecord(Base):
@@ -716,6 +842,30 @@ except ModuleNotFoundError:
     class FriendRequest:
         __tablename__ = "friend_requests"
 
+    class InteractionReceipt:
+        __tablename__ = "interaction_receipts"
+
+    class ChatGrant:
+        __tablename__ = "chat_grants"
+
+    class Friendship:
+        __tablename__ = "friendships"
+
+    class ConversationUserState:
+        __tablename__ = "conversation_user_states"
+
+    class Room:
+        __tablename__ = "rooms"
+
+    class RoomMember:
+        __tablename__ = "room_members"
+
+    class RoomInvitation:
+        __tablename__ = "room_invitations"
+
+    class GameRound:
+        __tablename__ = "game_rounds"
+
     class MessageNotification:
         __tablename__ = "message_notifications"
 
@@ -784,6 +934,13 @@ except ModuleNotFoundError:
     Base.metadata.tables[BlacklistEntry.__tablename__] = BlacklistEntry
     Base.metadata.tables[ContentReport.__tablename__] = ContentReport
     Base.metadata.tables[FriendRequest.__tablename__] = FriendRequest
+    Base.metadata.tables[InteractionReceipt.__tablename__] = InteractionReceipt
+    Base.metadata.tables[ChatGrant.__tablename__] = ChatGrant
+    Base.metadata.tables[Friendship.__tablename__] = Friendship
+    Base.metadata.tables[ConversationUserState.__tablename__] = ConversationUserState
+    Base.metadata.tables[Room.__tablename__] = Room
+    Base.metadata.tables[RoomMember.__tablename__] = RoomMember
+    Base.metadata.tables[RoomInvitation.__tablename__] = RoomInvitation
     Base.metadata.tables[MessageNotification.__tablename__] = MessageNotification
     Base.metadata.tables[ChatAppeal.__tablename__] = ChatAppeal
     Base.metadata.tables[ConversationThread.__tablename__] = ConversationThread

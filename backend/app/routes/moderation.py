@@ -26,3 +26,8 @@ async def list_blocks(session: AsyncSession = Depends(get_db_session)) -> list[B
 @router.post("/blocks", response_model=BlockOut)
 async def block_user(payload: BlockRequest, session: AsyncSession = Depends(get_db_session)) -> BlockOut:
     return await db_business.block_user(session, payload.blocked_user_id)
+
+
+@router.delete("/blocks/{blocked_user_id}")
+async def unblock_user(blocked_user_id: str, session: AsyncSession = Depends(get_db_session)) -> dict[str, str]:
+    return await db_business.unblock_user(session, blocked_user_id)

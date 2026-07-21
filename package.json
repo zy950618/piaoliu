@@ -10,7 +10,6 @@
     "dev:mp-weixin": "uni -p mp-weixin",
     "dev:app": "uni -p app",
     "build:h5": "uni build",
-    "build:h5:e2e": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-h5-e2e.ps1",
     "build:mp-weixin": "uni build -p mp-weixin",
     "typecheck": "vue-tsc --noEmit"
   },
@@ -30,7 +29,7 @@
     "@vue/tsconfig": "^0.8.1",
     "sass-embedded": "^1.96.0",
     "typescript": "^5.9.3",
-    "vite": "^7.2.7",
+    "vite": "^7.3.5",
     "vitest": "^4.0.15",
     "vue-tsc": "^3.1.8"
   }

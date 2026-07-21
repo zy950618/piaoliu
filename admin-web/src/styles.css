@@ -259,6 +259,62 @@ h2 {
   background: #fff4f2;
 }
 
+.login-panel {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.8fr) minmax(360px, 1.2fr);
+  align-items: start;
+  gap: 48px;
+  max-width: 880px;
+  margin: 72px auto 0;
+  padding: 36px;
+}
+
+.login-panel h2,
+.login-panel p {
+  margin-top: 0;
+}
+
+.login-panel p {
+  color: #64748b;
+  line-height: 1.65;
+}
+
+.login-form {
+  display: grid;
+  gap: 18px;
+}
+
+.login-form label {
+  display: grid;
+  gap: 8px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.login-form input {
+  min-height: 44px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0 12px;
+  color: #0f172a;
+  background: #fff;
+  font: inherit;
+}
+
+.login-form input:focus {
+  border-color: #358ba9;
+  outline: 3px solid rgba(53, 139, 169, 0.16);
+}
+
+@media (max-width: 900px) {
+  .login-panel {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    margin-top: 24px;
+  }
+}
+
 .panel-head {
   justify-content: space-between;
   gap: 16px;

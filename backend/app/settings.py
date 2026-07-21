@@ -15,6 +15,18 @@ class Settings(BaseModel):
     admin_accounts: str = "admin:admin_mock_password:admin,moderator;moderator:moderator_mock_password:moderator;risk:risk_mock_password:risk"
     admin_token_secret: str = "dev-admin-token-secret"
     admin_token_expires_seconds: int = 3600
+    user_token_secret: str = "dev-user-token-secret"
+    user_token_expires_seconds: int = 7200
+    wechat_app_id: str = ""
+    wechat_app_secret: str = ""
+    wechat_mch_id: str = ""
+    wechat_pay_api_v3_key: str = ""
+    object_storage_endpoint: str = "localhost:9000"
+    object_storage_public_endpoint: str = "http://localhost:9000"
+    object_storage_access_key: str = ""
+    object_storage_secret_key: str = ""
+    object_storage_bucket: str = "piaoliu-media"
+    object_storage_secure: bool = False
 
 
 @lru_cache
@@ -35,4 +47,18 @@ def get_settings() -> Settings:
                 str(Settings.model_fields["admin_token_expires_seconds"].default),
             )
         ),
+        user_token_secret=os.getenv("USER_TOKEN_SECRET", Settings.model_fields["user_token_secret"].default),
+        user_token_expires_seconds=int(
+            os.getenv("USER_TOKEN_EXPIRES_SECONDS", str(Settings.model_fields["user_token_expires_seconds"].default))
+        ),
+        wechat_app_id=os.getenv("WECHAT_APP_ID", Settings.model_fields["wechat_app_id"].default),
+        wechat_app_secret=os.getenv("WECHAT_APP_SECRET", Settings.model_fields["wechat_app_secret"].default),
+        wechat_mch_id=os.getenv("WECHAT_MCH_ID", Settings.model_fields["wechat_mch_id"].default),
+        wechat_pay_api_v3_key=os.getenv("WECHAT_PAY_API_V3_KEY", Settings.model_fields["wechat_pay_api_v3_key"].default),
+        object_storage_endpoint=os.getenv("OBJECT_STORAGE_ENDPOINT", Settings.model_fields["object_storage_endpoint"].default),
+        object_storage_public_endpoint=os.getenv("OBJECT_STORAGE_PUBLIC_ENDPOINT", Settings.model_fields["object_storage_public_endpoint"].default),
+        object_storage_access_key=os.getenv("OBJECT_STORAGE_ACCESS_KEY", Settings.model_fields["object_storage_access_key"].default),
+        object_storage_secret_key=os.getenv("OBJECT_STORAGE_SECRET_KEY", Settings.model_fields["object_storage_secret_key"].default),
+        object_storage_bucket=os.getenv("OBJECT_STORAGE_BUCKET", Settings.model_fields["object_storage_bucket"].default),
+        object_storage_secure=os.getenv("OBJECT_STORAGE_SECURE", "false").lower() in {"1", "true", "yes"},
     )

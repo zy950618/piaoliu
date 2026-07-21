@@ -24,6 +24,34 @@
       <view class="button secondary location-button" @tap="go('/pages/nearby/index')">开启</view>
     </view>
 
+    <view class="section room-section">
+      <view class="between room-section-head">
+        <view>
+          <text class="h2">公开游戏房</text>
+          <text class="muted">从广场加入，玩法结果由服务器生成。</text>
+        </view>
+        <view class="button secondary room-create-button" @tap="openRoomComposer">创建房间</view>
+      </view>
+      <view v-if="publicRoomsLoading" class="room-state">正在查找可加入的房间…</view>
+      <view v-else-if="!publicRooms.length" class="room-state">
+        目前还没有开放房间。你可以创建一个，邀请广场上的人一起玩。
+      </view>
+      <scroll-view v-else scroll-x class="room-strip" :show-scrollbar="false">
+        <view class="room-strip-inner">
+          <view v-for="room in publicRooms" :key="room.id" class="public-room-card">
+            <view class="room-card-top">
+              <text class="room-name">{{ room.name }}</text>
+              <text class="tag">{{ activeMemberCount(room) }}/{{ room.capacity }} 人</text>
+            </view>
+            <text class="room-meta">骰子 · 真心话 · 大冒险</text>
+            <view class="button mini-button room-join-button" @tap="joinRoom(room)">
+              {{ isRoomMember(room) ? '继续游戏' : '加入房间' }}
+            </view>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+
     <view class="section">
       <view v-for="post in filteredPosts" :key="post.id" class="panel plaza-card">
         <view class="between">
@@ -121,6 +149,29 @@
     </view>
 
     <view class="publish-fab" @tap="openComposer">+</view>
+
+    <view v-if="roomComposerOpen" class="modal-mask center-mask" @touchmove.stop.prevent>
+      <view class="modal-card room-composer-card" @tap.stop @click.stop>
+        <text class="modal-kicker">公开游戏房</text>
+        <text class="modal-title">给今晚的房间起个名字</text>
+        <text class="report-desc">房间最多 8 人，任何广场用户都可以加入；房主可结束房间。</text>
+        <input
+          v-model="roomName"
+          class="room-name-input"
+          maxlength="30"
+          placeholder="例如：夜航真心话局"
+          confirm-type="done"
+          @confirm="createRoom"
+        />
+        <text v-if="roomError" class="post-error">{{ roomError }}</text>
+        <view class="modal-actions">
+          <view class="button ghost" @tap="closeRoomComposer">取消</view>
+          <view class="button" :class="{ disabled: roomSubmitting || !roomName.trim() }" @tap="createRoom">
+            {{ roomSubmitting ? '创建中' : '创建并进入' }}
+          </view>
+        </view>
+      </view>
+    </view>
 
     <view v-if="composerOpen" class="modal-mask center-mask" @touchmove.stop.prevent>
       <view class="modal-card composer-card" @tap.stop @click.stop>
@@ -249,7 +300,8 @@ import ExploreFilters, { type ExploreFilterValue } from '@/components/ExploreFil
 import { navigateTo, showToast, switchTab } from '@/services/feedback'
 import { useAppStore } from '@/stores/app'
 import { useContentStore } from '@/stores/content'
-import type { PlazaMedia, PlazaPost } from '@/types/domain'
+import { businessApi } from '@/services/businessApi'
+import type { PlazaMedia, PlazaPost, SocialRoom } from '@/types/domain'
 import { resolveAvatarUrl } from '@/utils/avatar'
 
 const app = useAppStore()
@@ -284,6 +336,12 @@ let filterReloadTimer: ReturnType<typeof setTimeout> | undefined
 let voicePlayer: ReturnType<typeof uni.createInnerAudioContext> | undefined
 const likeEffectTimers: Record<string, ReturnType<typeof setTimeout>> = {}
 const playingVoiceUrl = ref('')
+const publicRooms = ref<SocialRoom[]>([])
+const publicRoomsLoading = ref(false)
+const roomComposerOpen = ref(false)
+const roomSubmitting = ref(false)
+const roomName = ref('')
+const roomError = ref('')
 type FeedTab = 'nearby' | 'gift' | 'newcomer'
 
 const cityOptions = ['全国', '北京', '上海', '广州', '深圳', '杭州', '成都', '厦门']
@@ -322,7 +380,67 @@ function emotionTag(post: PlazaPost) {
 onLoad(() => {
   app.hydrate()
   loadPlazaPostsWithFilters()
+  loadPublicRooms()
 })
+
+async function loadPublicRooms() {
+  publicRoomsLoading.value = true
+  try {
+    publicRooms.value = await businessApi.listPublicRooms()
+  } catch {
+    showToast('公开房加载失败，可稍后重试')
+  } finally {
+    publicRoomsLoading.value = false
+  }
+}
+
+function activeMemberCount(room: SocialRoom) {
+  return room.members.filter((member) => member.status === 'active').length
+}
+
+function isRoomMember(room: SocialRoom) {
+  return room.members.some((member) => member.userId === app.user?.id && member.status === 'active')
+}
+
+async function joinRoom(room: SocialRoom) {
+  try {
+    if (!isRoomMember(room)) await businessApi.joinPublicRoom(room.id)
+    navigateTo(`/pages/game/room?roomId=${room.id}`)
+  } catch {
+    showToast('暂时无法加入，这个房间可能已满或已结束')
+    await loadPublicRooms()
+  }
+}
+
+function openRoomComposer() {
+  roomName.value = ''
+  roomError.value = ''
+  roomComposerOpen.value = true
+}
+
+function closeRoomComposer() {
+  if (roomSubmitting.value) return
+  roomComposerOpen.value = false
+}
+
+async function createRoom() {
+  const name = roomName.value.trim()
+  if (!name || roomSubmitting.value) {
+    if (!name) roomError.value = '请输入一个容易理解的房间名称'
+    return
+  }
+  roomSubmitting.value = true
+  roomError.value = ''
+  try {
+    const room = await businessApi.createPublicRoom(name)
+    roomComposerOpen.value = false
+    navigateTo(`/pages/game/room?roomId=${room.id}`)
+  } catch {
+    roomError.value = '房间没有创建成功，请检查网络后重试'
+  } finally {
+    roomSubmitting.value = false
+  }
+}
 
 watch(
   filters,
@@ -676,6 +794,97 @@ function stopVoice() {
   min-width: 112rpx;
   min-height: 62rpx;
   font-size: 24rpx;
+}
+
+.room-section {
+  border: 1px solid rgba(35, 108, 114, 0.12);
+  border-radius: 16px;
+  padding: 24rpx;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 18rpx 42rpx rgba(31, 54, 58, 0.06);
+}
+
+.room-section-head {
+  gap: 20rpx;
+}
+
+.room-create-button {
+  flex: 0 0 auto;
+  min-height: 62rpx;
+  padding-inline: 20rpx;
+  font-size: 23rpx;
+}
+
+.room-state {
+  margin-top: 20rpx;
+  border-radius: 12px;
+  padding: 20rpx;
+  color: #65757b;
+  background: #f6faf9;
+  font-size: 23rpx;
+  line-height: 1.55;
+}
+
+.room-strip {
+  width: 100%;
+  margin-top: 20rpx;
+  white-space: nowrap;
+}
+
+.room-strip-inner {
+  display: inline-flex;
+  gap: 14rpx;
+  padding-right: 4rpx;
+}
+
+.public-room-card {
+  box-sizing: border-box;
+  width: 360rpx;
+  border: 1px solid rgba(35, 108, 114, 0.12);
+  border-radius: 14px;
+  padding: 18rpx;
+  background: linear-gradient(145deg, #f8fbfa, #eef6f3);
+  white-space: normal;
+}
+
+.room-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+
+.room-name {
+  overflow: hidden;
+  color: #172126;
+  font-size: 26rpx;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-meta {
+  display: block;
+  margin: 10rpx 0 16rpx;
+  color: #65757b;
+  font-size: 22rpx;
+}
+
+.room-join-button {
+  min-height: 60rpx;
+}
+
+.room-name-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 88rpx;
+  margin-top: 22rpx;
+  border: 1px solid rgba(35, 108, 114, 0.18);
+  border-radius: 12px;
+  padding: 0 18rpx;
+  color: #172126;
+  background: #f8fbfb;
+  font-size: 26rpx;
 }
 
 .media-preview {

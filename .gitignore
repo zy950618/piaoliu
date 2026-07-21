@@ -1,9 +1,9 @@
 node_modules
 dist
 
-output
-reports
-scripts
+/output
+/reports
+/scripts
 dist-admin
 unpackage
 .hbuilderx
@@ -17,6 +17,7 @@ __pycache__
 .venv
 *.pyc
 .env
+infra/env/*.env
 *.log
 *.out
 *.err

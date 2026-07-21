@@ -10,7 +10,7 @@ from urllib.parse import quote
 from uuid import uuid4
 
 from fastapi import HTTPException
-from sqlalchemy import and_, desc, func, select
+from sqlalchemy import and_, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
@@ -22,6 +22,7 @@ from app.models import (
     Bottle,
     BottleReply,
     ChatAppeal,
+    ChatGrant,
     ChatContextRequestRecord,
     CheckinRecord,
     CoinLedger,
@@ -30,6 +31,7 @@ from app.models import (
     ConversationTurn,
     Follow,
     FriendRequest,
+    Friendship,
     GameRoom,
     GiftOrder,
     GiftProduct,
@@ -97,6 +99,7 @@ from app.schemas import (
     VerificationState,
     WalletState,
 )
+from app.settings import get_settings
 
 DEFAULT_USER_ID = "100000000001"
 CREATOR_IDS = {
@@ -278,24 +281,25 @@ async def ensure_seed_data(session: AsyncSession) -> User:
 
 
 async def _ensure_seed_data_unlocked(session: AsyncSession) -> User:
+    demo_mode = get_settings().environment in {"mock", "dev", "development", "test"}
     user = await session.get(User, current_user_id())
     if user is None:
         user = User(
             id=current_user_id(),
-            nickname="海风来信",
+            nickname="海风来信" if demo_mode else f"岛民{current_user_id()[-4:]}",
             role="user",
             avatar_text="海",
             avatar_url=system_avatar_url(current_user_id()),
             platform="h5",
-            gender="female",
-            city="杭州",
-            age_range="25-30",
-            is_vip=True,
-            vip_level="monthly",
-            drift_coins=260,
-            face_verified=True,
-            gender_verified=True,
-            charm_value=1880,
+            gender="female" if demo_mode else "unknown",
+            city="杭州" if demo_mode else None,
+            age_range="25-30" if demo_mode else None,
+            is_vip=demo_mode,
+            vip_level="monthly" if demo_mode else "none",
+            drift_coins=260 if demo_mode else 0,
+            face_verified=demo_mode,
+            gender_verified=demo_mode,
+            charm_value=1880 if demo_mode else 0,
             status="active",
             created_at=now(),
         )
@@ -314,7 +318,7 @@ async def _ensure_seed_data_unlocked(session: AsyncSession) -> User:
         (CREATOR_IDS["creator_007"], "南风", "南", "male", "深圳", "25-30", False, False, "想找一个认真玩游戏的人。"),
         (CREATOR_IDS["creator_008"], "阿树", "树", "unknown", "厦门", None, False, False, "如果是晚上去，记得点靠窗的位置。"),
         (CREATOR_IDS["bad_user_001"], "无礼访客", "黑", "unknown", "未知", None, False, False, "已屏蔽用户。"),
-    ]
+    ] if demo_mode else []
     for user_id, nickname, avatar_text, gender, city, age_range, verified, vip, _ in creators:
         existing_creator = await session.get(User, user_id)
         if existing_creator is None:
@@ -347,12 +351,12 @@ async def _ensure_seed_data_unlocked(session: AsyncSession) -> User:
         session.add(
             WalletAccount(
                 user_id=current_user_id(),
-                recharge_coins=520,
-                earned_coins=180,
-                gift_coins=68,
-                withdrawable_coins=180,
-                frozen_coins=20,
-                charm_value=1880,
+                recharge_coins=520 if demo_mode else 0,
+                earned_coins=180 if demo_mode else 0,
+                gift_coins=68 if demo_mode else 0,
+                withdrawable_coins=180 if demo_mode else 0,
+                frozen_coins=20 if demo_mode else 0,
+                charm_value=1880 if demo_mode else 0,
                 withdraw_threshold_charm=1000,
                 charm_exchange_rate=100,
                 updated_at=now(),
@@ -364,7 +368,7 @@ async def _ensure_seed_data_unlocked(session: AsyncSession) -> User:
             select(QuotaBalance).where(QuotaBalance.user_id == current_user_id(), QuotaBalance.quota_type == quota_type.value)
         )
         if exists is None:
-            vip_bonus = 5
+            vip_bonus = 5 if user.is_vip else 0
             session.add(
                 QuotaBalance(
                     id=new_id("quota"),
@@ -383,13 +387,13 @@ async def _ensure_seed_data_unlocked(session: AsyncSession) -> User:
         session.add(
             VerificationProfile(
                 user_id=current_user_id(),
-                face_verified=True,
-                gender_verified=True,
-                detected_gender="female",
-                liveness_passed=True,
-                manual_review_status="approved",
-                submitted_at=now(),
-                reviewed_at=now(),
+                face_verified=demo_mode,
+                gender_verified=demo_mode,
+                detected_gender="female" if demo_mode else None,
+                liveness_passed=demo_mode,
+                manual_review_status="approved" if demo_mode else "not_submitted",
+                submitted_at=now() if demo_mode else None,
+                reviewed_at=now() if demo_mode else None,
             )
         )
     if await session.scalar(select(ReferralAccount).where(ReferralAccount.user_id == current_user_id())) is None:
@@ -402,13 +406,14 @@ async def _ensure_seed_data_unlocked(session: AsyncSession) -> User:
             suffix += 1
             digest = hashlib.sha1(f"{current_user_id()}:{suffix}".encode("utf-8")).hexdigest()[:10].upper()
             invite_code = f"SEA{digest}"
-        session.add(ReferralAccount(user_id=current_user_id(), invite_code=invite_code, invited_count=3, reward_vip_days=7, next_reward_need=5))
+        session.add(ReferralAccount(user_id=current_user_id(), invite_code=invite_code, invited_count=3 if demo_mode else 0, reward_vip_days=7 if demo_mode else 0, next_reward_need=5))
 
     await seed_gifts(session)
     await seed_prompt_templates(session)
     await seed_membership_products(session)
-    await seed_content(session)
-    await seed_wallet_side_data(session)
+    if demo_mode:
+        await seed_content(session)
+        await seed_wallet_side_data(session)
     await session.commit()
     await session.refresh(user)
     return user
@@ -1534,6 +1539,23 @@ async def wallet_overview(session: AsyncSession) -> tuple[WalletState, list[Coin
 
 async def recharge_wallet(session: AsyncSession, amount: int, channel: str = "mock") -> tuple[str, WalletState]:
     await get_current_user(session)
+    settings = get_settings()
+    demo_mode = settings.environment in {"mock", "dev", "development", "test"}
+    if not demo_mode:
+        if channel == "mock":
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "MOCK_PAYMENT_FORBIDDEN", "message": "正式环境不允许模拟充值"},
+            )
+        if not settings.wechat_mch_id or not settings.wechat_pay_api_v3_key:
+            raise HTTPException(
+                status_code=503,
+                detail={"code": "WECHAT_PAY_UNCONFIGURED", "message": "微信支付尚未配置，请稍后再试"},
+            )
+        raise HTTPException(
+            status_code=501,
+            detail={"code": "WECHAT_PAY_NOT_READY", "message": "微信支付签名与回调链路尚未完成验收"},
+        )
     wallet = await session.get(WalletAccount, current_user_id())
     wallet.recharge_coins += amount
     wallet.updated_at = now()
@@ -1661,6 +1683,22 @@ async def list_blacklist(session: AsyncSession) -> list[BlacklistItem]:
 async def list_nearby(session: AsyncSession, city: str | None = None, gender: str | None = None, age_range: str | None = None, distance_km: float | None = None) -> list[NearbyUser]:
     await get_current_user(session)
     rows = (await session.execute(select(User).where(User.role == "creator", User.status == "active"))).scalars().all()
+    blocked_rows = (
+        await session.execute(
+            select(BlacklistEntry).where(
+                BlacklistEntry.status == "blocked",
+                or_(
+                    BlacklistEntry.owner_id == current_user_id(),
+                    BlacklistEntry.blocked_user_id == current_user_id(),
+                ),
+            )
+        )
+    ).scalars().all()
+    excluded_user_ids = {
+        row.blocked_user_id if row.owner_id == current_user_id() else row.owner_id
+        for row in blocked_rows
+    }
+    rows = [row for row in rows if row.id not in excluded_user_ids]
     normalized = normalize_gender(gender)
     if city and city not in {"全国", "all", "全部"}:
         rows = [row for row in rows if row.city == city]
@@ -2485,12 +2523,62 @@ async def block_user(session: AsyncSession, blocked_user_id: str, reason: str = 
         existing = BlacklistEntry(id=new_id("block"), owner_id=current_user_id(), blocked_user_id=blocked_user_id, nickname=target.nickname, reason=reason, status="blocked", blocked_at=now())
         session.add(existing)
         await add_notification(session, "已加入黑名单", f"{target.nickname}不会再出现在你的漂流瓶推荐里。", "block", blocked_user_id)
-        await session.commit()
+    else:
+        existing.status = "blocked"
+        existing.reason = reason
+        existing.blocked_at = now()
+    pair = tuple(sorted((current_user_id(), blocked_user_id)))
+    friendships = (
+        await session.execute(
+            select(Friendship).where(Friendship.user_a_id == pair[0], Friendship.user_b_id == pair[1], Friendship.status == "active")
+        )
+    ).scalars().all()
+    for friendship in friendships:
+        friendship.status = "removed"
+        friendship.removed_at = now()
+    grants = (
+        await session.execute(
+            select(ChatGrant).where(ChatGrant.user_a_id == pair[0], ChatGrant.user_b_id == pair[1], ChatGrant.status == "active")
+        )
+    ).scalars().all()
+    for grant in grants:
+        grant.status = "revoked"
+        grant.revoked_at = now()
+    pending_requests = (
+        await session.execute(
+            select(FriendRequest).where(
+                FriendRequest.status == "requested",
+                or_(
+                    (FriendRequest.requester_id == current_user_id()) & (FriendRequest.target_user_id == blocked_user_id),
+                    (FriendRequest.requester_id == blocked_user_id) & (FriendRequest.target_user_id == current_user_id()),
+                ),
+            )
+        )
+    ).scalars().all()
+    for request in pending_requests:
+        request.status = "cancelled"
+    await session.commit()
     return BlockOut(id=existing.id, blocked_user_id=existing.blocked_user_id, status="blocked", blocked_at=iso(existing.blocked_at))
 
 
+async def unblock_user(session: AsyncSession, blocked_user_id: str) -> dict[str, str]:
+    await get_current_user(session)
+    existing = await session.scalar(
+        select(BlacklistEntry).where(
+            BlacklistEntry.owner_id == current_user_id(),
+            BlacklistEntry.blocked_user_id == blocked_user_id,
+            BlacklistEntry.status == "blocked",
+        )
+    )
+    if existing is None:
+        raise HTTPException(status_code=404, detail={"code": "BLOCK_NOT_FOUND", "message": "黑名单记录不存在"})
+    existing.status = "unblocked"
+    await session.commit()
+    return {"status": "unblocked", "blocked_user_id": blocked_user_id}
+
+
 async def list_blocks(session: AsyncSession) -> list[BlockOut]:
-    rows = (await session.execute(select(BlacklistEntry).where(BlacklistEntry.owner_id == current_user_id()))).scalars().all()
+    rows = (await session.execute(select(BlacklistEntry).where(BlacklistEntry.owner_id == current_user_id(), BlacklistEntry.status == "blocked"))).scalars().all()
     return [BlockOut(id=row.id, blocked_user_id=row.blocked_user_id, status="blocked", blocked_at=iso(row.blocked_at)) for row in rows]
 
 

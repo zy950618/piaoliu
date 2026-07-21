@@ -45,7 +45,19 @@
         </div>
       </header>
 
-        <section v-if="loading" class="panel loading-panel">加载中...</section>
+        <section v-if="!dashboard.adminSession.signedIn && !loading" class="panel login-panel">
+          <div>
+            <h2>管理员登录</h2>
+            <p>使用部署环境中配置的后台账号登录，登录状态不会写入页面源码。</p>
+          </div>
+          <form class="login-form" @submit.prevent="submitLogin">
+            <label>账号<input v-model="loginUsername" autocomplete="username" type="text" /></label>
+            <label>密码<input v-model="loginPassword" autocomplete="current-password" type="password" /></label>
+            <button class="primary-button" type="submit" :disabled="operationBusy || !loginUsername.trim() || !loginPassword">{{ operationBusy ? '登录中…' : '登录后台' }}</button>
+          </form>
+          <p v-if="loadingError" class="text-error">{{ loadingError }}</p>
+        </section>
+        <section v-else-if="loading" class="panel loading-panel">加载中...</section>
         <section v-else-if="loadingError" class="panel loading-panel text-error">{{ loadingError }}</section>
 
       <template v-else>
@@ -941,7 +953,7 @@ const initialDashboard: AdminDashboard = {
     displayName: 'admin',
     role: 'super_admin',
     permissions: ['content', 'risk', 'config'],
-    signedIn: true,
+    signedIn: false,
     lastLoginAt: new Date().toISOString()
   },
   summary: {
@@ -1021,6 +1033,8 @@ const dashboard = ref<AdminDashboard>(initialDashboard)
 const loading = ref(true)
 const operationBusy = ref(false)
 const operationMessage = ref('')
+const loginUsername = ref('admin')
+const loginPassword = ref('')
 const initialTab = new URLSearchParams(window.location.search).get('tab') as TabKey | null
 const activeTab = ref<TabKey>(initialTab && tabs.some((tab) => tab.key === initialTab) ? initialTab : 'overview')
 
@@ -1843,26 +1857,45 @@ async function refresh(options: { autoLogin?: boolean } = { autoLogin: true }) {
     adConfigDraft.value = { ...dashboard.value.rewardConfig }
   } catch (err) {
     loadingError.value = (err as Error).message
+    dashboard.value.adminSession = { ...dashboard.value.adminSession, signedIn: false, displayName: '未登录' }
   } finally {
     loading.value = false
   }
 }
 
 async function toggleSession() {
-  await runAdminOperation(dashboard.value.adminSession.signedIn ? '已退出登录' : '登录成功', async () => {
+  if (!dashboard.value.adminSession.signedIn) {
+    loadingError.value = '请输入管理员账号和密码'
+    return
+  }
+  await runAdminOperation('已退出登录', async () => {
     if (dashboard.value.adminSession.signedIn) {
       dashboard.value.adminSession = await adminApi.logout()
       selectedUserIds.value = []
       selectedContentIds.value = []
+      loadingError.value = ''
       return
     }
-    dashboard.value.adminSession = await adminApi.login()
-    await refresh({ autoLogin: false })
   })
 }
 
+async function submitLogin() {
+  if (operationBusy.value) return
+  operationBusy.value = true
+  loadingError.value = ''
+  try {
+    dashboard.value.adminSession = await adminApi.login({ username: loginUsername.value.trim(), password: loginPassword.value })
+    loginPassword.value = ''
+    await refresh({ autoLogin: false })
+  } catch (error) {
+    loadingError.value = error instanceof Error ? error.message : '登录失败，请重试'
+  } finally {
+    operationBusy.value = false
+  }
+}
+
 onMounted(() => {
-  void refresh()
+  loading.value = false
 })
 
 const pageTitle = computed(() => {

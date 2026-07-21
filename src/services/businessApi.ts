@@ -23,6 +23,9 @@ import type {
   NearbyUser,
   PrivatePhoto,
   ReferralState,
+  RoomInvitation,
+  SocialGameRound,
+  SocialRoom,
   TreeholePost,
   TruthQuestion,
   UserActivityRecord,
@@ -160,6 +163,8 @@ type MatchExpandContextResponseDto = {
 
 type ContextChatMessageDto = {
   id: string
+  client_message_id?: string | null
+  sequence: number
   sender_id: string
   content_type: ContextChatConversation['messages'][number]['contentType']
   content: string
@@ -182,6 +187,43 @@ type ContextChatConversationDto = {
   report_state: ContextChatConversation['reportState']
   messages: ContextChatMessageDto[]
   audit_refs: string[]
+}
+
+type SocialRoomDto = {
+  id: string
+  owner_id: string
+  conversation_id?: string | null
+  name: string
+  visibility: SocialRoom['visibility']
+  size_mode: SocialRoom['sizeMode']
+  join_policy: SocialRoom['joinPolicy']
+  capacity: number
+  allow_member_invite: boolean
+  status: SocialRoom['status']
+  members: Array<{ user_id: string; role: SocialRoom['members'][number]['role']; status: SocialRoom['members'][number]['status'] }>
+  created_at: string
+}
+
+type SocialGameRoundDto = {
+  id: string
+  room_id: string
+  initiator_id: string
+  mode: SocialGameRound['mode']
+  status: SocialGameRound['status']
+  prompt_id?: string | null
+  prompt_text?: string | null
+  result: Record<string, unknown>
+  created_at: string
+  resolved_at?: string | null
+}
+
+type RoomInvitationDto = {
+  id: string
+  room_id: string
+  inviter_id: string
+  invitee_id: string
+  status: RoomInvitation['status']
+  expires_at: string
 }
 
 type WalletDto = {
@@ -498,6 +540,8 @@ function toContextChatConversation(dto: ContextChatConversationDto): ContextChat
     reportState: dto.report_state,
     messages: dto.messages.map((message) => ({
       id: message.id,
+      clientMessageId: message.client_message_id || undefined,
+      sequence: message.sequence,
       senderId: message.sender_id,
       contentType: message.content_type,
       content: message.content,
@@ -505,6 +549,49 @@ function toContextChatConversation(dto: ContextChatConversationDto): ContextChat
       createdAt: message.created_at
     })),
     auditRefs: dto.audit_refs
+  }
+}
+
+function toSocialRoom(dto: SocialRoomDto): SocialRoom {
+  return {
+    id: dto.id,
+    ownerId: dto.owner_id,
+    conversationId: dto.conversation_id || undefined,
+    name: dto.name,
+    visibility: dto.visibility,
+    sizeMode: dto.size_mode,
+    joinPolicy: dto.join_policy,
+    capacity: dto.capacity,
+    allowMemberInvite: dto.allow_member_invite,
+    status: dto.status,
+    members: dto.members.map((member) => ({ userId: member.user_id, role: member.role, status: member.status })),
+    createdAt: dto.created_at
+  }
+}
+
+function toSocialGameRound(dto: SocialGameRoundDto): SocialGameRound {
+  return {
+    id: dto.id,
+    roomId: dto.room_id,
+    initiatorId: dto.initiator_id,
+    mode: dto.mode,
+    status: dto.status,
+    promptId: dto.prompt_id || undefined,
+    promptText: dto.prompt_text || undefined,
+    result: dto.result,
+    createdAt: dto.created_at,
+    resolvedAt: dto.resolved_at || undefined
+  }
+}
+
+function toRoomInvitation(dto: RoomInvitationDto): RoomInvitation {
+  return {
+    id: dto.id,
+    roomId: dto.room_id,
+    inviterId: dto.inviter_id,
+    inviteeId: dto.invitee_id,
+    status: dto.status,
+    expiresAt: dto.expires_at
   }
 }
 
@@ -764,6 +851,76 @@ export const businessApi = {
     return { roomId: result.room_id, thread: toThread(result.thread) }
   },
 
+  async createPrivateRoom(threadId: string, participantUserId: string) {
+    const room = toSocialRoom(await requestJson<SocialRoomDto>('/rooms', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: '两个人的夜航房间',
+        visibility: 'private',
+        size_mode: 'pair',
+        join_policy: 'invite',
+        capacity: 2,
+        allow_member_invite: false,
+        conversation_id: threadId
+      })
+    }))
+    await requestJson(`/rooms/${room.id}/invitations`, {
+      method: 'POST',
+      body: JSON.stringify({
+        invitee_id: participantUserId,
+        idempotency_key: `private-room-${threadId}`
+      })
+    })
+    return room
+  },
+
+  async listPublicRooms() {
+    const rows = await requestJson<SocialRoomDto[]>('/rooms?scope=public')
+    return rows.map(toSocialRoom)
+  },
+
+  async createPublicRoom(name: string) {
+    return toSocialRoom(await requestJson<SocialRoomDto>('/rooms', {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        visibility: 'public',
+        size_mode: 'group',
+        join_policy: 'open',
+        capacity: 8,
+        allow_member_invite: true
+      })
+    }))
+  },
+
+  async joinPublicRoom(roomId: string) {
+    return toSocialRoom(await requestJson<SocialRoomDto>(`/rooms/${roomId}/join`, { method: 'POST' }))
+  },
+
+  async getRoom(roomId: string) {
+    return toSocialRoom(await requestJson<SocialRoomDto>(`/rooms/${roomId}`))
+  },
+
+  async listRoomInvitations() {
+    const rows = await requestJson<RoomInvitationDto[]>('/rooms/invitations?status=pending')
+    return rows.map(toRoomInvitation)
+  },
+
+  async acceptRoomInvitation(invitationId: string) {
+    return toSocialRoom(await requestJson<SocialRoomDto>(`/rooms/invitations/${invitationId}/accept`, { method: 'POST' }))
+  },
+
+  async playRoomRound(roomId: string, mode: SocialGameRound['mode']) {
+    return toSocialGameRound(await requestJson<SocialGameRoundDto>(`/rooms/${roomId}/rounds`, {
+      method: 'POST',
+      body: JSON.stringify({ mode })
+    }))
+  },
+
+  async endRoom(roomId: string) {
+    return toSocialRoom(await requestJson<SocialRoomDto>(`/rooms/${roomId}/end`, { method: 'POST' }))
+  },
+
   async createContextChatRequest(payload: ContextChatRequestPayload) {
     return toContextChatRequest(await requestJson<ContextChatRequestDto>('/chat/context-requests', {
       method: 'POST',
@@ -824,18 +981,21 @@ export const businessApi = {
   },
 
   async sendContextConversationMessage(conversationId: string, content: string) {
-    const result = await requestJson<{ message_id: string; status: ContextChatConversation['messages'][number]['status']; risk_labels: string[]; audit_id: string }>(
+    const result = await requestJson<{ message_id: string; sequence: number; deduplicated: boolean; status: ContextChatConversation['messages'][number]['status']; risk_labels: string[]; audit_id: string }>(
       `/chat/conversations/${conversationId}/messages`,
       {
         method: 'POST',
         body: JSON.stringify({
           content_type: 'text',
-          content
+          content,
+          client_message_id: `client_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
         })
       }
     )
     return {
       messageId: result.message_id,
+      sequence: result.sequence,
+      deduplicated: result.deduplicated,
       status: result.status,
       riskLabels: result.risk_labels,
       auditId: result.audit_id
@@ -861,7 +1021,7 @@ export const businessApi = {
   async rechargeCoins(amount: number) {
     const result = await requestJson<{ order_id: string; wallet: WalletDto }>('/wallet/recharge', {
       method: 'POST',
-      body: JSON.stringify({ amount, channel: 'mock' })
+      body: JSON.stringify({ amount, channel: typeof window !== 'undefined' ? 'mock' : 'wechat' })
     })
     return { orderId: result.order_id, wallet: toWallet(result.wallet) }
   },

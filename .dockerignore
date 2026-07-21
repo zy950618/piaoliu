@@ -1,0 +1,10 @@
+.git
+.idea
+.local-workspace
+node_modules
+dist
+dist-admin
+backend/runtime
+**/__pycache__
+*.pyc
+*.log

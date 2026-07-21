@@ -237,6 +237,49 @@ export interface GameRandomMatch {
   nextAction: 'wait_confirm'
 }
 
+export interface SocialRoomMember {
+  userId: string
+  role: 'owner' | 'moderator' | 'member'
+  status: 'invited' | 'active' | 'left' | 'removed'
+}
+
+export interface SocialRoom {
+  id: string
+  ownerId: string
+  conversationId?: string
+  name: string
+  visibility: 'private' | 'public'
+  sizeMode: 'pair' | 'group'
+  joinPolicy: 'invite' | 'approval' | 'open'
+  capacity: number
+  allowMemberInvite: boolean
+  status: 'active' | 'ended' | 'closed'
+  members: SocialRoomMember[]
+  createdAt: string
+}
+
+export interface RoomInvitation {
+  id: string
+  roomId: string
+  inviterId: string
+  inviteeId: string
+  status: 'pending' | 'accepted' | 'rejected' | 'expired'
+  expiresAt: string
+}
+
+export interface SocialGameRound {
+  id: string
+  roomId: string
+  initiatorId: string
+  mode: 'truth' | 'dare' | 'dice'
+  status: 'waiting' | 'active' | 'resolved' | 'expired' | 'cancelled'
+  promptId?: string
+  promptText?: string
+  result: Record<string, unknown>
+  createdAt: string
+  resolvedAt?: string
+}
+
 export interface ContextChatRequestPayload {
   targetUserId: string
   sourceType: ContextChatSourceType
@@ -253,8 +296,10 @@ export interface ContextChatRequestAcceptPayload {
 
 export interface ContextChatMessage {
   id: string
+  clientMessageId?: string
+  sequence: number
   senderId: string
-  contentType: 'text' | 'image' | 'voice' | 'system_source_card'
+  contentType: 'text' | 'image' | 'voice' | 'video' | 'system_source_card'
   content: string
   status: 'sent' | 'risk_pending' | 'blocked'
   createdAt: string

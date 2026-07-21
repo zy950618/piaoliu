@@ -443,7 +443,13 @@ function readableError(body: string, status: number) {
 
 function buildSession(signedIn = true, admin?: { username: string; roles: string[] }): AdminDashboard['adminSession'] {
   const activeAdmin = admin || currentAdmin
-  const role = !signedIn ? 'super_admin' : activeAdmin?.roles.includes('admin') ? 'super_admin' : activeAdmin?.roles.includes('moderator') ? 'content_admin' : 'risk_admin'
+  const role = !signedIn
+    ? 'super_admin'
+    : activeAdmin?.roles.some((item) => item === 'super_admin' || item === 'admin')
+      ? 'super_admin'
+      : activeAdmin?.roles.includes('moderator')
+        ? 'content_admin'
+        : 'risk_admin'
   return {
     accountId: activeAdmin?.username || 'admin',
     displayName: signedIn ? adminDisplayName(activeAdmin?.username || 'admin') : '未登录',

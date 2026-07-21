@@ -1,6 +1,5 @@
 import type { MeStatus, QuotaType, UserProfile } from '@/types/domain'
 import { requestJson } from '@/services/http'
-import { mockApi } from '@/services/mockApi'
 import { resolveAvatarUrl } from '@/utils/avatar'
 
 type UserProfileDto = {
@@ -142,21 +141,9 @@ function toUserProfile(dto: UserProfileDto): UserProfile {
   }
 }
 
-function shouldUseMockStatusFallback() {
-  const env = (import.meta as unknown as { env?: { DEV?: boolean; VITE_USE_MOCK_ON_API_FAIL?: string } }).env
-  return env?.DEV === true || env?.VITE_USE_MOCK_ON_API_FAIL === 'true'
-}
-
 export const meApi = {
   async getStatus() {
-    try {
-      return toMeStatus(await requestJson<MeStatusDto>('/me/status'))
-    } catch (error) {
-      if (shouldUseMockStatusFallback()) {
-        return mockApi.getMeStatus()
-      }
-      throw error
-    }
+    return toMeStatus(await requestJson<MeStatusDto>('/me/status'))
   },
 
   async updateProfile(patch: Partial<Omit<Pick<UserProfile, 'avatarText' | 'avatarUrl' | 'nickname' | 'gender' | 'city' | 'ageRange'>, 'avatarUrl'>> & { avatarUrl?: string | null }) {
