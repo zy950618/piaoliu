@@ -21,6 +21,9 @@ class Settings(BaseModel):
     wechat_app_secret: str = ""
     wechat_mch_id: str = ""
     wechat_pay_api_v3_key: str = ""
+    payment_mock_secret: str = "dev-payment-mock-secret-change-me"
+    payment_mock_ttl_seconds: int = 300
+    cors_origins: str = "http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:5174,http://localhost:5174"
     object_storage_endpoint: str = "localhost:9000"
     object_storage_public_endpoint: str = "http://localhost:9000"
     object_storage_access_key: str = ""
@@ -55,6 +58,11 @@ def get_settings() -> Settings:
         wechat_app_secret=os.getenv("WECHAT_APP_SECRET", Settings.model_fields["wechat_app_secret"].default),
         wechat_mch_id=os.getenv("WECHAT_MCH_ID", Settings.model_fields["wechat_mch_id"].default),
         wechat_pay_api_v3_key=os.getenv("WECHAT_PAY_API_V3_KEY", Settings.model_fields["wechat_pay_api_v3_key"].default),
+        payment_mock_secret=os.getenv("PAYMENT_MOCK_SECRET", Settings.model_fields["payment_mock_secret"].default),
+        payment_mock_ttl_seconds=int(
+            os.getenv("PAYMENT_MOCK_TTL_SECONDS", str(Settings.model_fields["payment_mock_ttl_seconds"].default))
+        ),
+        cors_origins=os.getenv("CORS_ORIGINS", Settings.model_fields["cors_origins"].default),
         object_storage_endpoint=os.getenv("OBJECT_STORAGE_ENDPOINT", Settings.model_fields["object_storage_endpoint"].default),
         object_storage_public_endpoint=os.getenv("OBJECT_STORAGE_PUBLIC_ENDPOINT", Settings.model_fields["object_storage_public_endpoint"].default),
         object_storage_access_key=os.getenv("OBJECT_STORAGE_ACCESS_KEY", Settings.model_fields["object_storage_access_key"].default),

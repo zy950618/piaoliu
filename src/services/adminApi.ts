@@ -318,74 +318,6 @@ function mapAdminAuditTarget(item: AdminAuditDto) {
   return `${readableType} · ${businessTargetText(item.target_id)}`
 }
 
-const fallbackContextChatRequests: AdminDashboard['contextChatRequests'] = [
-  {
-    id: 'ctx_admin_mock_001',
-    status: 'reported',
-    conversationId: 'chat_admin_mock_001',
-    sourceType: 'bottle_reply',
-    sourceId: 'bottle_001',
-    sourceTitle: '基于本次互动开启',
-    participantSummary: '海风来信 / 海岛来信',
-    rateLimitText: '非好友上下文：6 条/分钟'
-  },
-  {
-    id: 'ctx_admin_mock_002',
-    status: 'active',
-    conversationId: 'chat_admin_mock_002',
-    sourceType: 'plaza_comment',
-    sourceId: 'plaza_001:comment_001',
-    sourceTitle: '广场评论继续聊',
-    participantSummary: '广场作者 / 评论用户',
-    rateLimitText: '非好友上下文：6 条/分钟'
-  }
-]
-
-const fallbackPrivatePhotoReviews: AdminDashboard['privatePhotoReviews'] = [
-  {
-    id: 'photo_review_admin_mock_low',
-    photoId: 'photo_review_admin_mock_low',
-    userId: '100000000001',
-    reviewStatus: 'ai_approved',
-    riskLevel: 'low_risk',
-    modelLabels: ['non_explicit', 'no_sensitive_privacy'],
-    confidence: 0.93,
-    autoAction: 'approve',
-    reportCount: 0,
-    revenueState: 'eligible',
-    assignedAdminId: null,
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: 'photo_review_admin_mock_mid',
-    photoId: 'photo_review_admin_mock_mid',
-    userId: '100000000001',
-    reviewStatus: 'manual_required',
-    riskLevel: 'medium_risk',
-    modelLabels: ['low_confidence', 'borderline_content'],
-    confidence: 0.62,
-    autoAction: 'manual_review',
-    reportCount: 1,
-    revenueState: 'frozen',
-    assignedAdminId: null,
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: 'photo_review_admin_mock_high',
-    photoId: 'photo_review_admin_mock_high',
-    userId: '100000000001',
-    reviewStatus: 'frozen',
-    riskLevel: 'high_risk',
-    modelLabels: ['high_risk', 'safety_violation'],
-    confidence: 0.96,
-    autoAction: 'freeze',
-    reportCount: 3,
-    revenueState: 'ineligible',
-    assignedAdminId: null,
-    updatedAt: new Date().toISOString()
-  }
-]
-
 function truncateText(value: string | null | undefined, maxLength: number) {
   const text = value?.trim() || ''
   return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text
@@ -407,14 +339,19 @@ function reportMeta(item: ReportDto) {
 }
 
 async function requestJson<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {})
-    },
-    ...options
-  })
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {})
+      },
+      ...options
+    })
+  } catch {
+    throw new Error('无法连接后台服务，请确认 API 已启动后重试')
+  }
   if (!response.ok) {
     const body = await response.text()
     throw new Error(readableError(body, response.status))
@@ -427,10 +364,16 @@ function readableError(body: string, status: number) {
     401: '登录已失效，请重新登录',
     403: '当前账号没有权限',
     404: '记录不存在',
-    422: '提交内容不符合要求'
+    409: '当前状态已变化，请刷新后重试',
+    422: '提交内容不符合要求',
+    503: '后台服务暂不可用，请稍后重试'
   }
   try {
-    const parsed = JSON.parse(body) as { detail?: string | { code?: string; message?: string } }
+    const parsed = JSON.parse(body) as {
+      error?: { code?: string; message?: string }
+      detail?: string | { code?: string; message?: string }
+    }
+    if (parsed.error?.message) return parsed.error.message
     const detail = parsed.detail
     const code = typeof detail === 'object' ? detail.code : undefined
     if (code === 'ADMIN_LOGIN_FAILED') return '管理员账号或密码不正确'
@@ -505,17 +448,11 @@ export const adminApi = {
       requestJson<AdminAuditDto[]>('/admin/audit'),
       requestJson<AdminRewardConfigDto>('/admin/reward-config'),
       requestJson<ReportDto[]>('/admin/reports'),
-      requestJson<ChatAppealDto[]>('/admin/chat-appeals').catch(() => []),
+      requestJson<ChatAppealDto[]>('/admin/chat-appeals'),
       requestJson<AdminChatDto[]>('/admin/chats'),
-      requestJson<AdminContextChatRequestDto[]>('/admin/chat/context-requests').catch(() => []),
-      requestJson<AdminPrivatePhotoReviewDto[]>('/admin/private-photos/reviews').catch(() => []),
-      requestJson<AdminPrivatePhotoRiskSummaryDto>('/admin/private-photos/risk-summary').catch(() => ({
-        low_risk: 0,
-        medium_risk: 0,
-        high_risk: 0,
-        manual_required: 0,
-        frozen: 0
-      }))
+      requestJson<AdminContextChatRequestDto[]>('/admin/chat/context-requests'),
+      requestJson<AdminPrivatePhotoReviewDto[]>('/admin/private-photos/reviews'),
+      requestJson<AdminPrivatePhotoRiskSummaryDto>('/admin/private-photos/risk-summary')
     ])
 
     const reportStatus = (status: ReportDto['status']) => (status === 'queued' ? 'pending' : status)
@@ -633,8 +570,7 @@ export const adminApi = {
         roomMode: item.room_mode,
         updatedAt: item.updated_at
       })),
-      contextChatRequests: contextChatRequests.length
-        ? contextChatRequests.map((item) => ({
+      contextChatRequests: contextChatRequests.map((item) => ({
             id: item.id,
             status: item.status,
             conversationId: item.conversation_id,
@@ -643,10 +579,8 @@ export const adminApi = {
             sourceTitle: item.source_summary?.title || '基于本次互动开启',
             participantSummary: item.source_type === 'friend' ? '好友关系' : '上下文双方',
             rateLimitText: `${item.rate_limit?.scope || 'none'}：${item.rate_limit?.messages_per_minute || 6} 条/分钟`
-          }))
-        : fallbackContextChatRequests,
-      privatePhotoReviews: privatePhotoReviews.length
-        ? privatePhotoReviews.map((item) => ({
+          })),
+      privatePhotoReviews: privatePhotoReviews.map((item) => ({
             id: item.id,
             photoId: item.photo_id,
             userId: item.user_id,
@@ -659,14 +593,13 @@ export const adminApi = {
             revenueState: item.revenue_state,
             assignedAdminId: item.assigned_admin_id,
             updatedAt: item.updated_at
-          }))
-        : fallbackPrivatePhotoReviews,
+          })),
       privatePhotoRiskSummary: {
-        lowRisk: privatePhotoRiskSummary.low_risk || fallbackPrivatePhotoReviews.filter((item) => item.riskLevel === 'low_risk').length,
-        mediumRisk: privatePhotoRiskSummary.medium_risk || fallbackPrivatePhotoReviews.filter((item) => item.riskLevel === 'medium_risk').length,
-        highRisk: privatePhotoRiskSummary.high_risk || fallbackPrivatePhotoReviews.filter((item) => item.riskLevel === 'high_risk').length,
-        manualRequired: privatePhotoRiskSummary.manual_required || fallbackPrivatePhotoReviews.filter((item) => item.reviewStatus === 'manual_required').length,
-        frozen: privatePhotoRiskSummary.frozen || fallbackPrivatePhotoReviews.filter((item) => item.reviewStatus === 'frozen').length
+        lowRisk: privatePhotoRiskSummary.low_risk,
+        mediumRisk: privatePhotoRiskSummary.medium_risk,
+        highRisk: privatePhotoRiskSummary.high_risk,
+        manualRequired: privatePhotoRiskSummary.manual_required,
+        frozen: privatePhotoRiskSummary.frozen
       },
       reports: reports.map((item) => {
         const target = reportMeta(item)

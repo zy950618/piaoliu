@@ -3,59 +3,40 @@
     <view class="cosmic-layer star-field star-field-far"></view>
     <view class="cosmic-layer star-field star-field-mid"></view>
     <view class="cosmic-layer star-field star-field-near"></view>
-    <view class="cosmic-layer star-field star-field-dust"></view>
     <view class="cosmic-layer nebula nebula-a"></view>
-    <view class="cosmic-layer nebula nebula-b"></view>
-    <view class="cosmic-layer depth-planet depth-planet-far"></view>
     <view class="cosmic-layer depth-planet depth-planet-near"></view>
     <view class="cosmic-layer meteor meteor-big"></view>
     <view class="cosmic-layer meteor meteor-a"></view>
-    <view class="cosmic-layer meteor meteor-b"></view>
-    <view class="cosmic-layer meteor meteor-c"></view>
-    <view class="cosmic-layer meteor meteor-d"></view>
-    <view class="cosmic-layer meteor meteor-e"></view>
-    <view class="cosmic-layer meteor meteor-corner"></view>
-    <view class="cosmic-layer meteor meteor-corner-small"></view>
-    <view class="cosmic-layer corner-dust"></view>
-    <view class="cosmic-layer corner-comet"></view>
     <view class="cosmic-layer spaceship spaceship-main">
       <view class="ship-aura"></view>
-      <image class="ship-image" src="/static/ships/aurora-cruiser.svg" mode="widthFix" />
-    </view>
-    <view class="cosmic-layer spaceship spaceship-far">
-      <view class="ship-aura"></view>
-      <image class="ship-image" src="/static/ships/aurora-cruiser.svg" mode="widthFix" />
-    </view>
-    <view class="cosmic-layer spaceship spaceship-low">
-      <view class="ship-aura"></view>
-      <image class="ship-image" src="/static/ships/aurora-cruiser.svg" mode="widthFix" />
+      <image class="ship-image" src="/static/ships/aurora-cruiser.svg" alt="" mode="widthFix" />
     </view>
 
     <view class="room-entry-dock">
-      <view class="room-entry solo-entry" @tap="openRoomConcept('solo')">
+      <button class="room-entry solo-entry game-control" hover-class="none" @tap="openRoomConcept('solo')">
         <view class="room-entry-top">
           <text class="room-entry-label">单聊私密</text>
           <text class="room-entry-icon solo-icon" />
         </view>
         <text class="room-entry-title">1v1 房间</text>
         <text class="room-entry-meta">从私聊进入</text>
-      </view>
-      <view class="room-entry group-entry" @tap="openRoomConcept('group')">
+      </button>
+      <button class="room-entry group-entry game-control" hover-class="none" @tap="openRoomConcept('group')">
         <view class="room-entry-top">
           <text class="room-entry-label">群聊私密</text>
           <text class="room-entry-icon group-icon" />
         </view>
         <text class="room-entry-title">多人房间</text>
         <text class="room-entry-meta">邀请制进入</text>
-      </view>
-      <view class="room-entry random-entry" @tap="openRandomMatch">
+      </button>
+      <button class="room-entry random-entry game-control" hover-class="none" @tap="openRandomMatch">
         <view class="room-entry-top">
           <text class="room-entry-label">随机匹配</text>
           <text class="room-entry-icon random-icon" />
         </view>
         <text class="room-entry-title">按条件找玩伴</text>
         <text class="room-entry-meta">性别 / 年龄 / 次数同步</text>
-      </view>
+      </button>
     </view>
 
     <view class="section activity-system" :class="{ rolling: diceRolling }">
@@ -68,23 +49,24 @@
       <view class="orbit-ring orbit-six"></view>
       <view class="orbit-ring orbit-seven"></view>
       <view class="orbit-ring orbit-eight"></view>
-      <view
+      <button
         v-for="entry in activityEntries"
         :key="entry.key"
-        class="activity-planet"
+        class="activity-planet game-control"
         :class="[entry.key, { active: activeMode === entry.mode }]"
+        hover-class="none"
         @tap="playEntry(entry)"
       >
         <view class="planet-ring"></view>
         <view class="planet-surface"></view>
         <text class="planet-badge">+{{ gameQuotaLeft(entry.quotaType) }}</text>
         <text class="planet-label">{{ entry.label }}</text>
-      </view>
-      <view class="activity-planet dice-entry" @tap="rollDice">
+      </button>
+      <button class="activity-planet dice-entry game-control" hover-class="none" @tap="rollDice">
         <view class="planet-ring"></view>
         <view class="planet-surface"></view>
         <text class="planet-label">摇骰子</text>
-      </view>
+      </button>
     </view>
 
     <view v-if="composerOpen" class="modal-mask center-mask">
@@ -98,9 +80,9 @@
             :placeholder="draftPlaceholder"
             @input="clearGameError"
           />
-          <view class="random-tip-button" @tap.stop="fillRandomGamePrompt" @click.stop="fillRandomGamePrompt">
+          <button class="random-tip-button game-control" hover-class="none" @tap.stop="fillRandomGamePrompt">
             {{ randomLoading ? '生成中' : '随机' }}
-          </view>
+          </button>
         </view>
         <text v-if="gameError" class="game-error">{{ gameError }}</text>
         <view class="option-block">
@@ -110,21 +92,21 @@
         <view class="option-block">
           <text class="field-label">选择对象</text>
           <view class="choice-row">
-            <view
+            <button
               v-for="item in genderOptions"
               :key="item.value"
-              class="choice-chip"
+              class="choice-chip game-control"
               :class="[item.value, { active: selectedGender === item.value }]"
+              hover-class="none"
               @tap.stop="selectedGender = item.value"
-              @click.stop="selectedGender = item.value"
             >
               {{ item.label }}
-            </view>
+            </button>
           </view>
         </view>
         <view class="modal-actions">
-          <view class="button ghost" @tap.stop="closeComposer" @click.stop="closeComposer">取消</view>
-          <view class="button" :class="{ disabled: !gameDraft.trim() }" @tap.stop="submitGamePrompt" @click.stop="submitGamePrompt">开始</view>
+          <button class="button ghost game-control" hover-class="none" @tap.stop="closeComposer">取消</button>
+          <button class="button game-control" hover-class="none" :disabled="!gameDraft.trim()" @tap.stop="submitGamePrompt">开始</button>
         </view>
       </view>
     </view>
@@ -137,8 +119,8 @@
         <text>对象：{{ currentGenderLabel }}</text>
       </view>
       <view class="grid-2 result-actions">
-        <view class="button secondary" @tap="save">保存</view>
-        <view class="button ghost" @tap="shareToBottle">投递成瓶子</view>
+        <button class="button secondary game-control" hover-class="none" @tap="save">保存</button>
+        <button class="button ghost game-control" hover-class="none" @tap="shareToBottle">投递成瓶子</button>
       </view>
     </view>
 
@@ -151,8 +133,10 @@
           <text v-for="step in activeRoomConcept.steps" :key="step">{{ step }}</text>
         </view>
         <view class="modal-actions">
-          <view class="button ghost" @tap.stop="closeRoomConcept" @click.stop="closeRoomConcept">关闭</view>
-          <view class="button" @tap.stop="enterRoomConcept" @click.stop="enterRoomConcept">{{ activeRoomConcept.action }}</view>
+          <button class="button ghost game-control" hover-class="none" @tap.stop="closeRoomConcept">关闭</button>
+          <button class="button concept-action game-control" hover-class="none" :disabled="roomCreating" @tap.stop="enterRoomConcept">
+            {{ roomCreating ? '创建中' : activeRoomConcept.action }}
+          </button>
         </view>
       </view>
     </view>
@@ -208,6 +192,7 @@ const selectedPrompt = ref<GamePrompt>()
 const selectedGender = ref<TargetGender>('female')
 const randomLoading = ref(false)
 const roomConceptOpen = ref(false)
+const roomCreating = ref(false)
 const activeRoomKind = ref<RoomKind>('solo')
 
 const modes = [
@@ -240,9 +225,9 @@ const roomConcepts: Record<RoomKind, RoomConcept> = {
   group: {
     kicker: '群聊私密房间',
     title: '邀请制多人房间',
-    body: '入口独立放在游戏页，后续接入邀请、房主控制、成员列表和房间话题。',
+    body: '从游戏页创建邀请制多人房间，房主可邀请成员并控制房间玩法与结束状态。',
     steps: ['创建', '邀请', '多人互动'],
-    action: '预留入口'
+    action: '创建房间'
   }
 }
 
@@ -374,18 +359,49 @@ function openRandomMatch() {
   navigateTo('/pages/game/match')
 }
 
-function enterRoomConcept() {
+async function enterRoomConcept() {
   if (activeRoomKind.value === 'solo') {
     roomConceptOpen.value = false
     switchTab('/pages/messages/index')
     return
   }
-  showToast('群聊私密房间入口已预留')
-  roomConceptOpen.value = false
+  if (roomCreating.value) return
+  roomCreating.value = true
+  try {
+    const room = await businessApi.createPrivateGroupRoom('今晚的私密游戏房')
+    roomConceptOpen.value = false
+    navigateTo(`/pages/game/room?roomId=${room.id}`)
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '房间创建失败，请稍后重试')
+  } finally {
+    roomCreating.value = false
+  }
 }
 </script>
 
 <style scoped lang="scss">
+.game-control {
+  width: auto;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  line-height: inherit;
+  text-align: inherit;
+}
+
+.game-control::after {
+  display: none;
+}
+
+.game-control.button {
+  width: 100%;
+  padding: 0 24rpx;
+  text-align: center;
+}
+
 .game-page {
   position: fixed;
   top: 0;
@@ -1430,6 +1446,17 @@ function enterRoomConcept() {
   grid-template-columns: 0.8fr 1.2fr;
   gap: 16rpx;
   margin-top: 26rpx;
+}
+
+.concept-action {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  line-height: 1.2;
+}
+
+.concept-action::after {
+  display: none;
 }
 
 .room-concept-card {

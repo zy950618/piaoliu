@@ -79,9 +79,10 @@
             <button type="button" class="text-button" @click="openTab('content')">进入内容中心</button>
           </div>
           <div class="content-grid">
-            <article
+            <button
               v-for="item in taskBoard"
               :key="item.label"
+              type="button"
               class="task-card"
               :class="item.theme"
               @click="openTask(item.tab, item.risk, item.category)"
@@ -89,7 +90,7 @@
               <strong>{{ item.count }}</strong>
               <span>{{ item.label }}</span>
               <small>{{ item.remark }}</small>
-            </article>
+            </button>
             <article class="task-card">
               <strong>{{ dashboard.summary.pendingContent }}</strong>
               <span>待审核内容总量</span>
@@ -107,19 +108,19 @@
             <div class="action-row">
               <button type="button" class="ghost-button" :disabled="operationBusy" @click="setBatchStatus('active')">批量恢复</button>
               <button type="button" class="ghost-button" :disabled="operationBusy" @click="setBatchStatus('limited')">批量限制</button>
-              <button type="button" class="danger-button" :disabled="operationBusy" @click="setBatchStatus('blocked')">批量封禁</button>
+              <button type="button" class="danger-button" :disabled="operationBusy || !selectedUserIds.length" @click="confirmBatchBlock">批量封禁</button>
             </div>
           </div>
 
           <div class="users-toolbar">
-            <input v-model="userKeyword" type="search" placeholder="搜索昵称 / 账号编号" />
-            <select v-model="userStatusFilter">
+            <input v-model="userKeyword" type="search" aria-label="搜索用户昵称或账号编号" placeholder="搜索昵称 / 账号编号" />
+            <select v-model="userStatusFilter" aria-label="按用户状态筛选">
               <option value="">全部状态</option>
               <option value="active">正常</option>
               <option value="limited">受限</option>
               <option value="blocked">封禁</option>
             </select>
-            <select v-model="userVerifyFilter">
+            <select v-model="userVerifyFilter" aria-label="按认证状态筛选">
               <option value="">全部认证</option>
               <option value="approved">已认证</option>
               <option value="pending">待审核</option>
@@ -132,9 +133,10 @@
               class="ban-days"
               min="1"
               max="365"
+              aria-label="封禁天数"
               placeholder="封禁天数"
             />
-            <input v-model="userBatchReason" type="text" class="ban-reason" placeholder="封禁原因（可选）" />
+            <input v-model="userBatchReason" type="text" class="ban-reason" aria-label="封禁原因" placeholder="封禁原因（可选）" />
             <button type="button" class="ghost-button" @click="clearUserFilters">重置</button>
           </div>
 
@@ -144,6 +146,7 @@
                 <th style="width: 40px">
                   <input
                     type="checkbox"
+                    aria-label="选择或取消全部用户"
                     :checked="allUsersChecked"
                     @change="toggleAllUsers"
                   />
@@ -164,6 +167,7 @@
                 <td>
                   <input
                     type="checkbox"
+                    :aria-label="`选择用户 ${user.nickname}`"
                     :checked="selectedUserIds.includes(user.id)"
                     @change="toggleUser(user.id)"
                   />
@@ -187,7 +191,7 @@
                 <td class="inline-actions">
                   <button type="button" class="text-button" :disabled="operationBusy" @click="setUserStatus(user.id, 'active')">恢复</button>
                   <button type="button" class="text-button" :disabled="operationBusy" @click="setUserStatus(user.id, 'limited')">限制</button>
-                  <button type="button" class="danger-button" :disabled="operationBusy" @click="setUserStatus(user.id, 'blocked', userBatchReason, userBatchDays)">封禁</button>
+                  <button type="button" class="danger-button" :disabled="operationBusy" @click="confirmUserBlock(user)">封禁</button>
                 </td>
               </tr>
             </tbody>
@@ -202,7 +206,7 @@
             </div>
             <div class="action-row">
               <button type="button" class="ghost-button" :disabled="operationBusy || !selectedContentIds.length" @click="batchReview('approved')">批量通过</button>
-              <button type="button" class="danger-button" :disabled="operationBusy || !selectedContentIds.length" @click="batchReview('rejected')">批量下线</button>
+              <button type="button" class="danger-button" :disabled="operationBusy || !selectedContentIds.length" @click="confirmBatchOffline">批量下线</button>
             </div>
           </div>
 
@@ -254,6 +258,7 @@
                 <td>
                   <input
                     type="checkbox"
+                    :aria-label="`选择内容 ${item.id}`"
                     :checked="selectedContentIds.includes(item.id)"
                     @change="toggleContent(item.id)"
                   />
@@ -435,7 +440,10 @@
                   v-for="item in dashboard.contextChatRequests"
                   :key="item.id"
                   :class="{ selected: selectedContextChat?.id === item.id }"
+                  tabindex="0"
+                  role="button"
                   @click="selectedContextChatId = item.id"
+                  @keydown.enter.space.prevent="selectedContextChatId = item.id"
                 >
                   <td>{{ visibleCode(item.id, '申请') }}</td>
                   <td>{{ contextSourceText(item.sourceType) }}</td>
@@ -519,7 +527,10 @@
                   v-for="item in dashboard.privatePhotoReviews"
                   :key="item.id"
                   :class="{ selected: selectedPrivatePhotoReview?.id === item.id }"
+                  tabindex="0"
+                  role="button"
                   @click="selectedPrivatePhotoReviewId = item.id"
+                  @keydown.enter.space.prevent="selectedPrivatePhotoReviewId = item.id"
                 >
                   <td>
                     <strong>{{ visibleCode(item.photoId, '照片') }}</strong>
@@ -561,7 +572,7 @@
         <section v-if="activeTab === 'reports'" class="panel">
           <h2>举报处置台</h2>
           <div class="report-searchbar">
-            <input v-model="reportKeyword" type="search" placeholder="搜索目标、原因、证据编号" />
+            <input v-model="reportKeyword" type="search" aria-label="搜索举报目标、原因或证据编号" placeholder="搜索目标、原因、证据编号" />
             <span class="filter-summary">当前 {{ filteredReports.length }} 条</span>
           </div>
           <div class="toolbar-actions">
@@ -604,7 +615,10 @@
                 v-for="item in filteredReports"
                 :key="item.id"
                 :class="{ selected: selectedReport?.id === item.id }"
+                tabindex="0"
+                role="button"
                 @click="selectedReportId = item.id"
+                @keydown.enter.space.prevent="selectedReportId = item.id"
               >
                 <td>{{ formatDateTime(item.createdAt) }}</td>
                 <td>{{ item.targetTypeText || formatReportTypeLabel(item.targetType) }}</td>
@@ -672,7 +686,7 @@
                 type="button"
                 class="primary-button"
                 :disabled="operationBusy || selectedReport.status === 'resolved' || !reportResolveReason.trim()"
-                @click="resolveSelectedReport"
+                @click="confirmResolveSelectedReport"
               >
                 标记已处理
               </button>
@@ -711,7 +725,10 @@
                   v-for="item in dashboard.chatAppeals"
                   :key="item.id"
                   :class="{ selected: selectedChatAppeal?.id === item.id }"
+                  tabindex="0"
+                  role="button"
                   @click="selectedChatAppealId = item.id"
+                  @keydown.enter.space.prevent="selectedChatAppealId = item.id"
                 >
                   <td>{{ formatDateTime(item.createdAt) }}</td>
                   <td>{{ item.userName || visibleCode(item.userId, '用户') }}</td>
@@ -756,7 +773,7 @@
                   type="button"
                   class="danger-button"
                   :disabled="operationBusy || selectedChatAppeal.status !== 'pending' || !chatAppealReviewReason.trim()"
-                  @click="reviewSelectedChatAppeal('reject')"
+                  @click="confirmRejectSelectedChatAppeal"
                 >
                   驳回申诉
                 </button>
@@ -872,7 +889,10 @@
                   v-for="item in dashboard.auditLogs"
                   :key="item.id"
                   :class="{ selected: selectedAudit?.id === item.id }"
+                  tabindex="0"
+                  role="button"
                   @click="selectedAuditId = item.id"
+                  @keydown.enter.space.prevent="selectedAuditId = item.id"
                 >
                   <td>{{ formatDateTime(item.createdAt) }}</td>
                   <td>
@@ -912,11 +932,31 @@
         </section>
       </template>
     </section>
+
+    <dialog
+      ref="confirmationDialog"
+      class="confirmation-dialog"
+      aria-labelledby="confirmation-title"
+      @cancel.prevent="cancelConfirmation"
+    >
+      <form v-if="confirmation" class="confirmation-card" @submit.prevent="performConfirmedAction">
+        <div>
+          <h2 id="confirmation-title">{{ confirmation.title }}</h2>
+          <p>{{ confirmation.description }}</p>
+        </div>
+        <div class="confirmation-actions">
+          <button type="button" class="ghost-button" :disabled="operationBusy" @click="cancelConfirmation">取消</button>
+          <button type="submit" :class="confirmation.danger ? 'danger-button' : 'primary-button'" :disabled="operationBusy">
+            {{ confirmation.confirmLabel }}
+          </button>
+        </div>
+      </form>
+    </dialog>
   </main>
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { adminApi } from '@/services/adminApi'
 import type {
   AdminDashboard,
@@ -944,6 +984,13 @@ type ReportCategory = 'all' | AdminReportItem['targetType']
 type ReportStatusFilter = 'all' | AdminReportItem['status']
 type ReportPenaltyAction = 'none' | 'limit_user' | 'freeze_chat' | 'offline_content'
 type ChatSourceFilter = 'all' | AdminChatReviewItem['source']
+type ConfirmationRequest = {
+  title: string
+  description: string
+  confirmLabel: string
+  danger: boolean
+  action: () => Promise<void>
+}
 
 type DashTab = { key: TabKey; label: string; badge?: number }
 
@@ -979,15 +1026,15 @@ const initialDashboard: AdminDashboard = {
     adReward: '所有玩法各 +1 次',
     checkinRewards: [],
     adDisplayType: 'video',
-    adProvider: 'mock_alliance',
-    adPlacementId: 'reward_video_default',
-    adTitle: '漂流岛激励视频',
-    adDescription: '完整观看倒计时后，所有玩法次数都会增加。',
-    adMediaUrl: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
-    adClickUrl: 'https://example.com/drift-ad',
+    adProvider: '',
+    adPlacementId: '',
+    adTitle: '',
+    adDescription: '',
+    adMediaUrl: undefined,
+    adClickUrl: undefined,
     adCountdownSeconds: 5,
-    miniProgramAppId: 'wx-drift-bottle-demo',
-    miniProgramPath: 'pages/ad/reward',
+    miniProgramAppId: undefined,
+    miniProgramPath: undefined,
     quotaNames: {
       fish_bottle: '捞瓶',
       throw_bottle: '扔瓶',
@@ -1033,6 +1080,8 @@ const dashboard = ref<AdminDashboard>(initialDashboard)
 const loading = ref(true)
 const operationBusy = ref(false)
 const operationMessage = ref('')
+const confirmationDialog = ref<HTMLDialogElement | null>(null)
+const confirmation = ref<ConfirmationRequest | null>(null)
 const loginUsername = ref('admin')
 const loginPassword = ref('')
 const initialTab = new URLSearchParams(window.location.search).get('tab') as TabKey | null
@@ -1761,6 +1810,78 @@ async function runAdminOperation(successMessage: string, action: () => Promise<v
   } finally {
     operationBusy.value = false
   }
+}
+
+function requestConfirmation(request: ConfirmationRequest) {
+  confirmation.value = request
+  void nextTick(() => confirmationDialog.value?.showModal())
+}
+
+function cancelConfirmation() {
+  confirmationDialog.value?.close()
+  confirmation.value = null
+}
+
+async function performConfirmedAction() {
+  const action = confirmation.value?.action
+  confirmationDialog.value?.close()
+  confirmation.value = null
+  if (action) await action()
+}
+
+function confirmUserBlock(user: AdminUserSummary) {
+  requestConfirmation({
+    title: `封禁 ${user.nickname}？`,
+    description: `该账号将立即无法继续使用平台，封禁期为 ${userBatchDays.value} 天。原因会写入后台审计记录。`,
+    confirmLabel: '确认封禁',
+    danger: true,
+    action: () => setUserStatus(user.id, 'blocked', userBatchReason.value, userBatchDays.value)
+  })
+}
+
+function confirmBatchBlock() {
+  if (!selectedUserIds.value.length) return
+  requestConfirmation({
+    title: `封禁已选 ${selectedUserIds.value.length} 个账号？`,
+    description: `这些账号将立即无法继续使用平台，封禁期为 ${userBatchDays.value} 天。该操作会逐项写入审计记录。`,
+    confirmLabel: '确认批量封禁',
+    danger: true,
+    action: () => setBatchStatus('blocked')
+  })
+}
+
+function confirmBatchOffline() {
+  if (!selectedContentIds.value.length) return
+  requestConfirmation({
+    title: `下线已选 ${selectedContentIds.value.length} 条内容？`,
+    description: '内容下线后将不再对用户可见。请确认已完成证据核对，后续可在审核记录中追溯。',
+    confirmLabel: '确认批量下线',
+    danger: true,
+    action: () => batchReview('rejected')
+  })
+}
+
+function confirmResolveSelectedReport() {
+  if (!selectedReport.value) return
+  const actionText = reportPenaltyAction.value === 'none' ? '仅关闭举报' : '执行处罚并关闭举报'
+  requestConfirmation({
+    title: '确认处理这条举报？',
+    description: `${actionText}。处理原因、处罚动作和证据引用都会写入不可删除的审计记录。`,
+    confirmLabel: '确认处理',
+    danger: reportPenaltyAction.value !== 'none',
+    action: resolveSelectedReport
+  })
+}
+
+function confirmRejectSelectedChatAppeal() {
+  if (!selectedChatAppeal.value) return
+  requestConfirmation({
+    title: '驳回这条聊天申诉？',
+    description: '驳回后原聊天限制保持不变，处理原因会通知用户并写入审计记录。',
+    confirmLabel: '确认驳回',
+    danger: true,
+    action: () => reviewSelectedChatAppeal('reject')
+  })
 }
 
 async function setUserStatus(userId: string, status: UserStatus, reason?: string, blockDays?: number) {

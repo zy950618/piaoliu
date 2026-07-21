@@ -141,7 +141,11 @@ function normalizeBody(body: unknown) {
   }
 }
 
-export async function requestJson<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+export async function requestJson<T>(
+  path: string,
+  options: ApiRequestOptions = {},
+  retryExpiredSession = true
+): Promise<T> {
   const accessToken = path === '/auth/wechat' ? '' : await getAccessToken()
   const headers = {
     'Content-Type': 'application/json',
@@ -160,6 +164,12 @@ export async function requestJson<T>(path: string, options: ApiRequestOptions = 
         data: normalizeBody(options.body),
         success: (response) => {
           const statusCode = response.statusCode || 0
+          if (statusCode === 401 && retryExpiredSession && path !== '/auth/wechat') {
+            getAccessToken(true)
+              .then(() => requestJson<T>(path, options, false))
+              .then(resolve, reject)
+            return
+          }
           if (statusCode < 200 || statusCode >= 300) {
             reject(new Error(readableError(response.data, statusCode)))
             return
@@ -176,6 +186,10 @@ export async function requestJson<T>(path: string, options: ApiRequestOptions = 
     method: options.method,
     body: typeof options.body === 'string' ? options.body : options.body == null ? undefined : JSON.stringify(options.body)
   })
+  if (response.status === 401 && retryExpiredSession && path !== '/auth/wechat') {
+    await getAccessToken(true)
+    return requestJson<T>(path, options, false)
+  }
   if (!response.ok) {
     const text = await response.text()
     let body: unknown = text

@@ -86,21 +86,22 @@ async def create_room(session: AsyncSession, payload: RoomCreate) -> RoomOut:
     if payload.size_mode == "pair" and payload.capacity != 2:
         raise error(422, "ROOM_CAPACITY_INVALID", "双人房容量必须为 2 人")
     if payload.visibility == "private":
-        if not payload.conversation_id:
-            raise error(422, "ROOM_CONVERSATION_REQUIRED", "私密房必须从有效聊天中创建")
-        conversation = await session.get(ChatConversationRecord, payload.conversation_id)
-        legacy_conversation = await session.get(ConversationThread, payload.conversation_id) if conversation is None else None
-        participants = (
-            {conversation.participant_a_id, conversation.participant_b_id}
-            if conversation is not None
-            else {legacy_conversation.user_a_id, legacy_conversation.user_b_id}
-            if legacy_conversation is not None
-            else set()
-        )
-        if user.id not in participants:
-            raise error(403, "ROOM_CONVERSATION_INVALID", "当前聊天不能用于创建私密房")
         if payload.join_policy != "invite":
             raise error(422, "ROOM_JOIN_POLICY_INVALID", "私密房仅支持邀请加入")
+        if payload.size_mode == "pair" and not payload.conversation_id:
+            raise error(422, "ROOM_CONVERSATION_REQUIRED", "双人私密房必须从有效聊天中创建")
+        if payload.conversation_id:
+            conversation = await session.get(ChatConversationRecord, payload.conversation_id)
+            legacy_conversation = await session.get(ConversationThread, payload.conversation_id) if conversation is None else None
+            participants = (
+                {conversation.participant_a_id, conversation.participant_b_id}
+                if conversation is not None
+                else {legacy_conversation.user_a_id, legacy_conversation.user_b_id}
+                if legacy_conversation is not None
+                else set()
+            )
+            if user.id not in participants:
+                raise error(403, "ROOM_CONVERSATION_INVALID", "当前聊天不能用于创建私密房")
     room = Room(
         id=new_id("room"),
         owner_id=user.id,

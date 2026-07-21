@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 from sqlalchemy import and_, desc, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
@@ -2846,15 +2847,58 @@ async def admin_chat_reviews(session: AsyncSession) -> list[AdminChatReviewOut]:
     return rows
 
 
-async def verify_membership_order(session: AsyncSession, platform: str, product_id: str, transaction_id: str) -> tuple[MembershipOrderOut, UserProfile]:
+async def ensure_membership_product_available(
+    session: AsyncSession,
+    platform: str,
+    product_id: str,
+) -> MembershipProductConfig:
+    product = await session.scalar(
+        select(MembershipProductConfig).where(
+            MembershipProductConfig.id == product_id,
+            MembershipProductConfig.status == "active",
+        )
+    )
+    if not product:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "MEMBERSHIP_PRODUCT_NOT_FOUND", "message": "会员套餐不存在或已下架。"},
+        )
+    if product.platform not in {"all", platform}:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "MEMBERSHIP_PLATFORM_MISMATCH", "message": "当前套餐不支持所选支付平台。"},
+        )
+    return product
+
+
+def duplicate_membership_order(existing: MembershipOrder, user: User) -> tuple[MembershipOrderOut, UserProfile]:
+    if existing.user_id != user.id:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "PAYMENT_TRANSACTION_OWNED", "message": "该支付交易已绑定其他账号。"},
+        )
+    return membership_order_out(existing).model_copy(update={"status": "duplicate_verified"}), to_user_profile(user)
+
+
+async def verify_membership_order(
+    session: AsyncSession,
+    platform: str,
+    product_id: str,
+    transaction_id: str,
+    verification_status: str,
+) -> tuple[MembershipOrderOut, UserProfile]:
     user = await get_current_user(session)
+    await ensure_membership_product_available(session, platform, product_id)
     existing = await session.scalar(select(MembershipOrder).where(MembershipOrder.transaction_id == transaction_id))
     vip_level = {"vip_month": "monthly", "vip_season": "season", "vip_year": "yearly"}.get(product_id, "monthly")
     if existing:
-        existing.status = "duplicate_verified"
-        await session.commit()
-        return membership_order_out(existing), to_user_profile(user)
-    order = MembershipOrder(id=new_id("member_order"), user_id=user.id, platform=platform, product_id=product_id, transaction_id=transaction_id, status="mock_verified", vip_level=vip_level, verified_at=now())
+        if existing.platform != platform or existing.product_id != product_id:
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "PAYMENT_TRANSACTION_MISMATCH", "message": "支付交易与当前套餐不匹配。"},
+            )
+        return duplicate_membership_order(existing, user)
+    order = MembershipOrder(id=new_id("member_order"), user_id=user.id, platform=platform, product_id=product_id, transaction_id=transaction_id, status=verification_status, vip_level=vip_level, verified_at=now())
     session.add(order)
     user.is_vip = True
     user.vip_level = vip_level
@@ -2863,7 +2907,20 @@ async def verify_membership_order(session: AsyncSession, platform: str, product_
             quota.remaining += 5 - quota.vip_bonus
             quota.vip_bonus = 5
     await add_notification(session, "会员已开通", "VIP 权益已经生效。", "membership", order.id)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        user = await get_current_user(session)
+        existing = await session.scalar(select(MembershipOrder).where(MembershipOrder.transaction_id == transaction_id))
+        if not existing:
+            raise
+        if existing.platform != platform or existing.product_id != product_id:
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "PAYMENT_TRANSACTION_MISMATCH", "message": "支付交易与当前套餐不匹配。"},
+            )
+        return duplicate_membership_order(existing, user)
     return membership_order_out(order), to_user_profile(user)
 
 

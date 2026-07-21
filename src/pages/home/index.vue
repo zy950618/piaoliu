@@ -4,7 +4,7 @@
       <view class="between">
         <view class="row user-row">
           <view class="avatar">
-            <image class="avatar-image" :src="resolveAvatarUrl(app.user?.avatarUrl, app.user?.id || 'current-user')" mode="aspectFill" />
+            <image class="avatar-image" :src="resolveAvatarUrl(app.user?.avatarUrl, app.user?.id || 'current-user')" :alt="`${app.user?.nickname || '当前用户'}的头像`" mode="aspectFill" />
           </view>
           <view>
             <view class="row name-row">
@@ -26,7 +26,7 @@
         <text class="insight-kicker">今晚推荐</text>
         <text class="insight-title">先捞一只瓶子，再决定要不要关注。</text>
       </view>
-      <view class="button insight-button" @tap="go('/pages/bottle/index')">去捞瓶</view>
+      <button class="button insight-button" hover-class="none" @tap="go('/pages/bottle/index')">去捞瓶</button>
     </view>
 
     <view class="section">
@@ -45,62 +45,62 @@
         </view>
         <view class="tag">{{ app.adCountdownText }}</view>
       </view>
-      <view class="button" :class="{ disabled: !app.adReward?.canWatch }" @tap="watchAd">
+      <button class="button semantic-button" hover-class="none" :class="{ disabled: !app.adReward?.canWatch }" @tap="watchAd">
         {{ app.adReward?.canWatch ? '观看广告领取' : app.adCountdownText }}
-      </view>
+      </button>
     </view>
 
     <view class="section">
       <text class="h2">开始漂流</text>
       <view class="grid-2 action-grid">
-        <view class="entry bottle" @tap="go('/pages/bottle/index')">
+        <button class="entry bottle" hover-class="none" @tap="go('/pages/bottle/index')">
           <text class="entry-title">漂流瓶</text>
           <text class="entry-copy">扔出秘密，捞回回应</text>
           <view class="entry-badges">
             <text class="entry-badge">捞 +{{ quotaLeft('fish_bottle') }}</text>
             <text class="entry-badge">发 +{{ quotaLeft('throw_bottle') }}</text>
           </view>
-        </view>
-        <view class="entry truth" @tap="go('/pages/game/index')">
+        </button>
+        <button class="entry truth" hover-class="none" @tap="go('/pages/truth/index')">
           <text class="entry-title">游戏</text>
-          <text class="entry-copy">真心话和大冒险</text>
+          <text class="entry-copy">快速开始一轮真心话</text>
           <view class="entry-badges">
             <text class="entry-badge">真心话 +{{ quotaLeft('truth') }}</text>
             <text class="entry-badge">私密真心话 +{{ quotaLeft('truth') }}</text>
             <text class="entry-badge">大冒险 +{{ quotaLeft('dare') }}</text>
           </view>
-        </view>
-        <view class="entry tree" @tap="go('/pages/game/index')">
+        </button>
+        <button class="entry tree" hover-class="none" @tap="go('/pages/game/index')">
           <text class="entry-title">游戏星系</text>
           <text class="entry-copy">随机匹配、真心话和大冒险</text>
           <view class="entry-badges">
             <text class="entry-badge">匹配入口</text>
           </view>
-        </view>
-        <view class="entry plaza" @tap="go('/pages/plaza/index')">
+        </button>
+        <button class="entry plaza" hover-class="none" @tap="go('/pages/plaza/index')">
           <text class="entry-title">广场</text>
           <text class="entry-copy">看公开动态和热门话题</text>
-        </view>
-        <view class="entry nearby" @tap="go('/pages/nearby/index')">
+        </button>
+        <button class="entry nearby" hover-class="none" @tap="go('/pages/nearby/index')">
           <text class="entry-title">附近的人</text>
           <text class="entry-copy">粗略距离，安全互动</text>
-        </view>
+        </button>
       </view>
     </view>
 
     <view class="section grid-2">
-      <view class="mini-entry panel" @tap="go('/pages/creator/index')">
+      <button class="mini-entry panel" hover-class="none" @tap="go('/pages/creator/index')">
         <text class="mini-title">女性认证</text>
         <text class="muted">安全展示、收益分账、提现规则</text>
-      </view>
-      <view class="mini-entry panel" @tap="go('/pages/wallet/index')">
+      </button>
+      <button class="mini-entry panel" hover-class="none" @tap="go('/pages/wallet/index')">
         <text class="mini-title">金币钱包</text>
         <text class="muted">充值币不可提现，收益币可提现</text>
-      </view>
-      <view class="mini-entry panel" @tap="go('/pages/profile/index')">
+      </button>
+      <button class="mini-entry panel" hover-class="none" @tap="go('/pages/profile/index')">
         <text class="mini-title">我的中心</text>
         <text class="muted">签到、黑名单、会员和记录</text>
-      </view>
+      </button>
     </view>
   </view>
 </template>
@@ -121,7 +121,7 @@ onLoad(() => {
 })
 
 function go(url: string) {
-  if (url === '/pages/bottle/index' || url === '/pages/plaza/index' || url === '/pages/game/index' || url === '/pages/messages/index') {
+  if (url === '/pages/home/index' || url === '/pages/plaza/index' || url === '/pages/game/index' || url === '/pages/messages/index' || url === '/pages/profile/index') {
     switchTab(url)
     return
   }
@@ -195,6 +195,25 @@ async function watchAd() {
   margin-bottom: 14rpx;
 }
 
+button.entry,
+button.mini-entry,
+button.insight-button,
+.semantic-button {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: left;
+}
+
+button.mini-entry::after,
+button.insight-button::after,
+.semantic-button::after {
+  display: none;
+}
+
 .insight-card {
   display: flex;
   align-items: center;
@@ -237,6 +256,7 @@ async function watchAd() {
   padding: 0 16rpx;
   font-size: 26rpx;
   box-sizing: border-box;
+  text-align: center;
 }
 
 .reward-panel {

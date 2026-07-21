@@ -459,9 +459,27 @@ class MembershipProduct(BaseModel):
 
 class OrderVerifyRequest(BaseModel):
     platform: Literal["wechat", "ios", "android"]
-    product_id: str
+    product_id: str = Field(min_length=1, max_length=64)
+    transaction_id: str = Field(min_length=12, max_length=120)
+    receipt: str = Field(min_length=32, max_length=2048)
+
+
+class MockPaymentSessionRequest(BaseModel):
+    platform: Literal["wechat", "ios", "android"]
+    product_id: str = Field(min_length=1, max_length=64)
+
+
+class MockPaymentSession(BaseModel):
+    mode: Literal["mock"] = "mock"
     transaction_id: str
     receipt: str
+    expires_at: str
+
+
+class PaymentCapability(BaseModel):
+    mode: Literal["mock", "unavailable"]
+    can_purchase: bool
+    message: str
 
 
 class AdminRewardConfig(BaseModel):

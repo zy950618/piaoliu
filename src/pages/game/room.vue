@@ -9,11 +9,32 @@
     <template v-else-if="room">
       <view class="room-header">
         <view>
-          <text class="eyebrow">{{ room.visibility === 'public' ? '广场公开房' : '双人私密房' }}</text>
+          <text class="eyebrow">{{ roomTypeText(room) }}</text>
           <text class="room-title">{{ room.name }}</text>
           <text class="room-subtitle">玩法结果由服务器生成，仅房间成员可见</text>
         </view>
         <text class="status-badge">{{ room.status === 'active' ? '进行中' : '已结束' }}</text>
+      </view>
+
+      <view v-if="canInviteMembers" class="invite-panel">
+        <text class="section-title">邀请成员</text>
+        <text class="section-hint">邀请仅发送给指定用户，对方接受后才会进入房间。</text>
+        <view v-if="inviteCandidates.length" class="invite-list">
+          <view v-for="candidate in inviteCandidates" :key="candidate.id" class="invite-row">
+            <view class="member-copy">
+              <text>{{ candidate.nickname }}</text>
+              <text class="member-meta">{{ candidate.online ? '当前在线' : '暂时离线' }} · {{ candidate.distanceText }}</text>
+            </view>
+            <button
+              class="invite-button"
+              :disabled="invitingUserId === candidate.id || invitedUserIds.includes(candidate.id)"
+              @tap="inviteUser(candidate.id)"
+            >
+              {{ invitedUserIds.includes(candidate.id) ? '已邀请' : invitingUserId === candidate.id ? '发送中' : '邀请' }}
+            </button>
+          </view>
+        </view>
+        <text v-else class="empty-invite">暂时没有可邀请的用户，可以稍后重新进入房间查看。</text>
       </view>
 
       <view class="members-panel">
@@ -67,13 +88,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
 import { businessApi } from '@/services/businessApi'
 import { showToast } from '@/services/feedback'
 import { connectRoom, type RealtimeConnection } from '@/services/realtime'
 import { useAppStore } from '@/stores/app'
-import type { SocialGameRound, SocialRoom } from '@/types/domain'
+import type { NearbyUser, SocialGameRound, SocialRoom } from '@/types/domain'
 
 const app = useAppStore()
 const roomId = ref('')
@@ -82,7 +103,18 @@ const round = ref<SocialGameRound>()
 const loading = ref(true)
 const busy = ref(false)
 const errorText = ref('')
+const inviteCandidates = ref<NearbyUser[]>([])
+const invitedUserIds = ref<string[]>([])
+const invitingUserId = ref('')
 let realtimeConnection: RealtimeConnection | undefined
+
+const canInviteMembers = computed(() => (
+  room.value?.visibility === 'private'
+  && room.value?.sizeMode === 'group'
+  && room.value?.ownerId === app.user?.id
+  && room.value?.status === 'active'
+  && room.value.members.length < room.value.capacity
+))
 
 onLoad((query) => {
   roomId.value = String(query?.roomId || '')
@@ -94,6 +126,7 @@ onUnload(() => realtimeConnection?.close())
 async function initializeRoom() {
   await Promise.all([app.hydrate(), loadRoom()])
   if (!room.value) return
+  await loadInviteCandidates()
   realtimeConnection = await connectRoom(room.value.id, (event) => {
     if (event.type === 'room.updated') void loadRoom(false)
     if (event.type === 'room.round.resolved') {
@@ -112,6 +145,37 @@ async function initializeRoom() {
       }
     }
   })
+}
+
+function roomTypeText(value: SocialRoom) {
+  if (value.visibility === 'public') return '广场公开房'
+  return value.sizeMode === 'group' ? '邀请制多人房' : '双人私密房'
+}
+
+async function loadInviteCandidates() {
+  if (!canInviteMembers.value || !room.value) return
+  try {
+    const memberIds = new Set(room.value.members.map((member) => member.userId))
+    inviteCandidates.value = (await businessApi.listNearbyUsers())
+      .filter((candidate) => !memberIds.has(candidate.id))
+      .slice(0, 5)
+  } catch {
+    inviteCandidates.value = []
+  }
+}
+
+async function inviteUser(userId: string) {
+  if (!room.value || invitingUserId.value || invitedUserIds.value.includes(userId)) return
+  invitingUserId.value = userId
+  try {
+    await businessApi.inviteToRoom(room.value.id, userId)
+    invitedUserIds.value.push(userId)
+    showToast('邀请已发送，等待对方接受')
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '邀请发送失败，请重试')
+  } finally {
+    invitingUserId.value = ''
+  }
 }
 
 async function loadRoom(showLoading = true) {
@@ -164,8 +228,8 @@ async function endRoom() {
 .room-title { display: block; font-size: 40rpx; line-height: 1.25; font-weight: 700; }
 .room-subtitle { display: block; margin-top: 12rpx; color: #627782; font-size: 25rpx; line-height: 1.55; }
 .status-badge { align-self: flex-start; padding: 8rpx 16rpx; border-radius: 999rpx; background: #e8f5f8; color: #267a96; font-size: 22rpx; white-space: nowrap; }
-.members-panel, .play-section, .result-card, .state-card { margin-top: 24rpx; padding: 30rpx; background: #fff; border: 1rpx solid #dce8ed; border-radius: 24rpx; }
-.member-row, .waiting-member { display: flex; align-items: center; gap: 20rpx; padding: 16rpx 0; }
+.members-panel, .invite-panel, .play-section, .result-card, .state-card { margin-top: 24rpx; padding: 30rpx; background: #fff; border: 1rpx solid #dce8ed; border-radius: 24rpx; }
+.member-row, .waiting-member, .invite-row { display: flex; align-items: center; gap: 20rpx; padding: 16rpx 0; }
 .member-row + .member-row, .member-row + .waiting-member { border-top: 1rpx solid #edf3f5; }
 .member-avatar { display: grid; place-items: center; width: 72rpx; height: 72rpx; border-radius: 50%; background: #dceff4; color: #267a96; font-size: 24rpx; font-weight: 700; }
 .member-avatar.waiting { background: #f1f3f4; color: #83939b; }
@@ -177,6 +241,13 @@ async function endRoom() {
 .play-button { min-width: 0; padding: 24rpx 12rpx; border: 1rpx solid #cfe0e6; border-radius: 20rpx; background: #f8fbfc; line-height: 1.2; }
 .play-button::after, .secondary-button::after, .end-button::after { border: 0; }
 .play-button[disabled] { opacity: .45; }
+.invite-list { margin-top: 16rpx; }
+.invite-row + .invite-row { border-top: 1rpx solid #edf3f5; }
+.invite-row .member-copy { min-width: 0; flex: 1; }
+.invite-button { flex: 0 0 auto; min-width: 128rpx; min-height: 88rpx; margin: 0; border: 1rpx solid #b9dce7; border-radius: 18rpx; color: #176f8d; background: #edf8fb; font-size: 24rpx; }
+.invite-button::after { display: none; }
+.invite-button[disabled] { color: #71838c; background: #f1f3f4; opacity: .7; }
+.empty-invite { display: block; margin-top: 18rpx; color: #627782; font-size: 24rpx; line-height: 1.55; }
 .play-name, .play-desc { display: block; }
 .play-name { color: #1d5669; font-size: 27rpx; font-weight: 650; }
 .play-desc { margin-top: 10rpx; color: #71838c; font-size: 20rpx; }

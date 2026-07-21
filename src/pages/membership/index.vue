@@ -13,8 +13,8 @@
           <text class="vip-level">{{ levelText }}</text>
           <text v-if="app.user?.isVip" class="vip-expire">{{ vipExpireText }}</text>
         </view>
-        <button class="vip-action" hover-class="none" :class="{ disabled: Boolean(openingProductId) }" :disabled="Boolean(openingProductId)" @tap="openFeaturedProduct">
-          {{ app.user?.isVip ? '续费会员' : '立即开通' }}
+        <button class="vip-action" hover-class="none" :class="{ disabled: paymentDisabled }" :disabled="paymentDisabled" @tap="openFeaturedProduct">
+          {{ primaryActionText }}
         </button>
       </view>
     </view>
@@ -30,9 +30,9 @@
     <view class="plan-panel">
       <view class="panel-head">
         <text class="panel-title">会员套餐</text>
-        <text class="panel-subtitle">价格与权益由后台配置</text>
+        <text class="panel-subtitle">{{ paymentCapability.message }}</text>
       </view>
-      <view v-for="product in products" :key="product.id" class="product-row" :class="{ featured: product.featured, disabled: Boolean(openingProductId) }" @tap="openMembership(product)">
+      <button v-for="product in products" :key="product.id" class="product-row" hover-class="none" :class="{ featured: product.featured, disabled: paymentDisabled }" :disabled="paymentDisabled" @tap="openMembership(product)">
         <view class="product-main">
           <view class="product-name-row">
             <text class="product-name">{{ product.name }}</text>
@@ -41,7 +41,7 @@
           <text class="product-desc">{{ product.desc }}</text>
         </view>
         <view class="price-button" :class="{ loading: openingProductId === product.id }">{{ openingProductId === product.id ? '处理中' : product.priceLabel }}</view>
-      </view>
+      </button>
       <text class="pay-note">iOS 走 Apple IAP，Android 走 Google Play Billing 或渠道支付，小程序按微信规则接入。</text>
     </view>
   </view>
@@ -59,6 +59,11 @@ import type { MembershipProduct } from '@/types/domain'
 const app = useAppStore()
 const membershipProducts = ref<MembershipProduct[]>([])
 const openingProductId = ref('')
+const paymentCapability = ref({
+  mode: 'unavailable' as 'mock' | 'unavailable',
+  canPurchase: false,
+  message: '正在确认支付服务状态…'
+})
 
 const benefits = computed(() => {
   const rows = membershipProducts.value[0]?.benefits || []
@@ -74,6 +79,15 @@ const products = computed(() => membershipProducts.value.map((item) => ({
   desc: item.benefits[0] || '会员权益',
   featured: item.id.includes('season')
 })))
+
+const paymentDisabled = computed(() => Boolean(openingProductId.value) || !paymentCapability.value.canPurchase)
+
+const primaryActionText = computed(() => {
+  if (openingProductId.value) return '处理中'
+  if (!paymentCapability.value.canPurchase) return '支付待配置'
+  if (paymentCapability.value.mode === 'mock') return app.user?.isVip ? '模拟续费' : '模拟开通'
+  return app.user?.isVip ? '续费会员' : '立即开通'
+})
 
 const levelText = computed(() => {
   if (!app.user?.isVip) return '未开通'
@@ -95,11 +109,6 @@ function formatDate(value: string) {
   return `${date.getFullYear()}.${month}.${day}`
 }
 
-function createTransactionId(productId: string) {
-  const randomPart = Math.floor(Math.random() * 1_000_000).toString().padStart(6, '0')
-  return `member_${productId}_${Date.now()}_${randomPart}`
-}
-
 function resolvePaymentPlatform(product: MembershipProduct): MembershipPaymentPlatform {
   if (product.platform !== 'all') return product.platform
   const userPlatform = app.user?.platform
@@ -117,12 +126,22 @@ function openFeaturedProduct() {
 
 async function openMembership(product: MembershipProduct) {
   if (openingProductId.value) return
+  if (!paymentCapability.value.canPurchase) {
+    showToast(paymentCapability.value.message)
+    return
+  }
   openingProductId.value = product.id
   try {
+    const platform = resolvePaymentPlatform(product)
+    const paymentSession = await businessApi.createMockMembershipPaymentSession({
+      platform,
+      productId: product.id
+    })
     const result = await businessApi.verifyMembershipOrder({
-      platform: resolvePaymentPlatform(product),
+      platform,
       productId: product.id,
-      transactionId: createTransactionId(product.id)
+      transactionId: paymentSession.transactionId,
+      receipt: paymentSession.receipt
     })
     app.applyUserProfile(result.user)
     try {
@@ -130,9 +149,9 @@ async function openMembership(product: MembershipProduct) {
     } catch {
       // The order already verified; keep the returned user state if status refresh is slow.
     }
-    showToast(result.order.status === 'duplicate_verified' ? '会员权益已同步' : '会员已开通，权益已生效')
-  } catch {
-    showToast('会员开通失败，请稍后再试')
+    showToast(result.order.status === 'duplicate_verified' ? '会员权益已同步' : '模拟支付验证通过，会员权益已生效')
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '会员开通失败，请稍后再试')
   } finally {
     openingProductId.value = ''
   }
@@ -140,7 +159,20 @@ async function openMembership(product: MembershipProduct) {
 
 onLoad(async () => {
   await app.hydrate()
-  membershipProducts.value = await businessApi.listMembershipProducts()
+  try {
+    const [productsResult, capabilityResult] = await Promise.all([
+      businessApi.listMembershipProducts(),
+      businessApi.getMembershipPaymentCapability()
+    ])
+    membershipProducts.value = productsResult
+    paymentCapability.value = capabilityResult
+  } catch (error) {
+    paymentCapability.value = {
+      mode: 'unavailable',
+      canPurchase: false,
+      message: error instanceof Error ? error.message : '支付服务状态获取失败，请稍后重试。'
+    }
+  }
 })
 </script>
 
@@ -369,6 +401,17 @@ onLoad(async () => {
   gap: 12rpx;
   border-bottom: 1px solid rgba(23, 33, 38, 0.08);
   padding: 22rpx 0;
+  width: 100%;
+  margin: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  line-height: inherit;
+  text-align: left;
+}
+
+.product-row::after {
+  display: none;
 }
 
 .product-row:active {

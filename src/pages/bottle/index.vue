@@ -11,7 +11,7 @@
     <view class="ocean" :class="{ catching: isCatching, throwing: isThrowing }">
       <view class="current current-a" />
       <view class="current current-b" />
-      <view class="bottle-float" @tap="fish">
+      <view class="bottle-float">
         <view class="bottle-cork" />
         <view class="bottle-lip" />
         <view class="bottle-neck" />
@@ -39,7 +39,7 @@
     </view>
 
     <view class="filter-dock">
-      <view class="filter-chip" @tap="openFilterModal">
+      <button class="filter-chip control-reset" hover-class="none" @tap="openFilterModal">
         <view class="filter-chip-icon">
           <view class="slider-line line-a" />
           <view class="slider-line line-b" />
@@ -48,20 +48,20 @@
           <text>筛选</text>
           <text class="filter-summary">{{ filterSummary }}</text>
         </view>
-      </view>
+      </button>
     </view>
 
     <view class="bottom-actions">
-      <view class="action-button catch" @tap="fish">
+      <button class="action-button catch control-reset" hover-class="none" @tap="fish">
         <text class="action-main">捞</text>
         <text class="action-badge">+{{ fishLeft }}</text>
-      </view>
-      <view class="action-button throw" @tap="openThrowModal">
+      </button>
+      <button class="action-button throw control-reset" hover-class="none" @tap="openThrowModal">
         <view class="throw-ripple ripple-a" />
         <view class="throw-ripple ripple-b" />
         <text class="action-main">扔</text>
         <text class="action-badge red">+{{ throwLeft }}</text>
-      </view>
+      </button>
     </view>
 
     <view v-if="throwOpen" class="modal-mask center-mask">
@@ -76,44 +76,44 @@
             @tap.stop
             @click.stop
           />
-          <view class="random-tip-button" @tap.stop="fillRandomPrompt" @click.stop="fillRandomPrompt">
+          <button class="random-tip-button control-reset" hover-class="none" @tap.stop="fillRandomPrompt">
             {{ randomPromptLoading ? '生成中' : '随机' }}
-          </view>
+          </button>
         </view>
         <text v-if="throwError" class="throw-error">{{ throwError }}</text>
         <view class="option-block">
           <text class="field-label">谁可以捞</text>
           <view class="choice-row">
-            <view
+            <button
               v-for="item in audienceOptions"
               :key="item.value"
               class="choice-chip"
               :class="{ active: throwTargetGender === item.value }"
+              hover-class="none"
               @tap.stop="throwTargetGender = item.value"
-              @click.stop="throwTargetGender = item.value"
             >
               {{ item.label }}
-            </view>
+            </button>
           </view>
         </view>
         <view class="option-block">
           <text class="field-label">范围</text>
           <view class="choice-row">
-            <view
+            <button
               v-for="area in targetAreaOptions"
               :key="area.value"
               class="choice-chip"
               :class="{ active: throwTargetScope === area.value }"
+              hover-class="none"
               @tap.stop="throwTargetScope = area.value"
-              @click.stop="throwTargetScope = area.value"
             >
               {{ area.label }}
-            </view>
+            </button>
           </view>
         </view>
         <view class="modal-actions">
-          <view class="button ghost" @tap.stop="closeThrow" @click.stop="closeThrow">取消</view>
-          <view class="button" :class="{ disabled: content.submitting || !draft.trim() }" @tap.stop="submitBottle" @click.stop="submitBottle">扔出去</view>
+          <button class="button ghost control-reset" hover-class="none" @tap.stop="closeThrow">取消</button>
+          <button class="button control-reset" hover-class="none" :disabled="content.submitting || !draft.trim()" @tap.stop="submitBottle">扔出去</button>
         </view>
       </view>
     </view>
@@ -122,7 +122,7 @@
       <view class="modal-card caught-card" @tap.stop @click.stop>
         <view class="caught-author">
           <view class="author-avatar">
-            <image class="avatar-image" :src="resolveAvatarUrl(content.currentBottle.authorAvatarUrl, content.currentBottle.authorId || content.currentBottle.authorName)" mode="aspectFill" />
+            <image class="avatar-image" :src="resolveAvatarUrl(content.currentBottle.authorAvatarUrl, content.currentBottle.authorId || content.currentBottle.authorName)" :alt="`${content.currentBottle.authorName}的头像`" mode="aspectFill" />
           </view>
           <view class="author-main">
             <view class="author-line">
@@ -136,10 +136,10 @@
               <text v-if="content.currentBottle.authorCity" class="mini-tag">{{ content.currentBottle.authorCity }}</text>
             </view>
           </view>
-          <view class="follow-pill" @tap.stop="follow" @click.stop="follow">
+          <button class="follow-pill control-reset" hover-class="none" @tap.stop="follow">
             <text class="follow-dot">关</text>
             <text>{{ content.currentBottle.isFollowing ? '已关注' : '关注' }}</text>
-          </view>
+          </button>
         </view>
         <view class="caught-origin-card">
           <text class="caught-message">{{ content.currentBottle.content }}</text>
@@ -152,30 +152,31 @@
           <text v-if="bottleContextStatus" class="context-chat-status">{{ bottleContextStatus }}</text>
         </view>
         <view class="reply-actions">
-          <view class="button ghost return-button" @tap.stop="releaseBottle" @click.stop="releaseBottle">扔回海里</view>
-          <view class="button secondary reply-button" :class="{ disabled: replySubmitting }" @tap.stop="sendReply" @click.stop="sendReply">
+          <button class="button ghost return-button control-reset" hover-class="none" @tap.stop="releaseBottle">扔回海里</button>
+          <button class="button secondary reply-button control-reset" hover-class="none" :disabled="replySubmitting" @tap.stop="sendReply">
             {{ replySubmitting ? '发送中' : '回应' }}
-          </view>
+          </button>
         </view>
-        <view class="report-link" @tap.stop="openReportModal" @click.stop="openReportModal">举报/拉黑</view>
+        <button class="report-link control-reset" hover-class="none" @tap.stop="openReportModal">举报/拉黑</button>
       </view>
     </view>
 
     <view v-if="reportOpen && content.currentBottle" class="modal-mask center-mask">
-      <view class="modal-card report-card" @tap.stop="handleReportAction" @click.stop="handleReportAction">
+      <view class="modal-card report-card" @tap.stop @click.stop>
         <text class="modal-kicker">安全处理</text>
         <text class="modal-title">举报或拉黑 {{ content.currentBottle.authorName }}</text>
         <text class="report-desc">举报会进入后台审核队列；拉黑后不会再推荐这个用户的瓶子。</text>
         <view class="choice-row report-reasons">
-          <view
+          <button
             v-for="reason in reportReasons"
             :key="reason"
             class="choice-chip"
             :class="{ active: reportReason === reason }"
+            hover-class="none"
             @tap="reportReason = reason"
           >
             {{ reason }}
-          </view>
+          </button>
         </view>
         <view class="report-field">
           <text class="field-label">举报说明</text>
@@ -193,9 +194,9 @@
           <text>{{ content.currentBottle.content }}</text>
         </view>
         <view class="modal-actions report-actions">
-          <view class="button ghost" data-action="cancel">取消</view>
-          <view class="button ghost danger-ghost" data-action="block">拉黑并扔回</view>
-          <view class="button" data-action="report">提交举报</view>
+          <button class="button ghost control-reset" hover-class="none" @tap.stop="closeReportModal">取消</button>
+          <button class="button ghost danger-ghost control-reset" hover-class="none" :disabled="blockSubmitting" @tap.stop="submitBlock">拉黑并扔回</button>
+          <button class="button control-reset" hover-class="none" :disabled="reportSubmitting" @tap.stop="submitReport">提交举报</button>
         </view>
       </view>
     </view>
@@ -206,8 +207,8 @@
         <text class="modal-title">选择你想遇见的人</text>
         <ExploreFilters v-model="draftFilters" mode="chips" />
         <view class="modal-actions filter-actions">
-          <view class="button ghost" @tap="cancelFilter">取消</view>
-          <view class="button" @tap="saveFilter">保存</view>
+          <button class="button ghost control-reset" hover-class="none" @tap="cancelFilter">取消</button>
+          <button class="button control-reset" hover-class="none" @tap="saveFilter">保存</button>
         </view>
       </view>
     </view>
@@ -425,21 +426,6 @@ function closeReportModal() {
   reportOpen.value = false
 }
 
-function getReportAction(event: Event) {
-  const target = event.target as (HTMLElement & { dataset?: { action?: string } }) | null
-  if (!target) return ''
-  if (target.dataset?.action) return target.dataset.action
-  const closest = typeof target.closest === 'function' ? target.closest('[data-action]') : null
-  return (closest as (HTMLElement & { dataset?: { action?: string } }) | null)?.dataset?.action || ''
-}
-
-function handleReportAction(event: Event) {
-  const action = getReportAction(event)
-  if (action === 'cancel') closeReportModal()
-  if (action === 'report') void submitReport()
-  if (action === 'block') void submitBlock()
-}
-
 function buildReportReason() {
   const description = reportDescription.value.trim()
   return description ? `${reportReason.value}：${description}` : ''
@@ -506,6 +492,26 @@ function genderLabel(gender?: Bottle['authorGender']) {
 </script>
 
 <style scoped lang="scss">
+.control-reset {
+  width: auto;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  line-height: inherit;
+  text-align: inherit;
+}
+
+.control-reset::after {
+  display: none;
+}
+
+.control-reset.button {
+  width: 100%;
+  padding: 0 24rpx;
+  text-align: center;
+}
+
 .bottle-screen {
   position: relative;
   overflow: hidden;

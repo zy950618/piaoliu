@@ -413,6 +413,19 @@ type MembershipOrderVerifyDto = {
   user: UserProfileDto
 }
 
+type MembershipPaymentCapabilityDto = {
+  mode: 'mock' | 'unavailable'
+  can_purchase: boolean
+  message: string
+}
+
+type MockMembershipPaymentSessionDto = {
+  mode: 'mock'
+  transaction_id: string
+  receipt: string
+  expires_at: string
+}
+
 export type MembershipPaymentPlatform = MembershipOrderDto['platform']
 
 function toBottle(dto: BottleDto): Bottle {
@@ -893,6 +906,30 @@ export const businessApi = {
     }))
   },
 
+  async createPrivateGroupRoom(name: string) {
+    return toSocialRoom(await requestJson<SocialRoomDto>('/rooms', {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        visibility: 'private',
+        size_mode: 'group',
+        join_policy: 'invite',
+        capacity: 8,
+        allow_member_invite: true
+      })
+    }))
+  },
+
+  async inviteToRoom(roomId: string, inviteeId: string) {
+    return toRoomInvitation(await requestJson<RoomInvitationDto>(`/rooms/${roomId}/invitations`, {
+      method: 'POST',
+      body: JSON.stringify({
+        invitee_id: inviteeId,
+        idempotency_key: `room-invite-${roomId}-${inviteeId}`
+      })
+    }))
+  },
+
   async joinPublicRoom(roomId: string) {
     return toSocialRoom(await requestJson<SocialRoomDto>(`/rooms/${roomId}/join`, { method: 'POST' }))
   },
@@ -1210,14 +1247,39 @@ export const businessApi = {
     }))
   },
 
-  async verifyMembershipOrder(payload: { platform: MembershipPaymentPlatform; productId: string; transactionId: string; receipt?: string }) {
+  async getMembershipPaymentCapability() {
+    const result = await requestJson<MembershipPaymentCapabilityDto>('/membership/payment-capability')
+    return {
+      mode: result.mode,
+      canPurchase: result.can_purchase,
+      message: result.message
+    }
+  },
+
+  async createMockMembershipPaymentSession(payload: { platform: MembershipPaymentPlatform; productId: string }) {
+    const result = await requestJson<MockMembershipPaymentSessionDto>('/membership/mock-payment/session', {
+      method: 'POST',
+      body: JSON.stringify({
+        platform: payload.platform,
+        product_id: payload.productId
+      })
+    })
+    return {
+      mode: result.mode,
+      transactionId: result.transaction_id,
+      receipt: result.receipt,
+      expiresAt: result.expires_at
+    }
+  },
+
+  async verifyMembershipOrder(payload: { platform: MembershipPaymentPlatform; productId: string; transactionId: string; receipt: string }) {
     const result = await requestJson<MembershipOrderVerifyDto>('/membership/orders/verify', {
       method: 'POST',
       body: JSON.stringify({
         platform: payload.platform,
         product_id: payload.productId,
         transaction_id: payload.transactionId,
-        receipt: payload.receipt || 'mock_receipt'
+        receipt: payload.receipt
       })
     })
     return {

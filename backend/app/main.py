@@ -36,7 +36,7 @@ register_error_handlers(app)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -52,6 +52,16 @@ async def bind_request_context(request: Request, call_next):
     user_session = None
     if authorization.startswith("Bearer "):
         user_session = authenticate_user_token(authorization.removeprefix("Bearer ").strip())
+        if user_session is None and not request.url.path.startswith(("/health", "/auth/", "/admin/", "/docs", "/openapi.json")):
+            reset_request_id(request_id_token)
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "error": {"code": "USER_UNAUTHORIZED", "message": "登录状态已失效，请重新登录"},
+                    "request_id": request_id,
+                },
+                headers={"X-Request-Id": request_id},
+            )
     client_user_id = user_session.user_id if user_session else request.headers.get("X-User-Id") or request.headers.get("X-Client-Id")
     public_prefixes = ("/health", "/auth/", "/admin/", "/docs", "/openapi.json")
     if settings.environment not in {"mock", "dev", "development", "test"} and not user_session and not request.url.path.startswith(public_prefixes):

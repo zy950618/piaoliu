@@ -5,15 +5,16 @@
     </view>
 
     <view class="section topic-row">
-      <view
+      <button
         v-for="tab in feedTabs"
         :key="tab.value"
-        class="topic-pill"
+        class="topic-pill plaza-control"
         :class="{ active: activeFeed === tab.value }"
+        hover-class="none"
         @tap="activeFeed = tab.value"
       >
         {{ tab.label }}
-      </view>
+      </button>
     </view>
 
     <view class="section location-card">
@@ -21,7 +22,7 @@
         <text class="h2">附近的人</text>
         <text class="muted">开启定位后展示同城和附近用户动态。</text>
       </view>
-      <view class="button secondary location-button" @tap="go('/pages/nearby/index')">开启</view>
+      <button class="button secondary location-button plaza-control" hover-class="none" @tap="go('/pages/nearby/index')">开启</button>
     </view>
 
     <view class="section room-section">
@@ -30,7 +31,7 @@
           <text class="h2">公开游戏房</text>
           <text class="muted">从广场加入，玩法结果由服务器生成。</text>
         </view>
-        <view class="button secondary room-create-button" @tap="openRoomComposer">创建房间</view>
+        <button class="button secondary room-create-button plaza-control" hover-class="none" @tap="openRoomComposer">创建房间</button>
       </view>
       <view v-if="publicRoomsLoading" class="room-state">正在查找可加入的房间…</view>
       <view v-else-if="!publicRooms.length" class="room-state">
@@ -44,9 +45,9 @@
               <text class="tag">{{ activeMemberCount(room) }}/{{ room.capacity }} 人</text>
             </view>
             <text class="room-meta">骰子 · 真心话 · 大冒险</text>
-            <view class="button mini-button room-join-button" @tap="joinRoom(room)">
+            <button class="button mini-button room-join-button plaza-control" hover-class="none" @tap="joinRoom(room)">
               {{ isRoomMember(room) ? '继续游戏' : '加入房间' }}
-            </view>
+            </button>
           </view>
         </view>
       </scroll-view>
@@ -55,32 +56,33 @@
     <view class="section">
       <view v-for="post in filteredPosts" :key="post.id" class="panel plaza-card">
         <view class="between">
-          <view class="row author-row" @tap.stop="openUserCard(post)" @click.stop="openUserCard(post)">
-            <view class="author-icon" @tap.stop="openUserCard(post)" @click.stop="openUserCard(post)">
-              <image class="avatar-image" :src="resolveAvatarUrl(post.iconUrl, post.id || post.authorName)" mode="aspectFill" />
+          <button class="row author-row plaza-control" hover-class="none" @tap.stop="openUserCard(post)">
+            <view class="author-icon">
+              <image class="avatar-image" :src="resolveAvatarUrl(post.iconUrl, post.id || post.authorName)" :alt="`${post.authorName}的头像`" mode="aspectFill" />
             </view>
             <view>
               <text class="h2">{{ post.authorName }}</text>
               <text class="muted">{{ post.topic }} · {{ post.city }} · {{ post.ageRange }} · {{ post.distanceText }}</text>
             </view>
-          </view>
+          </button>
           <view class="row tag-row">
             <text class="tag emotion-tag">{{ emotionTag(post) }}</text>
             <text class="tag gender-tag">{{ post.gender === 'female' ? '女' : post.gender === 'male' ? '男' : '未知' }}</text>
           </view>
         </view>
-        <text class="body post-content" @tap="openCommentPage(post.id)">{{ post.content }}</text>
+        <button class="body post-content plaza-control" hover-class="none" @tap="openCommentPage(post.id)">{{ post.content }}</button>
         <view v-if="post.media?.length" class="media-preview" :class="`media-${post.mediaType || 'text'}`" @tap.stop @click.stop>
           <template v-if="post.mediaType === 'image'">
             <view class="media-grid" :class="imageGridClass(post.media?.length || 0)">
-              <view
+              <button
                 v-for="media in post.media.slice(0, 9)"
                 :key="media.id"
-                class="media-image-cell"
+                class="media-image-cell plaza-control"
+                hover-class="none"
                 @tap.stop="previewPostImage(post.media, media.url)"
               >
-                <image class="media-image" :src="media.url" mode="aspectFill" />
-              </view>
+                <image class="media-image" :src="media.url" alt="动态图片，点击预览" mode="aspectFill" />
+              </button>
             </view>
           </template>
           <template v-else-if="post.mediaType === 'video'">
@@ -102,14 +104,16 @@
                   <view v-for="bar in 5" :key="bar" class="voice-wave-bar" />
                 </view>
               </view>
-              <view
-                class="voice-player"
+              <button
+                class="voice-player plaza-control"
                 :class="{ playing: playingVoiceUrl === media.url }"
+                :aria-label="playingVoiceUrl === media.url ? '停止播放语音' : '播放语音'"
+                hover-class="none"
                 @tap.stop="toggleVoice(media.url)"
               >
                 <view class="voice-play-icon" />
                 <view class="voice-stop-icon" />
-              </view>
+              </button>
             </view>
           </template>
         </view>
@@ -123,23 +127,24 @@
               <text class="stat-number">{{ post.likeCount }}</text>
               <text class="stat-label">点赞</text>
             </view>
-            <view class="stat-item comment-stat" @tap.stop="openCommentPage(post.id)" @click.stop="openCommentPage(post.id)">
+            <button class="stat-item comment-stat plaza-control" hover-class="none" @tap.stop="openCommentPage(post.id)">
               <text class="stat-number">{{ post.commentCount }}</text>
               <text class="stat-label">留言</text>
-            </view>
+            </button>
           </view>
           <view class="row action-row" @tap.stop @click.stop>
-            <view
-              class="button secondary mini-button like-button"
+            <button
+              class="button secondary mini-button like-button plaza-control"
               :class="{ liked: post.likedByMe, bump: likeEffects[post.id] }"
+              hover-class="none"
               @tap.stop="likePost(post)"
             >
               <text class="thumb-icon">👍</text>
               <text>{{ post.likedByMe ? '已赞' : '点赞' }}</text>
               <text v-if="likeEffects[post.id]" class="like-float">{{ likeEffects[post.id] }}</text>
-            </view>
-            <view class="button ghost mini-button report-post-button" @tap.stop="openPostReport(post)" @click.stop="openPostReport(post)">举报</view>
-            <view class="button ghost mini-button" @tap.stop="openCommentPage(post.id)" @click.stop="openCommentPage(post.id)">留言</view>
+            </button>
+            <button class="button ghost mini-button report-post-button plaza-control" hover-class="none" @tap.stop="openPostReport(post)">举报</button>
+            <button class="button ghost mini-button plaza-control" hover-class="none" @tap.stop="openCommentPage(post.id)">留言</button>
           </view>
         </view>
         <view v-if="post.commentPreview" class="comment-footer">
@@ -148,7 +153,7 @@
       </view>
     </view>
 
-    <view class="publish-fab" @tap="openComposer">+</view>
+    <button class="publish-fab plaza-control" aria-label="发布动态" hover-class="none" @tap="openComposer">+</button>
 
     <view v-if="roomComposerOpen" class="modal-mask center-mask" @touchmove.stop.prevent>
       <view class="modal-card room-composer-card" @tap.stop @click.stop>
@@ -165,10 +170,10 @@
         />
         <text v-if="roomError" class="post-error">{{ roomError }}</text>
         <view class="modal-actions">
-          <view class="button ghost" @tap="closeRoomComposer">取消</view>
-          <view class="button" :class="{ disabled: roomSubmitting || !roomName.trim() }" @tap="createRoom">
+          <button class="button ghost plaza-control" hover-class="none" @tap="closeRoomComposer">取消</button>
+          <button class="button plaza-control" hover-class="none" :disabled="roomSubmitting || !roomName.trim()" @tap="createRoom">
             {{ roomSubmitting ? '创建中' : '创建并进入' }}
-          </view>
+          </button>
         </view>
       </view>
     </view>
@@ -178,7 +183,7 @@
         <view class="composer-top">
           <text class="h2">发布动态</text>
           <view class="composer-avatar">
-            <image class="avatar-image" :src="resolveAvatarUrl(app.user?.avatarUrl, app.user?.id || 'current-user')" mode="aspectFill" />
+            <image class="avatar-image" :src="resolveAvatarUrl(app.user?.avatarUrl, app.user?.id || 'current-user')" :alt="`${app.user?.nickname || '当前用户'}的头像`" mode="aspectFill" />
           </view>
         </view>
         <textarea
@@ -192,49 +197,49 @@
         />
         <text v-if="postError" class="post-error">{{ postError }}</text>
         <view class="composer-tool-row">
-          <view
-            class="composer-tool"
+          <button
+            class="composer-tool plaza-control"
             :class="{ active: selectedImages.length > 0 }"
+            hover-class="none"
             @tap="chooseImages"
-            @click="chooseImages"
           >
             <view class="composer-tool-icon image-icon" />
             <text>图片</text>
-          </view>
-          <view
-            class="composer-tool"
+          </button>
+          <button
+            class="composer-tool plaza-control"
             :class="{ active: Boolean(selectedVideo) }"
+            hover-class="none"
             @tap="choosePostVideo"
-            @click="choosePostVideo"
           >
             <view class="composer-tool-icon video-icon" />
             <text>视频</text>
-          </view>
+          </button>
         </view>
         <view v-if="selectedImages.length" class="composer-media-grid" :class="imageGridClass(selectedImages.length)">
           <view v-for="image in selectedImages" :key="image.id" class="composer-image-cell">
-            <image class="composer-image" :src="image.url" mode="aspectFill" />
-            <view class="remove-image" @tap.stop="removeSelectedImage(image.id)" @click.stop="removeSelectedImage(image.id)">×</view>
+            <image class="composer-image" :src="image.url" alt="待发布图片" mode="aspectFill" />
+            <button class="remove-image plaza-control" aria-label="移除这张图片" hover-class="none" @tap.stop="removeSelectedImage(image.id)">×</button>
           </view>
         </view>
         <view v-if="selectedVideo" class="composer-video-preview">
           <video class="composer-video" :src="selectedVideo.url" controls />
-          <view class="remove-image" @tap.stop="removeSelectedVideo" @click.stop="removeSelectedVideo">×</view>
+          <button class="remove-image plaza-control" aria-label="移除视频" hover-class="none" @tap.stop="removeSelectedVideo">×</button>
         </view>
         <view class="modal-actions">
-          <view class="button ghost" @tap="closeComposer">取消</view>
-          <view class="button publish-button" :class="{ disabled: content.submitting || !draftPost.trim() }" @tap="publishPost">
+          <button class="button ghost plaza-control" hover-class="none" @tap="closeComposer">取消</button>
+          <button class="button publish-button plaza-control" hover-class="none" :disabled="content.submitting || !draftPost.trim()" @tap="publishPost">
             发布
-          </view>
+          </button>
         </view>
       </view>
     </view>
 
     <view v-if="userCardOpen && selectedProfilePost" class="modal-mask center-mask" @touchmove.stop.prevent>
       <view class="modal-card user-card" @tap.stop @click.stop>
-        <view class="user-card-report" @tap.stop="openUserReport(selectedProfilePost)" @click.stop="openUserReport(selectedProfilePost)">举报</view>
+        <button class="user-card-report plaza-control" hover-class="none" @tap.stop="openUserReport(selectedProfilePost)">举报</button>
         <view class="user-card-main">
-          <image class="user-card-avatar" :src="resolveAvatarUrl(selectedProfilePost.iconUrl, selectedProfilePost.authorId)" mode="aspectFill" />
+          <image class="user-card-avatar" :src="resolveAvatarUrl(selectedProfilePost.iconUrl, selectedProfilePost.authorId)" :alt="`${selectedProfilePost.authorName}的头像`" mode="aspectFill" />
           <view class="user-card-info">
             <text class="user-card-name">{{ selectedProfilePost.authorName }}</text>
             <text class="user-card-meta">{{ selectedProfilePost.city || '全国' }} · {{ selectedProfilePost.ageRange || '年龄未知' }}</text>
@@ -243,8 +248,8 @@
         </view>
         <view class="user-card-preview">{{ selectedProfilePost.content }}</view>
         <view class="modal-actions">
-          <view class="button ghost" @tap="closeUserCard" @click="closeUserCard">关闭</view>
-          <view class="button" @tap="openCommentPage(selectedProfilePost.id)" @click="openCommentPage(selectedProfilePost.id)">查看动态</view>
+          <button class="button ghost plaza-control" hover-class="none" @tap="closeUserCard">关闭</button>
+          <button class="button plaza-control" hover-class="none" @tap="openCommentPage(selectedProfilePost.id)">查看动态</button>
         </view>
       </view>
     </view>
@@ -255,16 +260,16 @@
         <text class="modal-title">{{ reportTarget.title }}</text>
         <text class="report-desc">普通举报仅支持：用户、广场帖子、漂流瓶；评论、聊天和私密照片走对应审核或申诉链路。</text>
         <view class="choice-row report-reasons">
-          <view
+          <button
             v-for="reason in reportReasons"
             :key="reason"
-            class="choice-chip"
+            class="choice-chip plaza-control"
             :class="{ active: reportReason === reason }"
+            hover-class="none"
             @tap="reportReason = reason"
-            @click="reportReason = reason"
           >
             {{ reason }}
-          </view>
+          </button>
         </view>
         <view class="report-field">
           <text class="field-label">举报说明</text>
@@ -282,10 +287,10 @@
           <text>{{ reportTarget.preview }}</text>
         </view>
         <view class="modal-actions report-actions">
-          <view class="button ghost" @tap="closeReportModal" @click="closeReportModal">取消</view>
-          <view class="button" :class="{ disabled: reportSubmitting }" @tap="submitReport" @click="submitReport">
+          <button class="button ghost plaza-control" hover-class="none" @tap="closeReportModal">取消</button>
+          <button class="button plaza-control" hover-class="none" :disabled="reportSubmitting" @tap="submitReport">
             {{ reportSubmitting ? '提交中' : '提交举报' }}
-          </view>
+          </button>
         </view>
       </view>
     </view>
@@ -734,6 +739,28 @@ function stopVoice() {
 </script>
 
 <style scoped lang="scss">
+.plaza-control {
+  width: auto;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  line-height: inherit;
+  text-align: inherit;
+}
+
+.plaza-control::after {
+  display: none;
+}
+
+.plaza-control.button {
+  width: 100%;
+  padding: 0 24rpx;
+  text-align: center;
+}
+
 .plaza-page {
   position: relative;
   background:
@@ -758,6 +785,7 @@ function stopVoice() {
   align-items: center;
   justify-content: center;
   min-width: 0;
+  min-height: 88rpx;
   border-radius: 999px;
   padding: 12rpx 10rpx;
   color: #234b5d;
@@ -792,7 +820,7 @@ function stopVoice() {
 
 .location-button {
   min-width: 112rpx;
-  min-height: 62rpx;
+  min-height: 88rpx;
   font-size: 24rpx;
 }
 
@@ -810,7 +838,7 @@ function stopVoice() {
 
 .room-create-button {
   flex: 0 0 auto;
-  min-height: 62rpx;
+  min-height: 88rpx;
   padding-inline: 20rpx;
   font-size: 23rpx;
 }
@@ -871,7 +899,7 @@ function stopVoice() {
 }
 
 .room-join-button {
-  min-height: 60rpx;
+  min-height: 88rpx;
 }
 
 .room-name-input {
@@ -1042,8 +1070,8 @@ function stopVoice() {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 58rpx;
-  height: 58rpx;
+  width: 88rpx;
+  height: 88rpx;
   border: 1px solid rgba(35, 108, 114, 0.16);
   border-radius: 12rpx;
   background: rgba(255, 255, 255, 0.88);
@@ -1133,6 +1161,8 @@ function stopVoice() {
   position: absolute;
   top: 18rpx;
   left: 20rpx;
+  min-width: 88rpx;
+  min-height: 88rpx;
   color: #b42318;
   font-size: 24rpx;
   font-weight: 900;
@@ -1559,8 +1589,8 @@ function stopVoice() {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44rpx;
-  height: 44rpx;
+  width: 88rpx;
+  height: 88rpx;
   border-radius: 50%;
   color: #fff;
   background: rgba(15, 23, 42, 0.66);
@@ -1620,6 +1650,7 @@ function stopVoice() {
 
 .stat-item {
   min-width: 0;
+  min-height: 88rpx;
   border: 1px solid rgba(35, 108, 114, 0.08);
   border-radius: 8px;
   padding: 10rpx 12rpx;
@@ -1787,7 +1818,7 @@ function stopVoice() {
   position: relative;
   flex: 1;
   min-width: 0;
-  min-height: 58rpx;
+  min-height: 88rpx;
   font-size: 22rpx;
   padding: 0 10rpx;
 }

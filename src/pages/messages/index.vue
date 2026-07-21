@@ -11,20 +11,20 @@
     </view>
 
     <view class="quick-actions">
-      <view class="quick-action mail" @tap="showMessages('all')">
+      <button class="quick-action mail message-control" hover-class="none" @tap="showMessages('all')">
         <view class="quick-icon">
           <text />
         </view>
         <text>留言消息</text>
         <text v-if="noticeUnreadCount" class="action-badge">{{ noticeUnreadCount }}</text>
-      </view>
-      <view class="quick-action system" @tap="showMessages('system')">
+      </button>
+      <button class="quick-action system message-control" hover-class="none" @tap="showMessages('system')">
         <view class="quick-icon">
           <text />
         </view>
         <text>系统消息</text>
         <text v-if="systemUnreadCount" class="action-badge">{{ systemUnreadCount }}</text>
-      </view>
+      </button>
     </view>
 
     <view class="chat-list-head">
@@ -32,19 +32,20 @@
         <text class="list-title">{{ activeTab === 'messages' ? noticeTitle : '私聊列表' }}</text>
         <text class="list-subtitle">{{ activeTab === 'messages' ? '瓶子、广场、系统通知集中在这里' : '真实两个人聊天，点击进入会话' }}</text>
       </view>
-      <view v-if="activeTab === 'messages'" class="mark-read" :class="{ disabled: totalUnread === 0 }" @tap="markAllRead">已读</view>
+      <button v-if="activeTab === 'messages'" class="mark-read message-control" hover-class="none" :disabled="totalUnread === 0" @tap="markAllRead">全部已读</button>
       <view v-else class="mark-read" :class="{ disabled: historyUnreadCount === 0 }">{{ historyUnreadCount || '0' }}</view>
     </view>
 
     <view v-if="activeTab === 'conversations'" class="thread-list">
-      <view
+      <button
         v-for="thread in content.conversationThreads"
         :key="thread.id"
-        class="thread-card"
+        class="thread-card message-control"
         :class="{ frozen: thread.status === 'risk_frozen' }"
+        hover-class="none"
         @tap="openThread(thread.id)"
       >
-        <image class="thread-avatar image-avatar" :src="threadAvatarUrl(thread)" mode="aspectFill" />
+        <image class="thread-avatar image-avatar" :src="threadAvatarUrl(thread)" :alt="`${thread.participantName}的头像`" mode="aspectFill" />
         <view class="thread-main">
           <view class="thread-title-row">
             <text class="thread-name">{{ thread.participantName }}</text>
@@ -57,7 +58,7 @@
           <text v-if="thread.unreadCount > 0" class="unread-dot">{{ thread.unreadCount }}</text>
           <text class="thread-arrow">›</text>
         </view>
-      </view>
+      </button>
       <EmptyState
         v-if="content.conversationThreads.length === 0"
         title="暂无私聊"
@@ -82,7 +83,7 @@
           <text>同意后进入房间，可以一起玩骰子、真心话和大冒险。</text>
         </view>
         <view class="invite-actions">
-          <view class="invite-button primary" @tap.stop="acceptGameRoomInvitation(invitation.id)">同意并进入</view>
+          <button class="invite-button primary message-control" hover-class="none" @tap.stop="acceptGameRoomInvitation(invitation.id)">同意并进入</button>
         </view>
       </view>
       <view v-if="pendingContextRequests.length" class="notice-section-head">
@@ -94,7 +95,10 @@
         :key="request.id"
         class="invite-card"
         :class="request.status"
+        role="button"
+        tabindex="0"
         @tap="openContextRequest(request)"
+        @keyup.enter="openContextRequest(request)"
       >
         <view class="invite-head">
           <view>
@@ -107,20 +111,22 @@
           <text>{{ contextRequestBody(request) }}</text>
         </view>
         <view class="invite-actions">
-          <view
+          <button
             v-if="request.status === 'pending'"
-            class="invite-button ghost"
+            class="invite-button ghost message-control"
+            hover-class="none"
             @tap.stop="rejectInvitation(request)"
           >
             取消
-          </view>
-          <view
+          </button>
+          <button
             v-if="request.status === 'pending'"
-            class="invite-button primary"
+            class="invite-button primary message-control"
+            hover-class="none"
             @tap.stop="acceptInvitation(request)"
           >
             同意
-          </view>
+          </button>
           <view v-else-if="request.status === 'active'" class="invite-button primary">
             进入会话
           </view>
@@ -137,7 +143,10 @@
         :key="request.id"
         class="invite-card"
         :class="request.status"
+        role="button"
+        tabindex="0"
         @tap="openContextRequest(request)"
+        @keyup.enter="openContextRequest(request)"
       >
         <view class="invite-head">
           <view>
@@ -161,7 +170,7 @@
       <view v-if="visibleMessages.length" class="notice-section-head" :class="noticeFilter === 'system' ? 'system-section' : 'mail-section'">
         <text>{{ noticeFilter === 'system' ? '系统通知' : '留言通知' }}</text>
       </view>
-      <view v-for="message in visibleMessages" :key="message.id" class="notice-card" @tap="openMessage(message)">
+      <button v-for="message in visibleMessages" :key="message.id" class="notice-card message-control" hover-class="none" @tap="openMessage(message)">
         <view class="notice-head">
           <text class="notice-title">{{ displayText(message.title) }}</text>
           <text v-if="message.unread" class="notice-new">新</text>
@@ -171,7 +180,7 @@
           <text>{{ message.createdAt }}</text>
           <text>{{ messageActionLabel(message) }} ›</text>
         </view>
-      </view>
+      </button>
       <EmptyState v-if="visibleMessages.length === 0 && visibleContextRequests.length === 0 && (noticeFilter === 'system' || roomInvitations.length === 0)" title="暂无消息" body="留言、邀请和系统通知会出现在这里。" />
     </view>
   </view>
@@ -424,12 +433,27 @@ function displayText(value: string) {
 </script>
 
 <style scoped lang="scss">
+.message-control {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: inherit;
+}
+
+.message-control::after {
+  display: none;
+}
+
 .messages-page {
   min-height: 100vh;
   min-height: 100dvh;
   padding: 22rpx 22rpx 128rpx;
-  color: #fff;
-  background: #071225;
+  color: #172126;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef5f3 100%);
 }
 
 .message-topbar {
@@ -442,11 +466,13 @@ function displayText(value: string) {
   gap: 12rpx;
   margin: -4rpx -4rpx 22rpx;
   padding: 10rpx 4rpx 8rpx;
-  background: rgba(7, 18, 37, 0.94);
+  border-bottom: 1rpx solid rgba(220, 229, 225, 0.88);
+  background: rgba(248, 250, 252, 0.94);
   backdrop-filter: blur(12px);
 }
 
 .message-title {
+  color: #172126;
   font-size: 34rpx;
   font-weight: 900;
   text-align: center;
@@ -470,7 +496,7 @@ function displayText(value: string) {
   top: 20rpx;
   width: 40rpx;
   height: 34rpx;
-  border: 5rpx solid #fff;
+  border: 5rpx solid #236c72;
   border-radius: 5rpx;
 }
 
@@ -479,7 +505,7 @@ function displayText(value: string) {
   top: 11rpx;
   width: 28rpx;
   height: 18rpx;
-  border: 5rpx solid #fff;
+  border: 5rpx solid #236c72;
   border-bottom: 0;
   border-radius: 5rpx 5rpx 0 0;
 }
@@ -490,11 +516,11 @@ function displayText(value: string) {
   align-items: center;
   gap: 18rpx;
   min-height: 64rpx;
-  border: 1rpx solid rgba(148, 163, 184, 0.28);
+  border: 1rpx solid #dce5e1;
   border-radius: 999px;
   padding: 0 18rpx;
-  color: #fff;
-  background: rgba(17, 27, 56, 0.86);
+  color: #172126;
+  background: rgba(255, 255, 255, 0.92);
   box-sizing: border-box;
 }
 
@@ -512,7 +538,7 @@ function displayText(value: string) {
 .circle-mark {
   width: 20rpx;
   height: 20rpx;
-  border: 4rpx solid #fff;
+  border: 4rpx solid #236c72;
   border-radius: 50%;
 }
 
@@ -529,7 +555,11 @@ function displayText(value: string) {
   justify-items: center;
   gap: 14rpx;
   min-height: 152rpx;
-  color: #fff;
+  border: 1rpx solid #dce5e1;
+  border-radius: 20rpx;
+  padding: 18rpx;
+  color: #172126;
+  background: rgba(255, 255, 255, 0.96);
   font-size: 25rpx;
   font-weight: 900;
 }
@@ -539,7 +569,7 @@ function displayText(value: string) {
   width: 86rpx;
   height: 86rpx;
   border-radius: 50%;
-  box-shadow: 0 18rpx 34rpx rgba(0, 0, 0, 0.26);
+  box-shadow: 0 12rpx 28rpx rgba(31, 75, 77, 0.12);
 }
 
 .quick-icon text,
@@ -551,7 +581,7 @@ function displayText(value: string) {
 }
 
 .mail .quick-icon {
-  background: linear-gradient(145deg, #ff43c7, #ff70aa);
+  background: #bf5b73;
 }
 
 .mail .quick-icon::before {
@@ -565,13 +595,13 @@ function displayText(value: string) {
   top: 35rpx;
   width: 24rpx;
   height: 14rpx;
-  border-left: 5rpx solid #ff5cb6;
-  border-bottom: 5rpx solid #ff5cb6;
+  border-left: 5rpx solid #bf5b73;
+  border-bottom: 5rpx solid #bf5b73;
   transform: rotate(-45deg);
 }
 
 .system .quick-icon {
-  background: linear-gradient(145deg, #ff8e2b, #ff6d2f);
+  background: #236c72;
 }
 
 .system .quick-icon::before {
@@ -620,23 +650,24 @@ function displayText(value: string) {
 }
 
 .list-title {
-  color: #fff;
+  color: #172126;
   font-size: 30rpx;
   font-weight: 900;
 }
 
 .list-subtitle {
   margin-top: 6rpx;
-  color: #7786aa;
+  color: #53666b;
   font-size: 22rpx;
 }
 
 .mark-read {
   flex: 0 0 auto;
+  min-height: 88rpx;
   border-radius: 999px;
   padding: 10rpx 18rpx;
-  color: #071225;
-  background: linear-gradient(135deg, #2af0b6, #22a7ff);
+  color: #fff;
+  background: #236c72;
   font-size: 22rpx;
   font-weight: 900;
 }
@@ -657,21 +688,21 @@ function displayText(value: string) {
   justify-content: space-between;
   gap: 12rpx;
   margin-top: 4rpx;
-  color: #e5eefc;
+  color: #172126;
   font-size: 24rpx;
   font-weight: 900;
 }
 
 .notice-section-head.muted-section {
-  color: #8792b1;
+  color: #6b7a7e;
 }
 
 .notice-section-badge {
   min-width: 30rpx;
   border-radius: 999px;
   padding: 5rpx 10rpx;
-  color: #071225;
-  background: #2dd4bf;
+  color: #fff;
+  background: #236c72;
   font-size: 18rpx;
   line-height: 1;
   text-align: center;
@@ -679,9 +710,10 @@ function displayText(value: string) {
 
 .thread-card,
 .notice-card {
+  border: 1rpx solid #dce5e1;
   border-radius: 20rpx;
-  background: #151e3e;
-  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10rpx 26rpx rgba(31, 75, 77, 0.08);
 }
 
 .thread-card {
@@ -693,12 +725,12 @@ function displayText(value: string) {
 }
 
 .thread-card.frozen {
-  border: 1rpx solid rgba(251, 191, 36, 0.22);
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.12), #151e3e 44%);
+  border: 1rpx solid rgba(180, 121, 31, 0.32);
+  background: #fff9eb;
 }
 
 .thread-card.frozen .thread-tag {
-  color: #fbbf24;
+  color: #9a671a;
 }
 
 .thread-avatar {
@@ -707,13 +739,13 @@ function displayText(value: string) {
   height: 76rpx;
   border: 2rpx solid rgba(255, 255, 255, 0.88);
   border-radius: 50%;
-  color: #fff;
+  color: #172126;
   background: linear-gradient(145deg, #22d3ee, #2563eb);
 }
 
 .image-avatar {
   display: block;
-  background: rgba(255, 255, 255, 0.08);
+  background: #eaf1ef;
 }
 
 .thread-main {
@@ -738,7 +770,7 @@ function displayText(value: string) {
 }
 
 .thread-name {
-  color: #fff;
+  color: #172126;
   font-size: 27rpx;
   font-weight: 900;
 }
@@ -746,13 +778,13 @@ function displayText(value: string) {
 .thread-time,
 .thread-last,
 .notice-foot {
-  color: #8792b1;
+  color: #6b7a7e;
   font-size: 21rpx;
 }
 
 .thread-tag {
   margin-top: 6rpx;
-  color: #2dd4bf;
+  color: #236c72;
   font-size: 21rpx;
   font-weight: 900;
 }
@@ -780,7 +812,7 @@ function displayText(value: string) {
 }
 
 .thread-arrow {
-  color: #6f7da1;
+  color: #738287;
   font-size: 40rpx;
   line-height: 1;
 }
@@ -790,15 +822,15 @@ function displayText(value: string) {
 }
 
 .invite-card {
-  border: 1rpx solid rgba(45, 212, 191, 0.2);
+  border: 1rpx solid #cfe0dc;
   border-radius: 20rpx;
   padding: 20rpx;
-  background: linear-gradient(135deg, rgba(31, 41, 86, 0.98), rgba(16, 31, 67, 0.98));
-  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10rpx 26rpx rgba(31, 75, 77, 0.08);
 }
 
 .invite-card.active {
-  border-color: rgba(45, 212, 191, 0.55);
+  border-color: #6ba5a4;
 }
 
 .invite-card.expired {
@@ -819,14 +851,14 @@ function displayText(value: string) {
 }
 
 .invite-title {
-  color: #fff;
+  color: #172126;
   font-size: 28rpx;
   font-weight: 900;
 }
 
 .invite-subtitle,
 .invite-body {
-  color: #91a0c4;
+  color: #53666b;
   font-size: 22rpx;
 }
 
@@ -838,8 +870,8 @@ function displayText(value: string) {
   flex: 0 0 auto;
   border-radius: 999px;
   padding: 8rpx 14rpx;
-  color: #071225;
-  background: #2dd4bf;
+  color: #175158;
+  background: #dcefeb;
   font-size: 20rpx;
   font-weight: 900;
 }
@@ -851,6 +883,7 @@ function displayText(value: string) {
 
 .invite-button {
   min-width: 132rpx;
+  min-height: 88rpx;
   border-radius: 999px;
   padding: 13rpx 20rpx;
   font-size: 23rpx;
@@ -860,18 +893,18 @@ function displayText(value: string) {
 }
 
 .invite-button.primary {
-  color: #071225;
-  background: linear-gradient(135deg, #2af0b6, #22a7ff);
+  color: #fff;
+  background: #236c72;
 }
 
 .invite-button.ghost {
-  color: #b8c2dc;
-  background: rgba(148, 163, 184, 0.16);
+  color: #36494e;
+  background: #edf2f0;
 }
 
 .invite-button.disabled {
-  color: #8792b1;
-  background: rgba(148, 163, 184, 0.12);
+  color: #758287;
+  background: #edf2f0;
 }
 
 .notice-head,
@@ -884,7 +917,7 @@ function displayText(value: string) {
 
 .notice-title {
   overflow: hidden;
-  color: #fff;
+  color: #172126;
   font-size: 27rpx;
   font-weight: 900;
   text-overflow: ellipsis;
@@ -894,7 +927,7 @@ function displayText(value: string) {
 .notice-body {
   display: block;
   margin: 12rpx 0;
-  color: #b8c2dc;
+  color: #455a60;
   font-size: 24rpx;
   line-height: 1.45;
 }

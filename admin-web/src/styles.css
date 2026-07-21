@@ -13,7 +13,7 @@
 
 body {
   margin: 0;
-  min-width: 1180px;
+  min-width: 0;
 }
 
 button,
@@ -77,7 +77,7 @@ button {
 .sidebar-note small,
 .sidebar-note span,
 td small {
-  color: #6b7b80;
+  color: #53666b;
 }
 
 .nav-list {
@@ -353,6 +353,9 @@ h2 {
   display: grid;
   gap: 6px;
   min-height: 106px;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
 }
 
 .task-card strong {
@@ -367,7 +370,7 @@ h2 {
 }
 
 .task-card small {
-  color: #6b7b80;
+  color: #53666b;
   font-size: 12px;
 }
 
@@ -398,7 +401,7 @@ h2 {
 
 .users-toolbar input,
 .users-toolbar select {
-  min-height: 38px;
+  min-height: 44px;
 }
 
 .report-searchbar {
@@ -634,7 +637,7 @@ td {
 }
 
 th {
-  color: #6b7b80;
+  color: #53666b;
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
@@ -707,8 +710,15 @@ tbody tr.selected {
 .text-button {
   border: 0;
   border-radius: 10px;
+  min-height: 44px;
   padding: 10px 13px;
   font-weight: 700;
+}
+
+button:focus-visible,
+[role="button"]:focus-visible {
+  outline: 3px solid rgba(35, 108, 114, 0.24);
+  outline-offset: 2px;
 }
 
 .primary-button {
@@ -782,7 +792,7 @@ dl {
 }
 
 dt {
-  color: #6b7b80;
+  color: #53666b;
   font-size: 12px;
 }
 
@@ -850,7 +860,7 @@ dd {
 
 .chat-session-meta,
 .chat-session-last {
-  color: #6b7b80;
+  color: #53666b;
   font-size: 12px;
 }
 
@@ -918,7 +928,7 @@ dd {
 }
 
 .chat-message small {
-  color: #6b7b80;
+  color: #53666b;
 }
 
 .discipline-window {
@@ -939,7 +949,7 @@ dd {
 .discipline-head span,
 .discipline-keywords > span,
 .discipline-users > span {
-  color: #6b7b80;
+  color: #53666b;
   font-size: 12px;
   font-weight: 700;
 }
@@ -969,7 +979,7 @@ dd {
   display: grid;
   grid-column: span 2;
   place-items: center;
-  color: #6b7b80;
+  color: #53666b;
 }
 
 .chat-review-meta {
@@ -1162,4 +1172,186 @@ dd {
 .config-grid select {
   width: 100%;
   box-sizing: border-box;
+}
+
+tbody tr[role="button"] {
+  cursor: pointer;
+}
+
+.confirmation-dialog {
+  width: min(460px, calc(100vw - 32px));
+  border: 0;
+  border-radius: 16px;
+  padding: 0;
+  color: #172126;
+  background: #ffffff;
+  box-shadow: 0 28px 90px rgba(20, 43, 48, 0.24);
+}
+
+.confirmation-dialog::backdrop {
+  background: rgba(18, 34, 39, 0.48);
+}
+
+.confirmation-card {
+  display: grid;
+  gap: 24px;
+  padding: 24px;
+}
+
+.confirmation-card p {
+  margin: 10px 0 0;
+  color: #42575d;
+  line-height: 1.65;
+}
+
+.confirmation-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media (max-width: 1100px) {
+  .admin-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidebar {
+    position: static;
+    height: auto;
+    padding: 14px 18px;
+    border-right: 0;
+    border-bottom: 1px solid #dce5e1;
+  }
+
+  .nav-list {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .nav-item {
+    flex: 0 0 auto;
+    min-height: 44px;
+  }
+
+  .sidebar-note {
+    display: none;
+  }
+
+  .workspace {
+    min-width: 0;
+    padding: 22px 20px 40px;
+  }
+
+  .metric-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .panel {
+    overflow-x: auto;
+  }
+
+  table {
+    min-width: 760px;
+  }
+
+  .chat-console {
+    grid-template-columns: minmax(240px, 0.8fr) minmax(420px, 1.2fr);
+  }
+
+  .discipline-window {
+    grid-column: 1 / -1;
+  }
+
+  .review-workbench,
+  .dashboard-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .review-detail {
+    position: static;
+  }
+
+  .config-layout,
+  .config-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .config-grid .wide {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .workspace {
+    padding: 16px 12px 32px;
+  }
+
+  .topbar,
+  .panel-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .session-card {
+    width: 100%;
+  }
+
+  .session-card > div {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .metric-grid,
+  .photo-risk-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .content-grid,
+  .queue-grid,
+  .task-board,
+  .card-list,
+  .form-grid,
+  .quota-grid,
+  .config-layout,
+  .config-grid,
+  .users-toolbar,
+  .list-filterbar,
+  .report-searchbar,
+  .chat-console {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .panel,
+  .metric-card {
+    padding: 14px;
+  }
+
+  .action-row,
+  .confirmation-actions {
+    flex-wrap: wrap;
+  }
+
+  .action-row > button,
+  .confirmation-actions > button {
+    flex: 1 1 auto;
+  }
+
+  .detail-drawer {
+    inset: 12px;
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

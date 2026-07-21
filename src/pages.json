@@ -1,6 +1,14 @@
 {
   "pages": [
     {
+      "path": "pages/home/index",
+      "style": {
+        "navigationBarTitleText": "漂流岛",
+        "navigationBarBackgroundColor": "#FFFFFF",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
       "path": "pages/bottle/index",
       "style": {
         "navigationBarTitleText": "漂流瓶",
@@ -88,14 +96,6 @@
       }
     },
     {
-      "path": "pages/home/index",
-      "style": {
-        "navigationBarTitleText": "漂流岛",
-        "navigationBarBackgroundColor": "#FFFFFF",
-        "navigationBarTextStyle": "black"
-      }
-    },
-    {
       "path": "pages/ad/reward",
       "style": {
         "navigationBarTitleText": "激励视频",
@@ -160,8 +160,8 @@
     "borderStyle": "white",
     "list": [
       {
-        "pagePath": "pages/bottle/index",
-        "text": "瓶子"
+        "pagePath": "pages/home/index",
+        "text": "首页"
       },
       {
         "pagePath": "pages/plaza/index",
