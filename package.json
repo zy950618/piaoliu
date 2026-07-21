@@ -12,8 +12,7 @@
     "build:h5": "uni build",
     "build:h5:e2e": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-h5-e2e.ps1",
     "build:mp-weixin": "uni build -p mp-weixin",
-    "typecheck": "vue-tsc --noEmit",
-    "test:frontend": "vitest run --config vitest.config.ts"
+    "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-alpha-1000920260615733",

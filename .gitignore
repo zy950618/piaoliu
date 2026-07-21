@@ -12,6 +12,7 @@ unpackage
 .cache
 .agents
 .codex
+.local-workspace/
 __pycache__
 .venv
 *.pyc
