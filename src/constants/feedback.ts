@@ -1,0 +1,1 @@
+export const GIFT_CELEBRATION_DURATION_MS = 1300

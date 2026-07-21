@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-16T11:24:18.8692355+08:00",
+  "title": "Design System: 漂流瓶社交",
+  "extensions": {
+    "colorMeta": {
+      "primary-sea": { "role": "primary", "displayName": "关系海蓝", "canonical": "#358BA9", "tonalRamp": ["#0B2028", "#153B49", "#205A6F", "#2A748F", "#358BA9", "#68A9BE", "#A8D1DD", "#E4F3F7"] },
+      "action-blue": { "role": "primary", "displayName": "操作蓝", "canonical": "#0071E3", "tonalRamp": ["#001B38", "#00366E", "#0054A8", "#0071E3", "#3B91EA", "#7AB5F1", "#B7D8F8", "#E8F3FF"] },
+      "shell-white": { "role": "neutral", "displayName": "产品白", "canonical": "#F7FAFC", "tonalRamp": ["#17212A", "#34414B", "#5A6874", "#85929E", "#B4BEC6", "#D9E0E5", "#EDF2F5", "#F7FAFC"] },
+      "private-purple": { "role": "secondary", "displayName": "私密紫", "canonical": "#775B9F", "tonalRamp": ["#21192D", "#372846", "#513B68", "#614B82", "#775B9F", "#A18BC0", "#C9B9DE", "#F0EAFB"] },
+      "unread-coral": { "role": "tertiary", "displayName": "未读珊瑚", "canonical": "#EF6467", "tonalRamp": ["#341516", "#62282A", "#963D40", "#C64F53", "#EF6467", "#F38E90", "#F8BCBD", "#FDE9E9"] }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "页面标题", "purpose": "页面主标题和关键一级层级。" },
+      "title": { "displayName": "内容标题", "purpose": "会话名、弹层标题和分组标题。" },
+      "body": { "displayName": "正文", "purpose": "消息、说明和用户生成内容。" },
+      "label": { "displayName": "标签", "purpose": "导航、按钮、时间和属性标签。" }
+    },
+    "shadows": [
+      { "name": "ambient-low", "value": "0 4px 8px rgba(0,0,0,0.10)", "purpose": "悬浮图标按钮的中性轻投影。" },
+      { "name": "sheet", "value": "0 -8px 20px rgba(0,0,0,0.08)", "purpose": "底部弹层与页面的结构分离。" }
+    ],
+    "motion": [
+      { "name": "press", "value": "120ms ease-out", "purpose": "按钮按压与即时反馈。" },
+      { "name": "state", "value": "200ms cubic-bezier(0.25,1,0.5,1)", "purpose": "角标、开关和状态切换。" },
+      { "name": "view", "value": "240ms cubic-bezier(0.22,1,0.36,1)", "purpose": "页面和二级视图切换。" },
+      { "name": "sheet", "value": "280ms cubic-bezier(0.22,1,0.36,1)", "purpose": "底部弹层进入。" }
+    ],
+    "breakpoints": [
+      { "name": "phone", "value": "390px" },
+      { "name": "wide-preview", "value": "720px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "当前视图唯一主要操作。",
+      "html": "<button class=\"ds-btn-primary\">同意</button>",
+      "css": ".ds-btn-primary{border:0;border-radius:999px;padding:10px 18px;color:#fff;background:#0071E3;font:700 14px -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif;transition:transform 120ms ease-out,background 160ms ease-out}.ds-btn-primary:hover{background:#005FBF}.ds-btn-primary:active{transform:scale(.94)}.ds-btn-primary:focus-visible{outline:3px solid #B7D8F8;outline-offset:2px}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "取消、返回和次级操作。",
+      "html": "<button class=\"ds-btn-secondary\">取消</button>",
+      "css": ".ds-btn-secondary{border:0;border-radius:999px;padding:10px 18px;color:#358BA9;background:#EDF6F8;font:700 14px -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif;transition:transform 120ms ease-out,background 160ms ease-out}.ds-btn-secondary:hover{background:#E0F0F4}.ds-btn-secondary:active{transform:scale(.96)}.ds-btn-secondary:focus-visible{outline:3px solid #A8D1DD;outline-offset:2px}"
+    },
+    {
+      "name": "Room Chips",
+      "kind": "chip",
+      "refersTo": "chip-public",
+      "description": "表达公开或私密属性，不承担点击操作。",
+      "html": "<span class=\"ds-chip-public\">公开 · 12人</span> <span class=\"ds-chip-private\">私密 · 6人</span>",
+      "css": ".ds-chip-public,.ds-chip-private{display:inline-flex;align-items:center;border-radius:999px;padding:3px 7px;font:700 11px -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif}.ds-chip-public{color:#1D67A9;background:#E5F1FF}.ds-chip-private{color:#775B9F;background:#F0EAFB}"
+    },
+    {
+      "name": "Message Input",
+      "kind": "input",
+      "description": "普通聊天输入框。",
+      "html": "<input class=\"ds-message-input\" placeholder=\"说点什么…\" />",
+      "css": ".ds-message-input{height:38px;border:1px solid transparent;border-radius:999px;padding:0 14px;color:#172536;background:#F1F4F6;font:400 14px -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif;outline:none;transition:border-color 160ms ease-out,background 160ms ease-out}.ds-message-input:focus{border-color:#0071E3;background:#fff}.ds-message-input:disabled{color:#7D8DA0;background:#E7EDF2}"
+    },
+    {
+      "name": "Conversation Row",
+      "kind": "custom",
+      "description": "无卡片背景的高扫描效率会话行。",
+      "html": "<div class=\"ds-thread\"><span class=\"ds-avatar\"></span><span><strong>小雨</strong><small>刚刚那句话，我认真看了很久</small></span><time>21:16</time></div>",
+      "css": ".ds-thread{display:grid;grid-template-columns:46px 1fr auto;align-items:center;gap:12px;min-height:68px;border-bottom:1px solid #E7EDF2;color:#172536;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif}.ds-thread:hover{background:#F7FAFC}.ds-thread:focus-within{outline:3px solid #B7D8F8;outline-offset:-3px}.ds-avatar{width:46px;height:46px;border-radius:50%;background:#358BA9}.ds-thread strong,.ds-thread small{display:block}.ds-thread small,.ds-thread time{margin-top:5px;color:#7D8DA0;font-size:11px}.ds-thread time{align-self:start;margin-top:17px}"
+    },
+    {
+      "name": "Bottom Navigation",
+      "kind": "nav",
+      "refersTo": "navigation-bottom",
+      "description": "跨页面保持不变的白色产品壳。",
+      "html": "<nav class=\"ds-tabbar\"><button>遇见</button><button>广场</button><button>玩法</button><button class=\"active\">消息</button><button>我的</button></nav>",
+      "css": ".ds-tabbar{display:grid;grid-template-columns:repeat(5,1fr);height:66px;border-top:1px solid #E7EDF2;background:#fff}.ds-tabbar button{border:0;color:#7D8DA0;background:transparent;font:700 11px -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif}.ds-tabbar button.active{color:#0071E3;background:#EDF5FF}.ds-tabbar button:focus-visible{outline:3px solid #B7D8F8;outline-offset:-3px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "潮汐白页",
+    "overview": "情绪内容像海面，任务界面像白页。遇见页承担真实海景和自然动态，消息、好友、房间设置和后台回到清晰、稳定、可长期阅读的白色产品壳。",
+    "keyCharacteristics": ["情绪内容沉浸，任务界面清楚", "白色产品壳跨页面稳定", "颜色角色单一明确", "列表优先使用分隔与留白", "动效只解释状态"],
+    "rules": [
+      { "name": "The White Shell Rule", "body": "消息、好友、房间设置和后台页面必须以白色产品壳为基础。", "section": "colors" },
+      { "name": "The One Action Blue Rule", "body": "一个视图中只允许一个主要操作族使用操作蓝。", "section": "colors" },
+      { "name": "The No Glow Rule", "body": "禁止彩色外发光、霓虹阴影和大面积模糊玻璃。", "section": "elevation" }
+    ],
+    "dos": ["Do 让遇见页承担海景和自然动态，让消息、好友和设置回到白色产品壳。", "Do 使用操作蓝表示唯一主操作，使用关系海蓝表示关系和状态。", "Do 用分隔线和留白组织消息列表。"],
+    "donts": ["Don't 使用杂乱的功能方格和没有层级的图标堆叠。", "Don't 使用过大的圆角卡片、明显悬浮的白色控件或嵌套卡片。", "Don't 使用廉价霓虹渐变、渐变文字、彩色光晕或装饰性玻璃效果。", "Don't 把普通聊天、房间和玩法混成同一个入口或同一个数据类型。"]
+  }
+}

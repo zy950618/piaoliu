@@ -445,7 +445,7 @@ class AdminRewardConfig(BaseModel):
     base_quotas: dict[QuotaType, int]
     vip_bonus: dict[QuotaType, int]
     ad_cooldown_minutes: int
-    ad_reward_per_quota: int
+    ad_reward_per_quota: int = Field(default=1, ge=1, le=50)
     checkin_rewards: list[int]
     reject_refund_enabled: bool = False
     ad_display_type: Literal["video", "image", "link"] = "video"

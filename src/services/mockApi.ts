@@ -950,7 +950,7 @@ export const mockApi = {
       walletRisks: mockState.walletRiskItems.map((item) => ({ ...item })),
       auditLogs: mockState.auditLogs.map((item) => ({ ...item })),
       recentReports: [
-        { id: 'report_001', target: '树洞内容', reason: '疑似骚扰', status: '待处理' },
+        { id: 'report_001', target: '历史留言', reason: '疑似骚扰', status: '待处理' },
         { id: 'report_002', target: '漂流瓶回复', reason: '低俗内容', status: '复核中' }
       ]
     })

@@ -138,7 +138,7 @@ def default_ad_reward_config() -> dict:
         "base_quotas": {quota_type.value: base for quota_type, (_, base) in BASE_QUOTAS.items()},
         "vip_bonus": {quota_type.value: 5 for quota_type in BASE_QUOTAS},
         "ad_cooldown_minutes": 15,
-        "ad_reward_per_quota": 10,
+        "ad_reward_per_quota": 1,
         "checkin_rewards": CHECKIN_REWARDS,
         "reject_refund_enabled": False,
         "ad_display_type": "video",

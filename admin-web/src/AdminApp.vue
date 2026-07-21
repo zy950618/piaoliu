@@ -81,7 +81,7 @@
             <article class="task-card">
               <strong>{{ dashboard.summary.pendingContent }}</strong>
               <span>待审核内容总量</span>
-              <small>含瓶子 / 树洞 / 广场 / 私密照</small>
+              <small>含瓶子 / 历史留言 / 广场 / 私密照</small>
             </article>
           </div>
         </section>
@@ -963,8 +963,8 @@ const initialDashboard: AdminDashboard = {
       treehole_post: 0
     },
     adCooldownMinutes: 15,
-    adRewardPerQuota: 10,
-    adReward: '每次+10金币',
+    adRewardPerQuota: 1,
+    adReward: '所有玩法各 +1 次',
     checkinRewards: [],
     adDisplayType: 'video',
     adProvider: 'mock_alliance',
@@ -981,7 +981,7 @@ const initialDashboard: AdminDashboard = {
       throw_bottle: '扔瓶',
       truth: '真心话',
       dare: '大冒险',
-      treehole_post: '树洞投稿'
+      treehole_post: '历史留言'
     }
   },
   users: [],
@@ -1108,7 +1108,7 @@ const riskMap: Record<NonNullable<AdminContentReviewItem['riskLevel']>, string> 
 const reportTypeMap: Record<AdminReportItem['targetType'], string> = {
   user: '用户',
   bottle: '漂流瓶',
-  treehole: '树洞',
+  treehole: '历史留言',
   reply: '回应',
   chat: '私信聊天',
   plaza: '广场',
@@ -1130,14 +1130,14 @@ const walletRiskTextMap: Record<WalletRisk, string> = {
 const categoryLabelMap: Record<ContentCategory, string> = {
   all: '全部',
   bottle: '漂流瓶',
-  treehole: '树洞',
+  treehole: '历史留言',
   plaza: '广场',
   private_photo: '私密照片'
 }
 
 const contentTypeLabelMap: Record<AdminChatReviewItem['source'], string> = {
   bottle: '漂流瓶',
-  treehole: '树洞',
+  treehole: '历史留言',
   plaza: '广场',
   game_room: '游戏房间'
 }
@@ -1154,7 +1154,7 @@ const contentCategories = computed(() => {
   return [
     { key: 'all' as const, label: '全部', count: content.length },
     { key: 'bottle' as const, label: '漂流瓶', count: countType('bottle') },
-    { key: 'treehole' as const, label: '树洞', count: countType('treehole') },
+    { key: 'treehole' as const, label: '历史留言', count: countType('treehole') },
     { key: 'private_photo' as const, label: '私密照片', count: countType('private_photo') },
     { key: 'plaza' as const, label: '广场', count: countType('plaza') }
   ]
@@ -1166,7 +1166,7 @@ const chatSourceFilters = computed(() => {
   return [
     { value: 'all' as const, label: '全部会话', count: rows.length },
     { value: 'bottle' as const, label: '漂流瓶', count: countSource('bottle') },
-    { value: 'treehole' as const, label: '树洞', count: countSource('treehole') },
+    { value: 'treehole' as const, label: '历史留言', count: countSource('treehole') },
     { value: 'plaza' as const, label: '广场', count: countSource('plaza') },
     { value: 'game_room' as const, label: '游戏房间', count: countSource('game_room') }
   ]
@@ -1179,7 +1179,7 @@ const reportCategoryFilters = computed(() => {
     { value: 'all' as const, label: '全部类型', count: rows.length },
     { value: 'user' as const, label: '用户', count: countType('user') },
     { value: 'bottle' as const, label: '漂流瓶', count: countType('bottle') },
-    { value: 'treehole' as const, label: '树洞', count: countType('treehole') },
+    { value: 'treehole' as const, label: '历史留言', count: countType('treehole') },
     { value: 'reply' as const, label: '回应', count: countType('reply') },
     { value: 'chat' as const, label: '私信', count: countType('chat') },
     { value: 'plaza' as const, label: '广场', count: countType('plaza') },
@@ -1397,7 +1397,7 @@ function contextSourceText(type: AdminContextChatRequestItem['sourceType']) {
   const map: Record<AdminContextChatRequestItem['sourceType'], string> = {
     bottle_reply: '漂流瓶回应',
     plaza_comment: '广场评论',
-    treehole_comment: '树洞评论',
+    treehole_comment: '历史留言',
     game_room: '游戏房间',
     private_room: '私密房间',
     match_expand: '扩列匹配',
@@ -1409,7 +1409,7 @@ function contextSourceText(type: AdminContextChatRequestItem['sourceType']) {
 function sourceTreatmentText(source: AdminChatReviewItem['source']) {
   const map: Record<AdminChatReviewItem['source'], string> = {
     bottle: '漂流瓶回信复核',
-    treehole: '树洞倾诉保护',
+    treehole: '历史留言兼容',
     plaza: '广场互动治理',
     game_room: '游戏房间纪律观察'
   }

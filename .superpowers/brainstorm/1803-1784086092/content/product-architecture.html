@@ -1,0 +1,502 @@
+<style>
+  .arch-intro {
+    max-width: 980px;
+    margin-bottom: 24px;
+  }
+
+  .principles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 16px 0 28px;
+  }
+
+  .principle {
+    padding: 7px 11px;
+    border: 1px solid #d8e2e0;
+    border-radius: 999px;
+    color: #39504e;
+    background: #f7faf9;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .arch-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(260px, 1fr));
+    gap: 18px;
+    align-items: start;
+  }
+
+  .arch-card {
+    border: 1px solid #dfe7e5;
+    border-radius: 18px;
+    padding: 14px;
+    background: #fff;
+    cursor: pointer;
+    transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+  }
+
+  .arch-card:hover {
+    transform: translateY(-3px);
+    border-color: #7aa6a1;
+    box-shadow: 0 8px 18px rgba(22, 52, 49, .08);
+  }
+
+  .arch-card.selected {
+    border-color: #237b76;
+    box-shadow: 0 0 0 3px rgba(35, 123, 118, .12);
+  }
+
+  .arch-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .arch-heading h3 {
+    margin: 0 0 4px;
+    color: #152421;
+    font-size: 16px;
+  }
+
+  .arch-heading p {
+    margin: 0;
+    color: #657572;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .choice-mark {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+    color: #fff;
+    background: #237b76;
+    font-size: 13px;
+    font-weight: 900;
+  }
+
+  .phone {
+    position: relative;
+    width: min(100%, 286px);
+    height: 520px;
+    margin: 0 auto 14px;
+    overflow: hidden;
+    border: 7px solid #15201f;
+    border-radius: 30px;
+    background: #f5f8f7;
+    box-shadow: 0 8px 18px rgba(18, 35, 33, .11);
+  }
+
+  .wx-top {
+    height: 44px;
+    padding: 10px 13px 0;
+    box-sizing: border-box;
+  }
+
+  .wx-pill {
+    float: right;
+    width: 68px;
+    height: 24px;
+    border: 1px solid rgba(22, 35, 33, .18);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .72);
+  }
+
+  .app-content {
+    padding: 0 14px 70px;
+  }
+
+  .micro-label {
+    color: #647673;
+    font-size: 10px;
+    font-weight: 800;
+  }
+
+  .hero-title {
+    margin: 4px 0 5px;
+    color: #14221f;
+    font-size: 24px;
+    line-height: 1.18;
+    letter-spacing: -.02em;
+  }
+
+  .hero-copy {
+    margin: 0;
+    color: #60716e;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  .bottle-stage {
+    position: relative;
+    display: grid;
+    place-items: center;
+    height: 176px;
+    margin: 14px 0 12px;
+    border-radius: 16px;
+    overflow: hidden;
+    background: linear-gradient(180deg, #dff4f2 0 50%, #9dd7d2 50% 100%);
+  }
+
+  .bottle-stage::after {
+    position: absolute;
+    right: -30px;
+    bottom: -65px;
+    width: 180px;
+    height: 110px;
+    border: 1px solid rgba(255,255,255,.52);
+    border-radius: 50%;
+    content: '';
+  }
+
+  .bottle-glyph {
+    position: relative;
+    z-index: 1;
+    transform: rotate(-9deg);
+    color: #246b68;
+    font-size: 52px;
+  }
+
+  .primary-action {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 50px;
+    padding: 0 16px;
+    border-radius: 14px;
+    color: #fff;
+    background: #237b76;
+    font-size: 14px;
+    font-weight: 900;
+  }
+
+  .action-count {
+    color: #d6f5f1;
+    font-size: 11px;
+  }
+
+  .secondary-line {
+    display: flex;
+    gap: 8px;
+    margin-top: 9px;
+  }
+
+  .secondary-action {
+    flex: 1;
+    padding: 10px 8px;
+    border: 1px solid #d6e1df;
+    border-radius: 12px;
+    color: #334845;
+    background: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    text-align: center;
+  }
+
+  .city-hero {
+    padding: 18px 16px;
+    border-radius: 16px;
+    color: #fff;
+    background: #4e4563;
+  }
+
+  .city-hero .hero-title,
+  .city-hero .hero-copy,
+  .city-hero .micro-label { color: #fff; }
+
+  .match-row {
+    display: flex;
+    gap: 8px;
+    margin: 12px 0;
+  }
+
+  .person-tile {
+    flex: 1;
+    min-height: 98px;
+    padding: 10px;
+    border: 1px solid #dee5e3;
+    border-radius: 14px;
+    background: #fff;
+  }
+
+  .avatar-dot {
+    width: 34px;
+    height: 34px;
+    margin-bottom: 8px;
+    border-radius: 50%;
+    background: #c6d9d6;
+  }
+
+  .person-tile:nth-child(2) .avatar-dot { background: #d9c9d8; }
+  .person-tile:nth-child(3) .avatar-dot { background: #d7d3bd; }
+
+  .person-tile strong,
+  .person-tile small {
+    display: block;
+  }
+
+  .person-tile strong { color: #253532; font-size: 11px; }
+  .person-tile small { margin-top: 3px; color: #6b7977; font-size: 9px; }
+
+  .mode-switch {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+    padding: 4px;
+    border-radius: 12px;
+    background: #e8eeec;
+  }
+
+  .mode-switch span {
+    flex: 1;
+    padding: 8px 5px;
+    border-radius: 9px;
+    color: #60706e;
+    font-size: 11px;
+    font-weight: 800;
+    text-align: center;
+  }
+
+  .mode-switch .active {
+    color: #1d3531;
+    background: #fff;
+    box-shadow: 0 2px 6px rgba(30, 49, 46, .08);
+  }
+
+  .story-prompt {
+    padding: 16px;
+    border-radius: 16px;
+    color: #fff;
+    background: #286d73;
+  }
+
+  .story-prompt h4 {
+    margin: 4px 0 8px;
+    font-size: 17px;
+  }
+
+  .story-prompt p {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.55;
+    opacity: .88;
+  }
+
+  .play-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .play-tile {
+    min-height: 68px;
+    padding: 11px;
+    border: 1px solid #dbe3e1;
+    border-radius: 13px;
+    color: #253835;
+    background: #fff;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .play-tile span {
+    display: block;
+    margin-top: 8px;
+    color: #71807d;
+    font-size: 9px;
+    font-weight: 600;
+  }
+
+  .tabbar {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    height: 58px;
+    border-top: 1px solid #dfe6e4;
+    background: rgba(255,255,255,.98);
+  }
+
+  .tab {
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 3px;
+    color: #788582;
+    font-size: 9px;
+    font-weight: 700;
+  }
+
+  .tab i {
+    display: block;
+    width: 17px;
+    height: 17px;
+    border: 1.5px solid currentColor;
+    border-radius: 6px;
+  }
+
+  .tab.active { color: #237b76; }
+
+  .arch-flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin: 9px 0 4px;
+    color: #5e6f6c;
+    font-size: 10px;
+    font-weight: 800;
+  }
+
+  .arch-flow b { color: #237b76; }
+
+  .arch-note {
+    margin: 8px 2px 0;
+    color: #63726f;
+    font-size: 11px;
+    line-height: 1.55;
+  }
+
+  .recommend {
+    display: inline-flex;
+    margin-top: 8px;
+    padding: 5px 8px;
+    border-radius: 999px;
+    color: #1e615d;
+    background: #dff2ef;
+    font-size: 10px;
+    font-weight: 900;
+  }
+
+  @media (max-width: 900px) {
+    .arch-grid { grid-template-columns: 1fr; }
+    .phone { width: 286px; }
+  }
+</style>
+
+<div class="arch-intro">
+  <h2>三种玩法全部保留，怎样组织才符合人的使用习惯？</h2>
+  <p class="subtitle">不是删掉 A / B / C，而是确定用户每次打开小程序时先看到什么、下一步去哪里。请选择更像你想要的产品骨架。</p>
+  <div class="principles">
+    <span class="principle">微信胶囊安全区</span>
+    <span class="principle">底部 5 个主入口</span>
+    <span class="principle">单页一个主任务</span>
+    <span class="principle">主操作落在拇指热区</span>
+    <span class="principle">女性友好，不用粉色刻板印象</span>
+    <span class="principle">状态和反馈就地出现</span>
+  </div>
+</div>
+
+<div class="arch-grid cards">
+  <div class="arch-card card" data-choice="layered-emotion" onclick="toggleSelect(this)">
+    <div class="arch-heading">
+      <div>
+        <h3>方案 A · 情绪主线，关系分层</h3>
+        <p>漂流瓶负责第一次相遇，附近与匹配负责效率，游戏负责破冰与留存。</p>
+      </div>
+      <div class="choice-mark">A</div>
+    </div>
+    <div class="phone">
+      <div class="wx-top"><div class="wx-pill"></div></div>
+      <div class="app-content">
+        <span class="micro-label">今晚的海况 · 安全可见</span>
+        <h4 class="hero-title">遇见一封认真写的信</h4>
+        <p class="hero-copy">先看内容，再决定要不要认识这个人。</p>
+        <div class="bottle-stage"><span class="bottle-glyph">⌁</span></div>
+        <div class="primary-action"><span>捞一个瓶子</span><span class="action-count">今日 15 次</span></div>
+        <div class="secondary-line">
+          <div class="secondary-action">写下此刻</div>
+          <div class="secondary-action">同城遇见</div>
+          <div class="secondary-action">一起玩</div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab active"><i></i>瓶子</div><div class="tab"><i></i>广场</div><div class="tab"><i></i>游戏</div><div class="tab"><i></i>消息</div><div class="tab"><i></i>我的</div>
+      </div>
+    </div>
+    <div class="arch-flow"><b>内容共鸣</b> → 同城/匹配 → 游戏破冰 → 私聊沉淀</div>
+    <p class="arch-note">优点：品牌最清楚，三套功能互相导流；新用户不需要先理解复杂玩法。适合“漂流瓶”作为产品记忆点。</p>
+    <span class="recommend">推荐：逻辑最连贯</span>
+  </div>
+
+  <div class="arch-card card" data-choice="city-first" onclick="toggleSelect(this)">
+    <div class="arch-heading">
+      <div>
+        <h3>方案 B · 同城主线，效率优先</h3>
+        <p>附近的人与条件匹配放在首屏，漂流瓶和游戏成为认识之后的互动方式。</p>
+      </div>
+      <div class="choice-mark" style="background:#4e4563">B</div>
+    </div>
+    <div class="phone">
+      <div class="wx-top"><div class="wx-pill"></div></div>
+      <div class="app-content">
+        <div class="city-hero">
+          <span class="micro-label">杭州 · 仅显示粗略位置</span>
+          <h4 class="hero-title">今天想认识怎样的人？</h4>
+          <p class="hero-copy">按性别、年龄与互动意愿筛选。</p>
+        </div>
+        <div class="match-row">
+          <div class="person-tile"><div class="avatar-dot"></div><strong>刚刚在线</strong><small>共同话题 3</small></div>
+          <div class="person-tile"><div class="avatar-dot"></div><strong>同城新人</strong><small>已真人认证</small></div>
+          <div class="person-tile"><div class="avatar-dot"></div><strong>兴趣相近</strong><small>可发起破冰</small></div>
+        </div>
+        <div class="primary-action" style="background:#4e4563"><span>开始条件匹配</span><span class="action-count">今日 10 次</span></div>
+        <div class="secondary-line">
+          <div class="secondary-action">读漂流瓶</div>
+          <div class="secondary-action">真心话破冰</div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><i></i>瓶子</div><div class="tab active" style="color:#4e4563"><i></i>遇见</div><div class="tab"><i></i>游戏</div><div class="tab"><i></i>消息</div><div class="tab"><i></i>我的</div>
+      </div>
+    </div>
+    <div class="arch-flow"><b>条件发现</b> → 资料判断 → 瓶子/游戏破冰 → 私聊</div>
+    <p class="arch-note">优点：转化直接，附近和付费开聊更好理解。风险：容易像传统陌生人交友产品，匿名情绪价值会被削弱。</p>
+  </div>
+
+  <div class="arch-card card" data-choice="dual-mode" onclick="toggleSelect(this)">
+    <div class="arch-heading">
+      <div>
+        <h3>方案 C · 双场景切换</h3>
+        <p>把“安静遇见”和“一起玩”做成两种心境，用户按当下目的切换。</p>
+      </div>
+      <div class="choice-mark" style="background:#286d73">C</div>
+    </div>
+    <div class="phone">
+      <div class="wx-top"><div class="wx-pill"></div></div>
+      <div class="app-content">
+        <div class="mode-switch"><span class="active">安静遇见</span><span>一起玩</span></div>
+        <div class="story-prompt">
+          <span class="micro-label">此刻适合慢一点</span>
+          <h4>先从一句真话开始</h4>
+          <p>看一封瓶子、分享一条动态，或者按条件遇见同城的人。</p>
+        </div>
+        <div class="play-grid">
+          <div class="play-tile">漂流瓶<span>内容优先的匿名相遇</span></div>
+          <div class="play-tile">同城匹配<span>粗略位置与认证状态</span></div>
+          <div class="play-tile">真心话<span>轻量双人破冰</span></div>
+          <div class="play-tile">多人房间<span>邀请制群体互动</span></div>
+        </div>
+        <div class="primary-action" style="margin-top:10px"><span>开始安静遇见</span><span class="action-count">可随时切换</span></div>
+      </div>
+      <div class="tabbar">
+        <div class="tab active"><i></i>发现</div><div class="tab"><i></i>广场</div><div class="tab"><i></i>房间</div><div class="tab"><i></i>消息</div><div class="tab"><i></i>我的</div>
+      </div>
+    </div>
+    <div class="arch-flow"><b>选择心境</b> → 选择玩法 → 明确互动 → 私聊/房间</div>
+    <p class="arch-note">优点：三类玩法最平衡，也最有扩展性。风险：首屏理解成本更高，需要优秀的新手引导和持续内容运营。</p>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:22px">点击一张方案卡选择。也可以告诉我“以 A 为骨架，吸收 B 的同城效率和 C 的模式切换”。</p>

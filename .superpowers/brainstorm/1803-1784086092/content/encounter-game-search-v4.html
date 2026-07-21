@@ -1,0 +1,766 @@
+<style>
+  .v4-page {
+    color: #17202d;
+  }
+
+  .v4-head {
+    max-width: 900px;
+    margin-bottom: 22px;
+  }
+
+  .v4-head h2 {
+    margin-bottom: 8px;
+  }
+
+  .logic-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .logic-strip span {
+    padding: 7px 10px;
+    border-radius: 8px;
+    color: #384457;
+    background: #eef0f7;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .logic-strip b {
+    color: #4056d6;
+  }
+
+  .screens-v4 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(340px, 1fr));
+    gap: 24px;
+    align-items: start;
+  }
+
+  .screen-column {
+    border: 1px solid #dfe3eb;
+    border-radius: 18px;
+    padding: 16px;
+    background: #f1f3f8;
+  }
+
+  .screen-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .screen-label h3 {
+    margin: 0;
+    font-size: 16px;
+  }
+
+  .screen-label span {
+    color: #707a8b;
+    font-size: 10px;
+  }
+
+  .phone-v4 {
+    --ink: #17202d;
+    --muted: #697386;
+    --primary: #5369e8;
+    --primary-soft: #e9edff;
+    --accent: #ee7168;
+    --line: #e4e7ee;
+    position: relative;
+    width: 330px;
+    height: 700px;
+    max-width: 100%;
+    margin: 0 auto;
+    overflow: hidden;
+    border: 6px solid #171b22;
+    border-radius: 30px;
+    color: var(--ink);
+    background: #f7f8fb;
+    box-shadow: 0 9px 18px rgba(22, 29, 42, .13);
+  }
+
+  .mini-nav-v4 {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    height: 53px;
+    padding: 0 12px 8px 16px;
+    box-sizing: border-box;
+    background: #fff;
+  }
+
+  .mini-nav-v4 strong {
+    font-size: 16px;
+  }
+
+  .wx-menu-v4 {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    width: 68px;
+    height: 26px;
+    border: 1px solid #d0d5dc;
+    border-radius: 999px;
+  }
+
+  .wx-menu-v4::before {
+    color: #334054;
+    content: '•••';
+    font-size: 10px;
+    letter-spacing: 1px;
+  }
+
+  .wx-menu-v4::after {
+    width: 10px;
+    height: 10px;
+    border: 1.5px solid #334054;
+    border-radius: 50%;
+    content: '';
+  }
+
+  .phone-scroll {
+    height: calc(100% - 53px);
+    padding: 16px 14px 66px;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .hello-line {
+    color: #6a7487;
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .page-title-v4 {
+    margin: 4px 0 5px;
+    font-size: 21px;
+    line-height: 1.25;
+    letter-spacing: -.025em;
+  }
+
+  .page-desc-v4 {
+    margin: 0;
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1.5;
+  }
+
+  .ocean-entry {
+    position: relative;
+    display: grid;
+    grid-template-columns: 68px minmax(0, 1fr);
+    gap: 11px;
+    align-items: center;
+    min-height: 116px;
+    margin-top: 13px;
+    padding: 14px;
+    border-radius: 14px;
+    overflow: hidden;
+    color: #fff;
+    background: #5369e8;
+    box-sizing: border-box;
+  }
+
+  .ocean-entry::after {
+    position: absolute;
+    right: -26px;
+    bottom: -42px;
+    width: 150px;
+    height: 74px;
+    border: 1px solid rgba(255,255,255,.28);
+    border-radius: 50%;
+    content: '';
+  }
+
+  .bottle-orbit {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 66px;
+    height: 66px;
+    border-radius: 50%;
+    color: #5369e8;
+    background: #fff;
+    animation: bottle-float 3.2s ease-in-out infinite;
+  }
+
+  .bottle-orbit::after {
+    position: absolute;
+    inset: -7px;
+    border: 1px solid rgba(255,255,255,.38);
+    border-radius: 50%;
+    content: '';
+    animation: soft-pulse 2.6s ease-out infinite;
+  }
+
+  .bottle-orbit svg {
+    width: 31px;
+    height: 31px;
+    transform: rotate(-10deg);
+  }
+
+  .ocean-copy {
+    position: relative;
+    z-index: 1;
+  }
+
+  .ocean-copy strong,
+  .ocean-copy span {
+    display: block;
+  }
+
+  .ocean-copy strong {
+    font-size: 14px;
+  }
+
+  .ocean-copy span {
+    margin-top: 4px;
+    color: rgba(255,255,255,.78);
+    font-size: 9px;
+    line-height: 1.45;
+  }
+
+  .ocean-copy button {
+    margin-top: 9px;
+    border: 0;
+    border-radius: 8px;
+    padding: 6px 9px;
+    color: #4056d6;
+    background: #fff;
+    font-size: 9px;
+    font-weight: 900;
+  }
+
+  .quota-badge-v4 {
+    position: absolute;
+    top: 9px;
+    right: 9px;
+    z-index: 2;
+    padding: 4px 6px;
+    border-radius: 999px;
+    color: #fff;
+    background: var(--accent);
+    font-size: 8px;
+    font-weight: 900;
+  }
+
+  .discover-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 15px 1px 8px;
+  }
+
+  .discover-head strong {
+    font-size: 12px;
+  }
+
+  .discover-head span {
+    color: var(--muted);
+    font-size: 8px;
+  }
+
+  .discover-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .discover-tab {
+    position: relative;
+    display: grid;
+    place-items: center;
+    gap: 4px;
+    min-height: 61px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: #657083;
+    background: #fff;
+    font-size: 8px;
+    font-weight: 800;
+  }
+
+  .discover-tab.active {
+    border-color: transparent;
+    color: #4056d6;
+    background: var(--primary-soft);
+  }
+
+  .discover-tab svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .discover-tab em {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .people-preview {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    margin-top: 9px;
+    padding: 10px;
+    border-radius: 12px;
+    background: #fff;
+  }
+
+  .avatar-wrap {
+    position: relative;
+    width: 42px;
+    height: 42px;
+  }
+
+  .avatar-wrap img {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #e7eaff;
+  }
+
+  .online-dot-v4 {
+    position: absolute;
+    right: 0;
+    bottom: 1px;
+    width: 8px;
+    height: 8px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: #22b58b;
+    animation: online-pulse 2s ease-out infinite;
+  }
+
+  .person-copy strong,
+  .person-copy span,
+  .person-copy small {
+    display: block;
+  }
+
+  .person-copy strong {
+    font-size: 11px;
+  }
+
+  .person-copy span {
+    margin-top: 2px;
+    color: #5369e8;
+    font-size: 8px;
+    font-weight: 800;
+  }
+
+  .person-copy small {
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 8px;
+  }
+
+  .soft-action {
+    padding: 7px 8px;
+    border-radius: 8px;
+    color: #4056d6;
+    background: var(--primary-soft);
+    font-size: 8px;
+    font-weight: 900;
+  }
+
+  .game-hero-v4 {
+    position: relative;
+    min-height: 117px;
+    margin-top: 13px;
+    padding: 15px;
+    border-radius: 14px;
+    color: #fff;
+    background: #29324a;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .game-hero-v4::after {
+    position: absolute;
+    right: -16px;
+    top: -24px;
+    width: 108px;
+    height: 108px;
+    border-radius: 50%;
+    background: #5369e8;
+    content: '';
+    opacity: .8;
+  }
+
+  .game-hero-v4 strong,
+  .game-hero-v4 span {
+    position: relative;
+    z-index: 1;
+    display: block;
+  }
+
+  .game-hero-v4 strong {
+    max-width: 170px;
+    font-size: 16px;
+    line-height: 1.25;
+  }
+
+  .game-hero-v4 span {
+    max-width: 175px;
+    margin-top: 6px;
+    color: rgba(255,255,255,.72);
+    font-size: 9px;
+    line-height: 1.45;
+  }
+
+  .game-hero-v4 svg {
+    position: absolute;
+    right: 20px;
+    bottom: 16px;
+    z-index: 1;
+    width: 44px;
+    height: 44px;
+    color: #fff;
+  }
+
+  .play-modes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+    margin-top: 9px;
+  }
+
+  .play-mode {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 46px;
+    padding: 0 10px;
+    border-radius: 10px;
+    color: #303b50;
+    background: #fff;
+    font-size: 9px;
+    font-weight: 800;
+  }
+
+  .play-mode svg {
+    width: 18px;
+    height: 18px;
+    color: #5369e8;
+  }
+
+  .partner-title {
+    margin: 14px 1px 8px;
+    font-size: 12px;
+  }
+
+  .partner-grid {
+    display: grid;
+    grid-template-columns: 1.25fr .75fr;
+    grid-template-rows: 72px 72px;
+    gap: 7px;
+  }
+
+  .partner-card {
+    position: relative;
+    padding: 11px;
+    border-radius: 11px;
+    overflow: hidden;
+    background: #fff;
+    box-sizing: border-box;
+  }
+
+  .partner-card.primary {
+    grid-row: 1 / 3;
+    color: #fff;
+    background: #5369e8;
+  }
+
+  .partner-card strong,
+  .partner-card span {
+    position: relative;
+    z-index: 2;
+    display: block;
+  }
+
+  .partner-card strong {
+    font-size: 10px;
+  }
+
+  .partner-card span {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 8px;
+    line-height: 1.4;
+  }
+
+  .partner-card.primary span {
+    color: rgba(255,255,255,.75);
+  }
+
+  .avatar-stack {
+    position: absolute;
+    bottom: 13px;
+    left: 12px;
+    z-index: 2;
+    display: flex;
+  }
+
+  .avatar-stack img {
+    width: 32px;
+    height: 32px;
+    margin-left: -7px;
+    border: 2px solid #5369e8;
+    border-radius: 50%;
+    background: #fff;
+  }
+
+  .avatar-stack img:first-child {
+    margin-left: 0;
+  }
+
+  .match-radar {
+    position: absolute;
+    right: 12px;
+    bottom: 14px;
+    width: 29px;
+    height: 29px;
+    border: 1px solid rgba(255,255,255,.58);
+    border-radius: 50%;
+    animation: radar-pulse 1.8s ease-out infinite;
+  }
+
+  .partner-card svg {
+    position: absolute;
+    right: 9px;
+    bottom: 9px;
+    width: 22px;
+    height: 22px;
+    color: #5369e8;
+  }
+
+  .bottom-v4 {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    height: 59px;
+    border-top: 1px solid var(--line);
+    background: rgba(255,255,255,.98);
+  }
+
+  .bottom-item-v4 {
+    position: relative;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 2px;
+    color: #7b8493;
+    font-size: 8px;
+    font-weight: 700;
+  }
+
+  .bottom-item-v4.active {
+    color: #4056d6;
+  }
+
+  .bottom-item-v4.active::before {
+    position: absolute;
+    top: 4px;
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    background: var(--primary-soft);
+    content: '';
+  }
+
+  .bottom-item-v4 svg,
+  .bottom-item-v4 span {
+    position: relative;
+    z-index: 1;
+  }
+
+  .bottom-item-v4 svg {
+    width: 19px;
+    height: 19px;
+  }
+
+  .screen-rule {
+    margin: 12px 2px 0;
+    color: #657083;
+    font-size: 10px;
+    line-height: 1.55;
+  }
+
+  .screen-rule strong {
+    color: #4056d6;
+  }
+
+  .v4-decisions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 20px;
+  }
+
+  .v4-decision {
+    padding: 13px;
+    border: 1px solid #dfe3eb;
+    border-radius: 11px;
+    color: #3b4659;
+    background: #fff;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 800;
+    text-align: center;
+  }
+
+  .v4-decision:hover,
+  .v4-decision.selected {
+    border-color: #5369e8;
+    color: #4056d6;
+    background: #e9edff;
+  }
+
+  svg.icon-v4 {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  @keyframes bottle-float {
+    0%,100% { transform: translateY(0) rotate(-3deg); }
+    50% { transform: translateY(-5px) rotate(3deg); }
+  }
+
+  @keyframes soft-pulse {
+    0% { transform: scale(.92); opacity: .7; }
+    75%,100% { transform: scale(1.16); opacity: 0; }
+  }
+
+  @keyframes online-pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(34,181,139,.3); }
+    50% { box-shadow: 0 0 0 4px rgba(34,181,139,0); }
+  }
+
+  @keyframes radar-pulse {
+    0% { transform: scale(.7); opacity: .9; }
+    100% { transform: scale(1.4); opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bottle-orbit,
+    .bottle-orbit::after,
+    .online-dot-v4,
+    .match-radar { animation: none; }
+  }
+
+  @media (max-width: 860px) {
+    .screens-v4 { grid-template-columns: 1fr; }
+    .phone-v4 { width: 330px; }
+  }
+</style>
+
+<svg width="0" height="0" aria-hidden="true" style="position:absolute">
+  <symbol id="x-bottle" viewBox="0 0 24 24"><path d="M10 3h4v4l2.4 3.4v7A3.6 3.6 0 0 1 12.8 21h-1.6a3.6 3.6 0 0 1-3.6-3.6v-7L10 7V3Z"/><path d="M9 12h6M10 3h4"/></symbol>
+  <symbol id="x-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5 5-2Z"/></symbol>
+  <symbol id="x-pin" viewBox="0 0 24 24"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+  <symbol id="x-sliders" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h3M11 12h9M4 18h8M16 18h4"/><circle cx="16" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="14" cy="18" r="2"/></symbol>
+  <symbol id="x-shuffle" viewBox="0 0 24 24"><path d="M4 7h3c5 0 5 10 10 10h3M17 14l3 3-3 3M4 17h3c2 0 3.2-1.5 4.3-3.2M14.5 9.6C15.3 8.1 16.1 7 18 7h2M17 4l3 3-3 3"/></symbol>
+  <symbol id="x-game" viewBox="0 0 24 24"><path d="M7.5 8h9a4 4 0 0 1 3.8 5.2l-1 3.1a2.5 2.5 0 0 1-4.1 1L13.8 16h-3.6l-1.4 1.3a2.5 2.5 0 0 1-4.1-1l-1-3.1A4 4 0 0 1 7.5 8Z"/><path d="M8 11v4M6 13h4M16.5 11.5h.01M18.5 14h.01"/></symbol>
+  <symbol id="x-question" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.4 2.4 0 0 1 4.6 1c0 1.7-2.4 2-2.4 3.7M12 17h.01"/></symbol>
+  <symbol id="x-bolt" viewBox="0 0 24 24"><path d="m13 2-8 12h7l-1 8 8-12h-7l1-8Z"/></symbol>
+  <symbol id="x-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M16 5a3 3 0 0 1 0 6M17 14a5 5 0 0 1 4 5"/></symbol>
+  <symbol id="x-invite" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M18 8v6M15 11h6"/></symbol>
+  <symbol id="x-plaza" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 9h10M7 13h6M7 17h8"/></symbol>
+  <symbol id="x-message" viewBox="0 0 24 24"><path d="M4 5h16v12H9l-5 4V5Z"/><path d="M8 10h8M8 14h5"/></symbol>
+  <symbol id="x-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 21a7 7 0 0 1 14 0"/></symbol>
+</svg>
+
+<div class="v4-page">
+  <div class="v4-head">
+    <h2>第四版：发现人和找玩伴，分成两个明确场景</h2>
+    <p class="subtitle">沿用你刚才点击的靛蓝与珊瑚方向。遇见页负责“发现谁”，玩法页负责“和谁一起玩”；筛选不再藏进一个含糊入口。</p>
+    <div class="logic-strip"><span><b>遇见页：</b>推荐 / 同城 / 条件 / 随机</span><span><b>玩法页：</b>真心话 / 大冒险 + 1v1 / 多人 / 邀请</span></div>
+  </div>
+
+  <div class="screens-v4">
+    <section class="screen-column">
+      <div class="screen-label"><h3>遇见页</h3><span>搜索与发现分类细化</span></div>
+      <div class="phone-v4">
+        <header class="mini-nav-v4"><strong>遇见</strong><div class="wx-menu-v4"></div></header>
+        <div class="phone-scroll">
+          <span class="hello-line">内容优先，也可以更主动</span>
+          <h3 class="page-title-v4">今天想遇见怎样的人？</h3>
+          <p class="page-desc-v4">匿名漂流保留品牌主入口，找人方式单独分类。</p>
+
+          <section class="ocean-entry">
+            <div class="bottle-orbit"><svg class="icon-v4"><use href="#x-bottle"/></svg></div>
+            <div class="ocean-copy"><strong>先读一封漂流信</strong><span>从内容开始，不先判断外貌</span><button>去海边</button></div>
+            <span class="quota-badge-v4">15 次</span>
+          </section>
+
+          <div class="discover-head"><strong>搜索与发现</strong><span>选择一种找人方式</span></div>
+          <div class="discover-tabs">
+            <div class="discover-tab active"><svg class="icon-v4"><use href="#x-compass"/></svg>推荐</div>
+            <div class="discover-tab"><svg class="icon-v4"><use href="#x-pin"/></svg>同城<em></em></div>
+            <div class="discover-tab"><svg class="icon-v4"><use href="#x-sliders"/></svg>条件</div>
+            <div class="discover-tab"><svg class="icon-v4"><use href="#x-shuffle"/></svg>随机</div>
+          </div>
+
+          <div class="people-preview">
+            <div class="avatar-wrap"><img src="https://api.dicebear.com/9.x/notionists/svg?seed=island-letter&backgroundColor=e9edff" alt="用户头像"><i class="online-dot-v4"></i></div>
+            <div class="person-copy"><strong>海岛来信</strong><span>真人认证 · 杭州</span><small>共同话题：夜晚、散步、电影</small></div>
+            <span class="soft-action">看看</span>
+          </div>
+        </div>
+        <nav class="bottom-v4">
+          <div class="bottom-item-v4 active"><svg class="icon-v4"><use href="#x-bottle"/></svg><span>遇见</span></div><div class="bottom-item-v4"><svg class="icon-v4"><use href="#x-plaza"/></svg><span>广场</span></div><div class="bottom-item-v4"><svg class="icon-v4"><use href="#x-game"/></svg><span>玩法</span></div><div class="bottom-item-v4"><svg class="icon-v4"><use href="#x-message"/></svg><span>消息</span></div><div class="bottom-item-v4"><svg class="icon-v4"><use href="#x-user"/></svg><span>我的</span></div>
+        </nav>
+      </div>
+      <p class="screen-rule"><strong>页面职责：</strong>漂流瓶是内容相遇；推荐、同城、条件与随机是四种找人方式。每种方式进入后再展示对应筛选项。</p>
+    </section>
+
+    <section class="screen-column">
+      <div class="screen-label"><h3>玩法页</h3><span>游戏内容与找玩伴分开</span></div>
+      <div class="phone-v4">
+        <header class="mini-nav-v4"><strong>玩法</strong><div class="wx-menu-v4"></div></header>
+        <div class="phone-scroll">
+          <span class="hello-line">轻松破冰，不强迫社交</span>
+          <h3 class="page-title-v4">今晚想和谁一起玩？</h3>
+          <p class="page-desc-v4">先选玩法，再选择 1v1、多人或邀请认识的人。</p>
+
+          <section class="game-hero-v4"><strong>真心话与大冒险</strong><span>公共题库、私密题库与自定义内容分层展示</span><svg class="icon-v4"><use href="#x-game"/></svg></section>
+          <div class="play-modes"><div class="play-mode"><svg class="icon-v4"><use href="#x-question"/></svg>真心话</div><div class="play-mode"><svg class="icon-v4"><use href="#x-bolt"/></svg>大冒险</div></div>
+
+          <h4 class="partner-title">找玩伴</h4>
+          <div class="partner-grid">
+            <div class="partner-card primary"><strong>1v1 快速匹配</strong><span>按性别、年龄和玩法偏好匹配</span><div class="avatar-stack"><img src="https://api.dicebear.com/9.x/notionists/svg?seed=player-a&backgroundColor=ffffff" alt="玩伴头像"><img src="https://api.dicebear.com/9.x/notionists/svg?seed=player-b&backgroundColor=ffffff" alt="玩伴头像"></div><i class="match-radar"></i></div>
+            <div class="partner-card"><strong>多人房间</strong><span>主题房与邀请制房间</span><svg class="icon-v4"><use href="#x-users"/></svg></div>
+            <div class="partner-card"><strong>邀请好友</strong><span>从已有会话中邀请</span><svg class="icon-v4"><use href="#x-invite"/></svg></div>
+          </div>
+        </div>
+        <nav class="bottom-v4">
+          <div class="bottom-item-v4"><svg class="icon-v4"><use href="#x-bottle"/></svg><span>遇见</span></div><div class="bottom-item-v4"><svg class="icon-v4"><use href="#x-plaza"/></svg><span>广场</span></div><div class="bottom-item-v4 active"><svg class="icon-v4"><use href="#x-game"/></svg><span>玩法</span></div><div class="bottom-item-v4"><svg class="icon-v4"><use href="#x-message"/></svg><span>消息</span></div><div class="bottom-item-v4"><svg class="icon-v4"><use href="#x-user"/></svg><span>我的</span></div>
+        </nav>
+      </div>
+      <p class="screen-rule"><strong>页面职责：</strong>游戏页不再重复“附近的人”；它只负责选择玩法和找玩伴。1v1 匹配可复用遇见页的条件组件，但业务来源记录为游戏。</p>
+    </section>
+  </div>
+
+  <div class="v4-decisions options">
+    <div class="v4-decision option" data-choice="v4-split-approved" onclick="toggleSelect(this)">两个页面的职责和细分类别正确</div>
+    <div class="v4-decision option" data-choice="v4-split-revise" onclick="toggleSelect(this)">分类仍需调整</div>
+  </div>
+</div>

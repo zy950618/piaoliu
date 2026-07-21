@@ -5,7 +5,7 @@ export const quotaLabels: Record<QuotaType, string> = {
   throw_bottle: '扔瓶',
   truth: '真心话',
   dare: '大冒险',
-  treehole_post: '树洞'
+  treehole_post: '历史留言'
 }
 
 export const quotaFullLabels: Record<QuotaType, string> = {
@@ -13,7 +13,7 @@ export const quotaFullLabels: Record<QuotaType, string> = {
   throw_bottle: '扔瓶子',
   truth: '真心话',
   dare: '大冒险',
-  treehole_post: '树洞发布'
+  treehole_post: '历史留言'
 }
 
 export const defaultBaseQuotas: Record<QuotaType, number> = {

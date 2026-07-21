@@ -104,6 +104,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
+import { AGE_FILTER_MAX, AGE_FILTER_MIN } from '@/constants/filters'
 
 export interface ExploreFilterValue {
   city: string
@@ -131,14 +132,15 @@ const emit = defineEmits<{
 const cities = computed(() => props.cityOptions || ['全国', '同城', '附近'])
 const genders = ['全部', '女', '男']
 const ageRanges = ['全部', '18-24', '25-30', '31-36', '37+']
-const AGE_MIN = 18
-const AGE_MAX = 80
+const AGE_MIN = AGE_FILTER_MIN
+const AGE_MAX = AGE_FILTER_MAX
 
 const cityIndex = computed(() => Math.max(0, cities.value.indexOf(props.modelValue.city)))
 const genderIndex = computed(() => Math.max(0, genders.indexOf(props.modelValue.gender)))
 const ageIndex = computed(() => Math.max(0, ageRanges.indexOf(props.modelValue.ageRange)))
 const activeAgeThumb = ref<'min' | 'max' | null>(null)
 let ageTrackRect: DOMRect | undefined
+type AgePointerEvent = MouseEvent | TouchEvent | (Event & { detail?: { clientX?: number; x?: number } })
 const ageBounds = computed(() => parseAgeRange(props.modelValue.ageRange))
 const ageMin = computed(() => ageBounds.value.min)
 const ageMax = computed(() => ageBounds.value.max)
@@ -162,7 +164,7 @@ function onAgeChange(event: { detail: { value: number } }) {
   update({ ageRange: ageRanges[event.detail.value] || ageRanges[0] })
 }
 
-function startAgeDrag(thumb: 'min' | 'max', event: any) {
+function startAgeDrag(thumb: 'min' | 'max', event: AgePointerEvent) {
   event.preventDefault?.()
   event.stopPropagation?.()
   ageTrackRect = getAgeTrackRect(event)
@@ -176,7 +178,7 @@ function startAgeDrag(thumb: 'min' | 'max', event: any) {
   window.addEventListener('touchcancel', endAgeDrag)
 }
 
-function setNearestAge(event: any) {
+function setNearestAge(event: AgePointerEvent) {
   if (activeAgeThumb.value) return
   ageTrackRect = getAgeTrackRect(event)
   const age = getAgeFromPointer(event)
@@ -185,7 +187,7 @@ function setNearestAge(event: any) {
   ageTrackRect = undefined
 }
 
-function moveAgeDrag(event: any) {
+function moveAgeDrag(event: AgePointerEvent) {
   if (!activeAgeThumb.value) return
   event.preventDefault?.()
   updateAgeFromPointer(activeAgeThumb.value, event)
@@ -202,7 +204,7 @@ function endAgeDrag() {
   window.removeEventListener('touchcancel', endAgeDrag)
 }
 
-function updateAgeFromPointer(thumb: 'min' | 'max', event: any) {
+function updateAgeFromPointer(thumb: 'min' | 'max', event: AgePointerEvent) {
   const age = getAgeFromPointer(event)
   if (thumb === 'min') {
     updateAgeRange(Math.min(age, ageMax.value), ageMax.value)
@@ -215,21 +217,27 @@ function updateAgeRange(min: number, max: number) {
   update({ ageRange: `${min}-${max}` })
 }
 
-function getAgeFromPointer(event: any) {
-  const point = event.touches?.[0] || event.changedTouches?.[0] || event
+function getAgeFromPointer(event: AgePointerEvent) {
+  const point =
+    'touches' in event
+      ? event.touches[0] || event.changedTouches[0]
+      : 'clientX' in event
+        ? event
+        : undefined
   const rect = ageTrackRect || getAgeTrackRect(event)
   if (!rect || !rect.width) return ageMin.value
-  const clientX = point.clientX ?? point.pageX ?? event.detail?.clientX ?? event.detail?.x ?? rect.left
+  const detail = 'detail' in event && typeof event.detail === 'object' ? event.detail : undefined
+  const clientX = point?.clientX ?? point?.pageX ?? detail?.clientX ?? detail?.x ?? rect.left
   const percent = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
   return Math.round(AGE_MIN + percent * (AGE_MAX - AGE_MIN))
 }
 
-function getAgeTrackRect(event: any) {
+function getAgeTrackRect(event: AgePointerEvent) {
   const track =
-    event.target?.closest?.('.age-range-track') ||
-    event.currentTarget?.querySelector?.('.age-range-track') ||
-    event.currentTarget
-  return track?.getBoundingClientRect?.()
+    (event.target instanceof Element ? event.target.closest('.age-range-track') : undefined) ||
+    (event.currentTarget instanceof Element ? event.currentTarget.querySelector('.age-range-track') : undefined) ||
+    (event.currentTarget instanceof Element ? event.currentTarget : undefined)
+  return track?.getBoundingClientRect()
 }
 
 onBeforeUnmount(() => {

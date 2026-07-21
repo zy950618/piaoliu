@@ -401,7 +401,7 @@ function toTreeholePost(dto: TreeholePostDto): TreeholePost {
   return {
     id: dto.id,
     authorId: dto.author_id,
-    authorName: dto.author_name || '匿名树洞',
+    authorName: dto.author_name || '匿名留言',
     authorAvatarText: dto.author_avatar_text || '匿',
     authorAvatarUrl: dto.author_avatar_url,
     authorGender: dto.author_gender || 'unknown',

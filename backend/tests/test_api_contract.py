@@ -28,7 +28,7 @@ def test_me_status_contains_quota_and_reward_state():
     data = response.json()
     assert data["user"]["id"].isdigit()
     assert "fish_bottle" in data["quotas"]
-    assert data["ad_reward"]["reward_per_quota"] == 10
+    assert data["ad_reward"]["reward_per_quota"] == 1
     assert data["checkin"]["week_rewards"] == [10, 10, 30, 10, 10, 30, 100]
 
 

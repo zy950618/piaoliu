@@ -1,6 +1,6 @@
 ﻿import type { AdminDashboard, AdminRewardConfigDraft, ContentStatus, ConversationTurn } from '@/types/domain'
+import { API_BASE_URL } from '@/services/http'
 
-const API_BASE_URL = 'http://127.0.0.1:8100'
 let token = ''
 let currentAdmin: { username: string; roles: string[] } | undefined
 
@@ -228,7 +228,7 @@ function formatTargetTypeLabel(type: ReportDto['target_type']) {
     {
       user: '用户',
       bottle: '漂流瓶',
-      treehole: '树洞',
+      treehole: '历史留言',
       reply: '回应',
       chat: '私信聊天',
       plaza: '广场',
@@ -531,7 +531,7 @@ export const adminApi = {
         baseQuotas: rewardConfig.base_quotas as AdminDashboard['rewardConfig']['baseQuotas'],
         adCooldownMinutes: rewardConfig.ad_cooldown_minutes,
         adRewardPerQuota: rewardConfig.ad_reward_per_quota,
-        adReward: `每次+${rewardConfig.ad_reward_per_quota}金币`,
+        adReward: `所有玩法各 +${rewardConfig.ad_reward_per_quota} 次`,
         checkinRewards: rewardConfig.checkin_rewards,
         adDisplayType: rewardConfig.ad_display_type,
         adProvider: rewardConfig.ad_provider,
@@ -548,7 +548,7 @@ export const adminApi = {
           throw_bottle: '扔瓶',
           truth: '真心话',
           dare: '大冒险',
-          treehole_post: '树洞投稿'
+          treehole_post: '历史留言'
         }
       },
       users: users.map((item) => ({

@@ -28,7 +28,7 @@
     <view class="section panel video-panel">
       <view class="video-copy">
         <text class="h2">看视频领取次数</text>
-        <text class="muted">完整看完一次，金币 +1，所有玩法次数各 +{{ app.adReward?.rewardPerQuota || 10 }}</text>
+        <text class="muted">完整看完一次，金币 +1，所有玩法次数各 +{{ app.adReward?.rewardPerQuota || 1 }}</text>
       </view>
       <view class="reward-status">{{ app.adCountdownText }}</view>
       <view class="button video-button" :class="{ disabled: !app.adReward?.canWatch || adWatching }" @tap="watchVideoAd">

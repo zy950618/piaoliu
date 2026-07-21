@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>遇见 → 消息 · 交互适配预览 V4</title>
+  <style>
+    :root{
+      --page:#081421;
+      --shell:#f7fafc;
+      --white:#fff;
+      --ink:#172536;
+      --muted:#7d8da0;
+      --line:#e7edf2;
+      --brand:#358ba9;
+      --brand-strong:#0071e3;
+      --brand-soft:#e4f3f7;
+      --purple:#775b9f;
+      --purple-soft:#f1ecf8;
+      --coral:#ef6467;
+      --ease:cubic-bezier(.22,1,.36,1);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;min-width:1180px;color:#eef6ff;background:var(--page);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+    button{font:inherit}
+    .stage{display:grid;grid-template-columns:430px minmax(0,660px);align-items:center;justify-content:center;gap:72px;min-height:100vh;padding:34px}
+    .phone{position:relative;width:390px;height:790px;overflow:hidden;border:7px solid #152131;border-radius:34px;background:var(--shell);box-shadow:0 14px 30px rgba(0,0,0,.3)}
+    .phone:before{position:absolute;top:8px;left:50%;z-index:50;width:92px;height:23px;border-radius:999px;background:#152131;transform:translateX(-50%);content:""}
+    .viewport{position:absolute;inset:0 0 66px;overflow:hidden;background:var(--shell)}
+    .view{position:absolute;inset:0;overflow:hidden;opacity:0;pointer-events:none;transform:translateX(34px);transition:transform .24s var(--ease),opacity .18s ease-out}
+    .view.active{z-index:2;opacity:1;pointer-events:auto;transform:none}
+    .view.exit-left{opacity:0;transform:translateX(-22px)}
+    .statusbar{position:absolute;top:12px;right:20px;left:20px;z-index:5;display:flex;align-items:center;justify-content:space-between;height:18px;font-size:10px;font-weight:750}
+    .status-icons{display:flex;align-items:center;gap:4px}.status-icons i{width:3px;height:3px;border-radius:50%;background:currentColor}.status-icons b{display:block;width:14px;height:7px;border:1.5px solid currentColor;border-radius:2px}
+    .encounter{color:white;background:#d9eef5}
+    .encounter-bg{position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.02) 42%,rgba(8,32,51,.52)),url("https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=900&q=88") center/cover no-repeat;transform:scale(1.02);transition:transform 5s linear}
+    .encounter.active .encounter-bg{transform:scale(1.055)}
+    .encounter-content{position:relative;z-index:2;height:100%;padding:47px 24px 26px;text-shadow:0 2px 10px rgba(10,33,50,.34)}
+    .encounter-top{display:flex;align-items:center;justify-content:space-between}.encounter-top h2{margin:0;font-size:23px}.settings{display:grid;place-items:center;width:34px;height:34px;border:0;border-radius:50%;color:white;background:rgba(10,34,52,.18);backdrop-filter:blur(4px)}.settings svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+    .sea-state{position:absolute;right:24px;bottom:224px;left:24px;text-align:center}.sea-state strong{display:block;font-size:16px}.sea-state span{display:block;margin-top:10px;font-size:13px;color:rgba(255,255,255,.87)}
+    .pulse-dot{width:5px;height:5px;margin:0 auto 13px;border-radius:50%;background:white;box-shadow:0 0 0 6px rgba(255,255,255,.13);animation:breathe 2.8s ease-in-out infinite}
+    .sea-actions{position:absolute;right:44px;bottom:94px;left:44px;display:flex;align-items:flex-end;justify-content:space-between}.sea-action{border:0;color:white;background:transparent;text-align:center}.sea-action i{display:grid;place-items:center;width:58px;height:58px;margin:0 auto 8px;border-radius:50%;background:rgba(255,255,255,.94);color:var(--brand-strong);box-shadow:0 5px 12px rgba(0,0,0,.16);transition:transform .12s ease-out}.sea-action.throw i{background:#5267e7;color:white}.sea-action:active i{transform:scale(.94)}.sea-action svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.sea-action span{font-size:12px;font-weight:750;text-shadow:0 2px 6px rgba(0,0,0,.36)}
+
+    .light-view{color:var(--ink);background:linear-gradient(180deg,#eff8fb 0,#f8fafc 128px,#fff 260px)}
+    .screen-pad{height:100%;padding:48px 18px 16px;overflow-y:auto;scrollbar-width:none}.screen-pad::-webkit-scrollbar{display:none}
+    .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:17px}.topbar h2{margin:0;font-size:25px;letter-spacing:-.02em}.round-action{display:grid;place-items:center;width:36px;height:36px;border:0;border-radius:50%;color:white;background:var(--brand-strong);font-size:24px;line-height:1;box-shadow:0 4px 8px rgba(0,0,0,.1);transition:transform .12s ease-out}.round-action:active{transform:scale(.94)}
+    .quick-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:0 -2px 21px;padding:11px 7px 13px;border-bottom:1px solid rgba(53,139,169,.13)}
+    .quick-item{position:relative;border:0;color:var(--ink);background:transparent;text-align:center}.quick-icon{display:grid;place-items:center;width:42px;height:42px;margin:0 auto 7px;border-radius:13px;color:var(--brand);background:var(--brand-soft);transition:transform .12s ease-out,background .16s ease-out}.quick-item:active .quick-icon{transform:scale(.94)}.quick-item:nth-child(2) .quick-icon{color:var(--brand-strong);background:#e8f1ff}.quick-item:nth-child(3) .quick-icon{color:var(--purple);background:var(--purple-soft)}.quick-icon svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.quick-item label{display:block;font-size:11px}.badge{position:absolute;top:-4px;right:19px;display:grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;color:white;background:var(--coral);font-size:9px;font-weight:800;transition:transform .2s var(--ease),opacity .2s}.badge.pop{animation:pop .28s var(--ease)}
+    .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}.section-head strong{font-size:15px}.section-head span{color:var(--muted);font-size:10px}
+    .threads{display:grid}.thread{position:relative;display:grid;grid-template-columns:48px minmax(0,1fr) auto;align-items:center;gap:11px;min-height:69px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .12s ease-out,transform .12s ease-out}.thread:active{background:#f5f9fb;transform:scale(.995)}.avatar{position:relative;width:46px;height:46px;overflow:hidden;border-radius:50%;background:linear-gradient(145deg,#55b5c1,#4c75b8)}.avatar:before{position:absolute;left:15px;top:9px;width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,.94);content:""}.avatar:after{position:absolute;left:9px;bottom:-3px;width:29px;height:25px;border-radius:18px 18px 5px 5px;background:rgba(255,255,255,.76);content:""}.group-avatar{overflow:visible;background:transparent}.group-avatar span{position:absolute;width:30px;height:30px;border:2px solid white;border-radius:50%;background:#427fc9}.group-avatar span:first-child{left:1px;top:2px}.group-avatar span:last-child{right:0;bottom:1px;background:#825ba7}.thread-main{min-width:0}.thread-line{display:flex;align-items:center;gap:6px;min-width:0}.thread-name{overflow:hidden;font-size:14px;font-weight:760;text-overflow:ellipsis;white-space:nowrap}.room-tag{flex:0 0 auto;padding:3px 6px;border-radius:999px;font-size:9px;font-weight:750}.room-tag.public{color:#1d67a9;background:#e5f1ff}.room-tag.private{color:#755298;background:#f0eafb}.preview{display:block;margin-top:5px;overflow:hidden;color:var(--muted);font-size:11px;text-overflow:ellipsis;white-space:nowrap}.meta{align-self:start;margin-top:17px;text-align:right}.time{display:block;color:#8795a5;font-size:9px}.unread{display:grid;place-items:center;min-width:18px;height:18px;margin:7px 0 0 auto;padding:0 5px;border-radius:999px;color:white;background:var(--coral);font-size:9px;font-weight:800}.room-new{animation:rowIn .3s var(--ease)}
+
+    .subview .screen-pad{padding-top:47px}.sub-top{display:grid;grid-template-columns:34px 1fr 34px;align-items:center;margin-bottom:16px}.back{display:grid;place-items:center;width:34px;height:34px;border:0;border-radius:50%;color:#31556c;background:#e8f2f5}.back svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.sub-top h2{margin:0;text-align:center;font-size:19px}.request-card{padding:15px 0;border-bottom:1px solid var(--line)}.request-head{display:flex;align-items:center;gap:10px}.request-head .avatar{width:43px;height:43px}.request-title{flex:1}.request-title strong{display:block;font-size:14px}.request-title span{display:block;margin-top:4px;color:var(--muted);font-size:10px}.request-room{margin:12px 0 0;padding:11px 12px;border-radius:12px;color:#34556a;background:#edf6f8;font-size:12px}.request-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:12px}.small-button{min-width:72px;height:32px;border:0;border-radius:999px;font-size:11px;font-weight:750}.small-button.ghost{color:#6e7f90;background:#eef2f5}.small-button.primary{color:white;background:var(--brand-strong)}
+
+    .chat-view{background:#f4f7fa}.chat-head{display:grid;grid-template-columns:34px 1fr 34px;align-items:center;padding:48px 16px 12px;border-bottom:1px solid var(--line);background:white;color:var(--ink)}.chat-head h2{margin:0;text-align:center;font-size:17px}.more{border:0;color:#5f7184;background:transparent;font-size:23px}.chat-body{display:grid;gap:15px;padding:20px 16px}.bubble-row{display:flex;align-items:flex-end;gap:8px}.bubble-row.me{justify-content:flex-end}.mini-avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(145deg,#55b5c1,#4c75b8)}.bubble{max-width:235px;padding:10px 12px;border-radius:13px 13px 13px 4px;color:#32485a;background:white;font-size:12px;line-height:1.5;box-shadow:0 2px 6px rgba(0,0,0,.05)}.me .bubble{border-radius:13px 13px 4px 13px;color:white;background:var(--brand)}.composer{position:absolute;right:0;bottom:0;left:0;display:grid;grid-template-columns:34px 1fr 56px;gap:8px;padding:10px 12px 14px;border-top:1px solid var(--line);background:white}.composer button,.composer input{height:34px;border:0;border-radius:17px}.composer button{color:#49677c;background:#edf3f6}.composer .send{color:white;background:var(--brand-strong);font-size:11px}.composer input{min-width:0;padding:0 13px;color:var(--ink);background:#f1f4f6;font-size:12px;outline:none}
+
+    .tabbar{position:absolute;right:0;bottom:0;left:0;z-index:20;display:grid;grid-template-columns:repeat(5,1fr);height:66px;border-top:1px solid rgba(15,23,42,.08);background:rgba(255,255,255,.96);box-shadow:0 -5px 12px rgba(0,0,0,.04);backdrop-filter:blur(10px);transition:transform .24s var(--ease),opacity .18s}.tabbar.hidden{opacity:0;pointer-events:none;transform:translateY(100%)}.tab{position:relative;border:0;color:#7b8b9d;background:transparent;font-size:9px}.tab:before{position:absolute;top:4px;left:50%;width:48px;height:46px;border-radius:15px;background:#edf5ff;opacity:0;transform:translateX(-50%) scale(.82);transition:opacity .18s,transform .22s var(--ease);content:""}.tab svg,.tab span{position:relative;z-index:1}.tab svg{display:block;width:21px;height:21px;margin:0 auto 4px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.tab.active{color:var(--brand-strong);font-weight:800}.tab.active:before{opacity:1;transform:translateX(-50%) scale(1)}
+
+    .backdrop{position:absolute;inset:0 0 66px;z-index:30;background:rgba(18,33,44,.25);opacity:0;pointer-events:none;transition:opacity .18s}.backdrop.open{opacity:1;pointer-events:auto}.sheet{position:absolute;right:0;bottom:0;left:0;z-index:31;padding:10px 18px 24px;border-radius:18px 18px 0 0;color:var(--ink);background:white;transform:translateY(105%);transition:transform .28s var(--ease)}.sheet.open{transform:none}.grab{width:36px;height:4px;margin:0 auto 15px;border-radius:999px;background:#dbe3e9}.sheet h3{margin:0 0 6px;font-size:17px}.sheet p{margin:0 0 16px;color:var(--muted);font-size:11px}.sheet-option{display:flex;align-items:center;gap:13px;width:100%;padding:12px 0;border:0;border-top:1px solid var(--line);color:var(--ink);background:white;text-align:left}.sheet-option i{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;color:var(--brand-strong);background:#e9f3ff;font-style:normal;font-size:20px}.sheet-option strong{display:block;font-size:13px}.sheet-option span{display:block;margin-top:4px;color:var(--muted);font-size:10px}
+    .toast{position:absolute;bottom:82px;left:50%;z-index:60;max-width:290px;padding:9px 13px;border-radius:999px;color:white;background:rgba(23,37,50,.91);font-size:11px;opacity:0;pointer-events:none;transform:translate(-50%,8px);transition:opacity .18s,transform .2s var(--ease);white-space:nowrap}.toast.show{opacity:1;transform:translate(-50%,0)}
+
+    .notes{align-self:center}.notes h1{margin:0;font-size:30px;letter-spacing:-.025em}.lead{max-width:600px;margin:12px 0 25px;color:#a7bacb;font-size:14px;line-height:1.7}.proof{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;margin-bottom:22px}.proof-item{padding:14px 15px;border-radius:12px;background:#0e2031}.proof-item strong{display:block;color:#eaf4fb;font-size:13px}.proof-item span{display:block;margin-top:6px;color:#8fa5b8;font-size:11px;line-height:1.55}.steps{padding:18px 20px;border-radius:14px;background:#0d1c2c}.steps h2{margin:0 0 13px;font-size:16px}.steps ol{margin:0;padding-left:20px;color:#a7bacb;font-size:13px;line-height:1.9}.steps li::marker{color:#64c8dc;font-weight:800}.palette{display:flex;gap:10px;margin-top:19px}.swatch{display:flex;align-items:center;gap:7px;color:#8fa5b8;font-size:10px}.swatch i{width:18px;height:18px;border-radius:6px}.decision{margin-top:18px;padding:12px 14px;border-radius:12px;color:#b9d9df;background:rgba(53,139,169,.13);font-size:12px;line-height:1.6}
+    @keyframes breathe{0%,100%{opacity:.65;transform:scale(.82)}50%{opacity:1;transform:scale(1)}}
+    @keyframes pop{0%{transform:scale(.7)}65%{transform:scale(1.15)}100%{transform:scale(1)}}
+    @keyframes rowIn{from{opacity:0;transform:translateY(-9px)}to{opacity:1;transform:none}}
+    @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}.encounter-bg{transform:none!important}}
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <section class="phone" aria-label="遇见到消息交互手机预览">
+      <div class="viewport">
+        <section id="encounter" class="view encounter active">
+          <div class="encounter-bg"></div>
+          <div class="statusbar"><span>21:18</span><div class="status-icons"><i></i><i></i><b></b></div></div>
+          <div class="encounter-content">
+            <div class="encounter-top"><h2>遇见</h2><button class="settings" onclick="showToast('偏好设置')"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M7 14v6"/></svg></button></div>
+            <div class="sea-state"><div class="pulse-dot"></div><strong>63 个故事正在海上漂流</strong><span>他们在期待与你相遇</span></div>
+            <div class="sea-actions"><button class="sea-action" onclick="showToast('正在替你寻找一封信…')"><i><svg viewBox="0 0 24 24"><path d="M6 19c4-9 8-9 12 0M8 15l-2-6 6 2M16 15l2-6-6 2"/></svg></i><span>捞一个</span></button><button class="sea-action throw" onclick="showToast('写漂流瓶')"><i><svg viewBox="0 0 24 24"><path d="m5 19 3.5-.8L19 7.7 16.3 5 5.8 15.5 5 19Z"/><path d="m14.8 6.5 2.7 2.7"/></svg></i><span>扔一个</span></button></div>
+          </div>
+        </section>
+
+        <section id="messages" class="view light-view">
+          <div class="statusbar"><span>21:18</span><div class="status-icons"><i></i><i></i><b></b></div></div>
+          <div class="screen-pad">
+            <div class="topbar"><h2>消息</h2><button class="round-action" onclick="toggleSheet(true)">＋</button></div>
+            <div class="quick-strip">
+              <button class="quick-item" onclick="showToast('互动通知将在下一轮设计')"><div class="quick-icon"><svg viewBox="0 0 24 24"><path d="M5 6.5h14v10H9l-4 3v-13Z"/><path d="M8 10h8M8 13h5"/></svg></div><label>互动通知</label><span class="badge">3</span></button>
+              <button class="quick-item" onclick="openView('requests')"><div class="quick-icon"><svg viewBox="0 0 24 24"><path d="M12 21s7-3.8 7-10V5l-7-2-7 2v6c0 6.2 7 10 7 10Z"/><path d="M9 11h6M12 8v6"/></svg></div><label>邀请与申请</label><span id="requestBadge" class="badge">1</span></button>
+              <button class="quick-item" onclick="showToast('暂无新的系统通知')"><div class="quick-icon"><svg viewBox="0 0 24 24"><path d="M6 9a6 6 0 0 1 12 0v5l2 2H4l2-2V9Z"/><path d="M10 19h4"/></svg></div><label>系统通知</label></button>
+            </div>
+            <div class="section-head"><strong>最近会话</strong><span>按最近互动排序</span></div>
+            <div id="threadList" class="threads">
+              <div class="thread" onclick="openChat()"><div class="avatar"></div><div class="thread-main"><div class="thread-line"><span class="thread-name">小雨</span></div><span class="preview">刚刚那句话，我认真看了很久</span></div><div class="meta"><span class="time">21:16</span><span class="unread">2</span></div></div>
+              <div class="thread"><div class="avatar group-avatar"><span></span><span></span></div><div class="thread-main"><div class="thread-line"><span class="thread-name">深夜故事</span><span class="room-tag private">私密 · 6人</span></div><span class="preview">阿澈：今晚还有人醒着吗</span></div><div class="meta"><span class="time">21:09</span><span class="unread">5</span></div></div>
+              <div class="thread"><div class="avatar" style="background:linear-gradient(145deg,#d08c8d,#8a68a2)"></div><div class="thread-main"><div class="thread-line"><span class="thread-name">阿澈</span></div><span class="preview">[图片] 海边刚拍到的月亮</span></div><div class="meta"><span class="time">20:42</span></div></div>
+              <div class="thread"><div class="avatar group-avatar"><span style="background:#3f8cae"></span><span style="background:#63a488"></span></div><div class="thread-main"><div class="thread-line"><span class="thread-name">海风夜谈</span><span class="room-tag public">公开 · 12人</span></div><span class="preview">新加入了 2 位成员</span></div><div class="meta"><span class="time">19:58</span></div></div>
+              <div class="thread"><div class="avatar" style="background:linear-gradient(145deg,#9eb582,#5a8690)"></div><div class="thread-main"><div class="thread-line"><span class="thread-name">林一</span></div><span class="preview">周末也许可以再聊一会儿</span></div><div class="meta"><span class="time">昨天</span></div></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="requests" class="view light-view subview">
+          <div class="statusbar"><span>21:18</span><div class="status-icons"><i></i><i></i><b></b></div></div>
+          <div class="screen-pad"><div class="sub-top"><button class="back" onclick="openView('messages')"><svg viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg></button><h2>邀请与申请</h2><span></span></div>
+            <div class="section-head"><strong>待处理</strong><span id="pendingText">1 项</span></div>
+            <article id="roomRequest" class="request-card"><div class="request-head"><div class="avatar" style="background:linear-gradient(145deg,#789bb1,#72547f)"></div><div class="request-title"><strong>阿澈邀请你加入房间</strong><span>2 分钟前</span></div></div><div class="request-room">私密房 · 「凌晨故事房」 · 当前 4 人</div><div class="request-actions"><button class="small-button ghost" onclick="rejectRoom()">拒绝</button><button class="small-button primary" onclick="acceptRoom()">同意</button></div></article>
+          </div>
+        </section>
+
+        <section id="chat" class="view chat-view">
+          <div class="statusbar"><span>21:18</span><div class="status-icons"><i></i><i></i><b></b></div></div>
+          <div class="chat-head"><button class="back" onclick="openView('messages')"><svg viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg></button><h2>小雨</h2><button class="more" onclick="showToast('免打扰 · 清空 · 删除 · 举报 · 拉黑')">···</button></div>
+          <div class="chat-body"><div class="bubble-row"><div class="mini-avatar"></div><div class="bubble">刚刚那句话，我认真看了很久。你现在好一点了吗？</div></div><div class="bubble-row me"><div class="bubble">好多了，谢谢你认真回复我。</div></div><div class="bubble-row"><div class="mini-avatar"></div><div class="bubble">那就好，今晚的海风应该很轻。</div></div></div>
+          <div class="composer"><button onclick="showToast('图片 · 闪照 · 视频 · 房间')">＋</button><input placeholder="说点什么…" /><button class="send" onclick="showToast('消息已发送')">发送</button></div>
+        </section>
+      </div>
+
+      <nav id="tabbar" class="tabbar">
+        <button class="tab active" data-tab="encounter" onclick="switchMain('encounter')"><svg viewBox="0 0 24 24"><path d="M6 17c4-9 8-9 12 0M8 14l-2-5 5 2M16 14l2-5-5 2"/></svg><span>遇见</span></button>
+        <button class="tab" onclick="showToast('广场保持白色产品壳')"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="3"/><path d="m5 16 5-5 4 3 3-3 3 3"/></svg><span>广场</span></button>
+        <button class="tab" onclick="showToast('玩法保持白色产品壳')"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="4"/><path d="M8 12h4M10 10v4M16 10h.01M18 13h.01"/></svg><span>玩法</span></button>
+        <button class="tab" data-tab="messages" onclick="switchMain('messages')"><svg viewBox="0 0 24 24"><path d="M5 6.5h14v10H9l-4 3v-13Z"/><path d="M8 10h8M8 13h5"/></svg><span>消息</span></button>
+        <button class="tab" onclick="showToast('我的保持白色产品壳')"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg><span>我的</span></button>
+      </nav>
+      <div id="backdrop" class="backdrop" onclick="toggleSheet(false)"></div>
+      <section id="sheet" class="sheet"><div class="grab"></div><h3>创建新的房间</h3><p>公开性和人数会在下一步分别选择。</p><button class="sheet-option" onclick="showToast('进入创建房间流程');toggleSheet(false)"><i>⌂</i><span><strong>创建房间</strong><span>公开或私密 · 一对一或多人</span></span></button></section>
+      <div id="toast" class="toast"></div>
+    </section>
+
+    <aside class="notes">
+      <h1>不是换颜色，是保持同一个产品壳</h1>
+      <p class="lead">遇见页可以使用真实海景承担情绪，但消息、设置和列表属于任务页面，应回到白色产品壳。底部导航、主蓝色和交互节奏保持连续，用户才会感觉从“发现”自然进入“关系”。</p>
+      <div class="proof">
+        <div class="proof-item"><strong>白色底栏始终不变</strong><span>切换页面时导航位置、图标和选中背景共享，不产生进入另一个应用的割裂感。</span></div>
+        <div class="proof-item"><strong>品牌色来自主页</strong><span>`#358ba9` 海蓝用于关系状态，`#0071e3` 用于主操作，珊瑚色只用于未读。</span></div>
+        <div class="proof-item"><strong>动效只解释状态</strong><span>页面切换 240ms，按钮按压 120ms，申请通过后角标消失并插入房间会话。</span></div>
+        <div class="proof-item"><strong>深色只留给情绪内容</strong><span>海景、闪照等内容可沉浸；消息列表不使用整屏深蓝，保证长期阅读舒适。</span></div>
+      </div>
+      <section class="steps"><h2>请按这个顺序体验</h2><ol><li>点击底部“消息”，感受海景到白色消息页的过渡。</li><li>点击“邀请与申请”，同意加入房间。</li><li>返回后查看新房间进入最近会话、角标消失。</li><li>点击“小雨”进入普通私聊，再返回消息列表。</li><li>点击右上角“＋”，查看创建房间入口。</li></ol></section>
+      <div class="palette"><span class="swatch"><i style="background:#f7fafc"></i>产品白</span><span class="swatch"><i style="background:#358ba9"></i>海蓝</span><span class="swatch"><i style="background:#0071e3"></i>操作蓝</span><span class="swatch"><i style="background:#775b9f"></i>私密紫</span><span class="swatch"><i style="background:#ef6467"></i>未读珊瑚</span></div>
+      <div class="decision">当前建议：以浅色消息页作为最终基底。遇见主页保留海边画面，消息页不复制背景图，而是复用白色导航、海蓝品牌色和自然交互动效。</div>
+    </aside>
+  </main>
+  <script>
+    let currentView='encounter';
+    let toastTimer;
+    function openView(id){
+      const next=document.getElementById(id); if(!next||id===currentView)return;
+      const prev=document.getElementById(currentView); prev?.classList.remove('active'); prev?.classList.add('exit-left');
+      window.setTimeout(()=>prev?.classList.remove('exit-left'),260);
+      next.classList.add('active'); currentView=id;
+      document.getElementById('tabbar').classList.toggle('hidden',id==='chat'||id==='requests');
+    }
+    function switchMain(id){
+      openView(id);
+      document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab.dataset.tab===id));
+    }
+    function openChat(){openView('chat')}
+    function toggleSheet(open){document.getElementById('sheet').classList.toggle('open',open);document.getElementById('backdrop').classList.toggle('open',open)}
+    function showToast(text){const toast=document.getElementById('toast');toast.textContent=text;toast.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove('show'),1600)}
+    function acceptRoom(){
+      const card=document.getElementById('roomRequest'); card.style.opacity='0'; card.style.transform='translateY(-8px)';
+      setTimeout(()=>{card.remove();document.getElementById('pendingText').textContent='暂无待处理';const badge=document.getElementById('requestBadge');badge.style.opacity='0';badge.style.transform='scale(.6)'},180);
+      const list=document.getElementById('threadList');
+      if(!document.getElementById('newRoom')){
+        const row=document.createElement('div');row.id='newRoom';row.className='thread room-new';row.innerHTML='<div class="avatar group-avatar"><span style="background:#527fa3"></span><span style="background:#7b6096"></span></div><div class="thread-main"><div class="thread-line"><span class="thread-name">凌晨故事房</span><span class="room-tag private">私密 · 5人</span></div><span class="preview">你已加入房间，和大家打个招呼吧</span></div><div class="meta"><span class="time">刚刚</span></div>';list.prepend(row);
+      }
+      showToast('已加入「凌晨故事房」');setTimeout(()=>openView('messages'),620);
+    }
+    function rejectRoom(){document.getElementById('roomRequest').remove();document.getElementById('pendingText').textContent='暂无待处理';document.getElementById('requestBadge').style.display='none';showToast('已拒绝，邀请者会收到提示')}
+  </script>
+</body>
+</html>

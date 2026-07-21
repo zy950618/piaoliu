@@ -156,6 +156,7 @@ import { computed, ref } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
 import GiftSheet from '@/components/GiftSheet.vue'
 import GiftSplash from '@/components/GiftSplash.vue'
+import { GIFT_CELEBRATION_DURATION_MS } from '@/constants/feedback'
 import { navigateTo, showToast } from '@/services/feedback'
 import { useAppStore } from '@/stores/app'
 import { useContentStore } from '@/stores/content'
@@ -321,7 +322,7 @@ function playGiftCelebration(gift: GiftProduct) {
   if (giftTimer) clearTimeout(giftTimer)
   giftTimer = setTimeout(() => {
     celebrationGift.value = undefined
-  }, 1300)
+  }, GIFT_CELEBRATION_DURATION_MS)
 }
 
 async function submitComment() {

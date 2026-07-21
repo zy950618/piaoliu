@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>消息中心 · 深海墨蓝操作预览 V3</title>
+  <style>
+    :root{--page:#081421;--shell:#f7fafc;--surface:#fff;--ink:#172536;--muted:#7d8da0;--line:#e7edf2;--sea:#358ba9;--blue:#0071e3;--purple:#775b9f;--coral:#ef6467;--ease:cubic-bezier(.22,1,.36,1)}
+    *{box-sizing:border-box}
+    body{margin:0;min-width:1120px;color:#eef6ff;background:var(--page);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+    button{font:inherit}
+    .stage{display:grid;grid-template-columns:420px minmax(0,620px);align-items:center;justify-content:center;gap:72px;min-height:100vh;padding:34px}
+    .phone{position:relative;width:390px;height:790px;overflow:hidden;border:7px solid #152131;border-radius:34px;background:var(--surface);box-shadow:0 14px 30px rgba(0,0,0,.3);color:var(--ink)}
+    .phone:before{position:absolute;top:8px;left:50%;z-index:40;width:92px;height:23px;border-radius:999px;background:#152131;transform:translateX(-50%);content:""}
+    .statusbar{position:absolute;top:13px;right:20px;left:20px;z-index:5;display:flex;align-items:center;justify-content:space-between;font-size:10px;font-weight:750}.status-icons{display:flex;align-items:center;gap:4px}.status-icons i{width:3px;height:3px;border-radius:50%;background:currentColor}.status-icons b{display:block;width:14px;height:7px;border:1.5px solid currentColor;border-radius:2px}
+    .screen{position:absolute;inset:0 0 66px;padding:48px 18px 20px;overflow:hidden;background:linear-gradient(180deg,#eff8fb 0,#f8fafc 128px,#fff 250px)}
+    .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:17px}.topbar h2{margin:0;font-size:25px;letter-spacing:-.02em}.topbar-balance{width:36px;height:36px}
+    .quick-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:0 -2px 20px;padding:10px 7px 13px;border-bottom:1px solid rgba(53,139,169,.13)}.quick-item{position:relative;border:0;color:var(--ink);background:transparent;text-align:center}.quick-icon{display:grid;place-items:center;width:40px;height:40px;margin:0 auto 7px;border-radius:12px;color:var(--sea);background:#e4f3f7}.quick-item:nth-child(2) .quick-icon{color:var(--blue);background:#e8f1ff}.quick-item:nth-child(3) .quick-icon{color:var(--purple);background:#f1ecf8}.quick-icon svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.quick-item label{display:block;font-size:11px}.badge{position:absolute;top:-4px;right:20px;display:grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;color:white;background:var(--coral);font-size:9px;font-weight:800}
+    .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}.section-head strong{font-size:15px}.section-head span{color:var(--muted);font-size:10px}
+    .list{height:470px;overflow-y:auto;scrollbar-width:none;touch-action:pan-y}.list::-webkit-scrollbar{display:none}
+    .swipe-row{position:relative;height:69px;overflow:hidden;border-bottom:1px solid var(--line);background:#172f39;touch-action:pan-y}.action-rail{position:absolute;inset:0 0 0 auto;display:flex;justify-content:flex-end;background:linear-gradient(110deg,#1e414c,#142b36)}.swipe-action{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;width:66px;border:0;border-left:1px solid rgba(230,244,247,.1);color:#d8e5e8;background:transparent;font-size:10px;font-weight:650;letter-spacing:.01em}.swipe-action svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}.swipe-action:active{background:rgba(255,255,255,.065)}.swipe-action.clear{color:#bfe8e9}.swipe-action.delete,.swipe-action.block,.swipe-action.exit{color:#efb8b4}.swipe-action.exit{width:84px}
+    .row-content{position:relative;z-index:2;display:grid;grid-template-columns:48px minmax(0,1fr) auto;align-items:center;gap:11px;height:69px;padding:0;background:white;transform:translateX(0);transition:transform .22s var(--ease);cursor:grab;user-select:none}.row-content.dragging{transition:none;cursor:grabbing}.avatar{position:relative;width:46px;height:46px;overflow:hidden;border-radius:50%;background:linear-gradient(145deg,#55b5c1,#4c75b8)}.avatar:before{position:absolute;left:15px;top:9px;width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,.94);content:""}.avatar:after{position:absolute;left:9px;bottom:-3px;width:29px;height:25px;border-radius:18px 18px 5px 5px;background:rgba(255,255,255,.76);content:""}.group-avatar{overflow:visible;background:transparent}.group-avatar span{position:absolute;width:30px;height:30px;border:2px solid white;border-radius:50%;background:#427fc9}.group-avatar span:first-child{left:1px;top:2px}.group-avatar span:last-child{right:0;bottom:1px;background:#825ba7}.thread-main{min-width:0}.thread-line{display:flex;align-items:center;gap:6px}.thread-name{overflow:hidden;font-size:14px;font-weight:760;text-overflow:ellipsis;white-space:nowrap}.room-tag,.state-tag{flex:0 0 auto;padding:3px 6px;border-radius:999px;font-size:9px;font-weight:750}.room-tag.public{color:#1d67a9;background:#e5f1ff}.room-tag.private{color:#755298;background:#f0eafb}.state-tag.blocked{color:#7c3b42;background:#fde9e9}.preview{display:block;margin-top:5px;overflow:hidden;color:var(--muted);font-size:11px;text-overflow:ellipsis;white-space:nowrap}.meta{align-self:start;margin-top:17px;text-align:right}.time{display:block;color:#8795a5;font-size:9px}.unread{display:grid;place-items:center;min-width:18px;height:18px;margin:7px 0 0 auto;padding:0 5px;border-radius:999px;color:white;background:var(--coral);font-size:9px;font-weight:800}.row-removing{animation:removeRow .24s var(--ease) forwards}
+    .tabbar{position:absolute;right:0;bottom:0;left:0;display:grid;grid-template-columns:repeat(5,1fr);height:66px;border-top:1px solid rgba(15,23,42,.08);background:#fff}.tab{position:relative;border:0;color:#7b8b9d;background:transparent;font-size:9px}.tab:before{position:absolute;top:4px;left:50%;width:48px;height:46px;border-radius:15px;background:#edf5ff;opacity:0;transform:translateX(-50%);content:""}.tab svg,.tab span{position:relative;z-index:1}.tab svg{display:block;width:21px;height:21px;margin:0 auto 4px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.tab.active{color:var(--blue);font-weight:800}.tab.active:before{opacity:1}
+    .backdrop{position:absolute;inset:0;z-index:50;background:rgba(15,31,39,.3);opacity:0;pointer-events:none;transition:opacity .18s}.backdrop.open{opacity:1;pointer-events:auto}.dialog{position:absolute;top:50%;left:50%;z-index:51;width:292px;padding:21px 18px 17px;border-radius:15px;background:#fff;box-shadow:0 8px 24px rgba(23,47,57,.15);opacity:0;pointer-events:none;transform:translate(-50%,-46%) scale(.98);transition:opacity .18s,transform .22s var(--ease)}.dialog.open{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}.dialog h3{margin:0;color:#172f39;font-size:15px;font-weight:720;line-height:1.45;text-wrap:balance}.dialog p{margin:8px 0 19px;color:#61737c;font-size:12px;line-height:1.55}.dialog-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}.dialog-actions button{height:39px;border:0;border-radius:10px;font-size:12px;font-weight:700}.cancel{color:#536a75;background:#eef3f4}.confirm{color:white;background:#204d59}.confirm.danger{background:#965359}
+    .chat-view{position:absolute;inset:0;z-index:35;color:var(--ink);background:#f4f7fa;opacity:0;pointer-events:none;transform:translateX(100%);transition:transform .24s var(--ease),opacity .16s}.chat-view.open{opacity:1;pointer-events:auto;transform:none}.chat-head{display:grid;grid-template-columns:36px 1fr 36px;align-items:center;padding:48px 16px 12px;border-bottom:1px solid var(--line);background:white}.chat-head h2{margin:0;text-align:center;font-size:17px}.chat-back,.chat-more{height:34px;border:0;color:#4f6578;background:transparent;font-size:20px}.chat-body{display:grid;gap:15px;padding:22px 16px}.chat-line{display:flex;align-items:flex-end;gap:8px}.chat-line.me{justify-content:flex-end}.mini-avatar{width:30px;height:30px;border-radius:50%;background:var(--sea)}.chat-bubble{max-width:235px;padding:10px 12px;border-radius:12px 12px 12px 4px;color:#334a5c;background:white;font-size:12px;line-height:1.5}.chat-line.me .chat-bubble{border-radius:12px 12px 4px 12px;color:white;background:var(--sea)}.composer{position:absolute;right:0;bottom:0;left:0;display:grid;grid-template-columns:36px 1fr 54px;gap:8px;padding:10px 12px 14px;border-top:1px solid var(--line);background:white}.composer button,.composer input{height:36px;border:0;border-radius:999px}.composer button{color:#4d6577;background:#edf2f5}.composer input{min-width:0;padding:0 13px;color:var(--ink);background:#f1f4f6;outline:none}.composer .send{color:white;background:var(--blue);font-size:11px}.chat-tools{position:absolute;right:0;bottom:60px;left:0;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:13px 14px 15px;border-top:1px solid var(--line);background:white;opacity:0;pointer-events:none;transform:translateY(12px);transition:opacity .18s,transform .22s var(--ease)}.chat-tools.open{opacity:1;pointer-events:auto;transform:none}.tool{display:grid;justify-items:center;gap:6px;border:0;color:#647789;background:transparent;font-size:10px}.tool i{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;color:var(--sea);background:#edf6f8;font-style:normal;font-size:17px}.tool.room i{color:var(--blue);background:#e8f1ff}
+    .toast{position:absolute;bottom:82px;left:50%;z-index:70;padding:9px 13px;border-radius:999px;color:white;background:rgba(23,37,50,.92);font-size:11px;opacity:0;pointer-events:none;transform:translate(-50%,8px);transition:opacity .18s,transform .2s var(--ease);white-space:nowrap}.toast.show{opacity:1;transform:translate(-50%,0)}
+    .notes h1{margin:0;font-size:29px;letter-spacing:-.02em}.lead{max-width:600px;margin:11px 0 22px;color:#a7bacb;font-size:14px;line-height:1.7}.matrix{display:grid;gap:10px}.matrix-row{display:grid;grid-template-columns:92px 1fr;gap:14px;padding:14px 15px;border-radius:12px;background:#0e2031}.matrix-row strong{font-size:13px}.matrix-row span{color:#92a8ba;font-size:11.5px;line-height:1.6}.matrix-row.room{background:#151b31}.howto{margin-top:18px;padding:17px 19px;border-radius:14px;background:#0d1c2c}.howto h2{margin:0 0 10px;font-size:16px}.howto ol{margin:0;padding-left:20px;color:#a7bacb;font-size:13px;line-height:1.9}.howto li::marker{color:#64c8dc;font-weight:800}.rule{margin-top:17px;padding:12px 14px;border-radius:12px;color:#b9d9df;background:rgba(53,139,169,.13);font-size:12px;line-height:1.6}
+    @keyframes removeRow{to{height:0;opacity:0;transform:translateY(-6px)}}
+    @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <section class="phone">
+      <div class="statusbar"><span>21:18</span><div class="status-icons"><i></i><i></i><b></b></div></div>
+      <div class="screen">
+        <div class="topbar"><h2>消息</h2><span class="topbar-balance" aria-hidden="true"></span></div>
+        <div class="quick-strip">
+          <button class="quick-item"><div class="quick-icon"><svg viewBox="0 0 24 24"><path d="M5 6.5h14v10H9l-4 3v-13Z"/><path d="M8 10h8M8 13h5"/></svg></div><label>互动通知</label><span class="badge">3</span></button>
+          <button class="quick-item"><div class="quick-icon"><svg viewBox="0 0 24 24"><path d="M12 21s7-3.8 7-10V5l-7-2-7 2v6c0 6.2 7 10 7 10Z"/><path d="M9 11h6M12 8v6"/></svg></div><label>邀请与申请</label><span class="badge">1</span></button>
+          <button class="quick-item"><div class="quick-icon"><svg viewBox="0 0 24 24"><path d="M6 9a6 6 0 0 1 12 0v5l2 2H4l2-2V9Z"/><path d="M10 19h4"/></svg></div><label>系统通知</label></button>
+        </div>
+        <div class="section-head"><strong>最近会话</strong><span>向左拖动查看操作</span></div>
+        <div id="list" class="list">
+          <article class="swipe-row" data-kind="direct" data-name="小雨" data-width="198">
+            <div class="action-rail"><button class="swipe-action clear" onclick="requestAction(this,'clear')">清空</button><button class="swipe-action delete" onclick="requestAction(this,'delete')">删除</button><button class="swipe-action block" onclick="requestAction(this,'block')">拉黑</button></div>
+            <div class="row-content"><div class="avatar"></div><div class="thread-main"><div class="thread-line"><span class="thread-name">小雨</span></div><span class="preview">刚刚那句话，我认真看了很久</span></div><div class="meta"><span class="time">21:16</span><span class="unread">2</span></div></div>
+          </article>
+          <article class="swipe-row" data-kind="room" data-name="深夜故事" data-width="150">
+            <div class="action-rail"><button class="swipe-action clear" onclick="requestAction(this,'clear')">清空</button><button class="swipe-action exit" onclick="requestAction(this,'exit')">退出房间</button></div>
+            <div class="row-content"><div class="avatar group-avatar"><span></span><span></span></div><div class="thread-main"><div class="thread-line"><span class="thread-name">深夜故事</span><span class="room-tag private">私密 · 6人</span></div><span class="preview">阿澈：今晚还有人醒着吗</span></div><div class="meta"><span class="time">21:09</span><span class="unread">5</span></div></div>
+          </article>
+          <article class="swipe-row" data-kind="direct" data-name="阿澈" data-width="198">
+            <div class="action-rail"><button class="swipe-action clear" onclick="requestAction(this,'clear')">清空</button><button class="swipe-action delete" onclick="requestAction(this,'delete')">删除</button><button class="swipe-action block" onclick="requestAction(this,'block')">拉黑</button></div>
+            <div class="row-content"><div class="avatar" style="background:linear-gradient(145deg,#d08c8d,#8a68a2)"></div><div class="thread-main"><div class="thread-line"><span class="thread-name">阿澈</span></div><span class="preview">[图片] 海边刚拍到的月亮</span></div><div class="meta"><span class="time">20:42</span></div></div>
+          </article>
+          <article class="swipe-row" data-kind="room" data-name="海风夜谈" data-width="150">
+            <div class="action-rail"><button class="swipe-action clear" onclick="requestAction(this,'clear')">清空</button><button class="swipe-action exit" onclick="requestAction(this,'exit')">退出房间</button></div>
+            <div class="row-content"><div class="avatar group-avatar"><span style="background:#3f8cae"></span><span style="background:#63a488"></span></div><div class="thread-main"><div class="thread-line"><span class="thread-name">海风夜谈</span><span class="room-tag public">公开 · 12人</span></div><span class="preview">新加入了 2 位成员</span></div><div class="meta"><span class="time">19:58</span></div></div>
+          </article>
+          <article class="swipe-row" data-kind="direct" data-name="林一" data-width="198">
+            <div class="action-rail"><button class="swipe-action clear" onclick="requestAction(this,'clear')">清空</button><button class="swipe-action delete" onclick="requestAction(this,'delete')">删除</button><button class="swipe-action block" onclick="requestAction(this,'block')">拉黑</button></div>
+            <div class="row-content"><div class="avatar" style="background:linear-gradient(145deg,#9eb582,#5a8690)"></div><div class="thread-main"><div class="thread-line"><span class="thread-name">林一</span></div><span class="preview">周末也许可以再聊一会儿</span></div><div class="meta"><span class="time">昨天</span></div></div>
+          </article>
+        </div>
+      </div>
+      <section id="chatView" class="chat-view" aria-label="个人聊天">
+        <div class="statusbar"><span>21:18</span><div class="status-icons"><i></i><i></i><b></b></div></div>
+        <div class="chat-head"><button class="chat-back" onclick="closeChat()" aria-label="返回">‹</button><h2 id="chatName">小雨</h2><button class="chat-more" onclick="showToast('免打扰 · 清空 · 删除 · 举报 · 拉黑')" aria-label="更多">···</button></div>
+        <div class="chat-body">
+          <div class="chat-line"><span class="mini-avatar"></span><div class="chat-bubble">刚刚那句话，我认真看了很久。</div></div>
+          <div class="chat-line me"><div class="chat-bubble">没关系，慢慢说就好。</div></div>
+        </div>
+        <div id="chatTools" class="chat-tools">
+          <button class="tool" onclick="showToast('选择图片')"><i>▧</i><span>图片</span></button>
+          <button class="tool" onclick="showToast('选择闪照')"><i>◉</i><span>闪照</span></button>
+          <button class="tool" onclick="showToast('选择视频')"><i>▷</i><span>视频</span></button>
+          <button class="tool room" onclick="showToast('进入私密房创建流程')"><i>⌂</i><span>房间</span></button>
+        </div>
+        <div class="composer"><button onclick="toggleChatTools()" aria-label="更多功能">＋</button><input placeholder="说点什么…" aria-label="消息内容"><button class="send" onclick="showToast('消息已发送')">发送</button></div>
+      </section>
+      <nav class="tabbar"><button class="tab"><svg viewBox="0 0 24 24"><path d="M6 17c4-9 8-9 12 0M8 14l-2-5 5 2M16 14l2-5-5 2"/></svg><span>遇见</span></button><button class="tab"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="3"/></svg><span>广场</span></button><button class="tab"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="4"/></svg><span>玩法</span></button><button class="tab active"><svg viewBox="0 0 24 24"><path d="M5 6.5h14v10H9l-4 3v-13Z"/></svg><span>消息</span></button><button class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg><span>我的</span></button></nav>
+      <div id="backdrop" class="backdrop" onclick="closeDialog()"></div>
+      <section id="dialog" class="dialog"><h3 id="dialogTitle"></h3><p id="dialogBody"></p><div class="dialog-actions"><button class="cancel" onclick="closeDialog()">取消</button><button id="confirmButton" class="confirm">确认</button></div></section>
+      <div id="toast" class="toast"></div>
+    </section>
+    <aside class="notes">
+      <h1>操作更安静，创建入口回到聊天</h1>
+      <p class="lead">左滑只负责管理当前会话，统一使用浅色操作层。消息列表不再放含义模糊的“＋”；私密房从聊天输入栏发起，公开房从广场房间入口创建。</p>
+      <div class="matrix"><div class="matrix-row"><strong>个人会话</strong><span>清空：删自己的历史，保留列表。删除：删自己的历史并移出列表，新消息可以重新出现。拉黑：保留关系和记录，只关闭发送。</span></div><div class="matrix-row room"><strong>房间会话</strong><span>清空：只删除自己的可见历史，仍留在房间。退出：删除自己的历史、撤销媒体访问，并且不能再次进入同一房间。</span></div><div class="matrix-row"><strong>共同原则</strong><span>其他用户的记录不受影响；退出成员以前发送的消息继续为房间其他成员保留。</span></div></div>
+      <section class="howto"><h2>验证动作</h2><ol><li>拖动“小雨”，查看安静的清空、删除、拉黑。</li><li>确认清空后预览归零，未读角标同步消失。</li><li>轻点个人会话进入聊天，再点输入栏“＋”展开图片、闪照、视频与房间。</li><li>拖动“深夜故事”，确认房间只有清空与退出。</li></ol></section>
+      <div class="rule">微信小程序触摸规则：水平位移超过约42px才打开操作；轻点进入聊天；一次只展开一行。私密房从聊天“＋”发起，公开房从广场创建。</div>
+    </aside>
+  </main>
+  <script>
+    let openRow=null,startX=0,startY=0,startOffset=0,dragging=false,activeRow=null,pendingAction=null,toastTimer;
+    document.querySelectorAll('.row-content').forEach(content=>{
+      content.addEventListener('pointerdown',event=>{
+        activeRow=content.closest('.swipe-row');startX=event.clientX;startY=event.clientY;startOffset=Number(activeRow.dataset.offset||0);dragging=false;content.setPointerCapture(event.pointerId);content.classList.add('dragging');
+      });
+      content.addEventListener('pointermove',event=>{
+        if(!activeRow)return;const dx=event.clientX-startX,dy=event.clientY-startY;if(Math.abs(dy)>Math.abs(dx)&&!dragging)return;if(Math.abs(dx)>5)dragging=true;if(!dragging)return;event.preventDefault();const max=Number(activeRow.dataset.width);const offset=Math.max(-max,Math.min(0,startOffset+dx));setOffset(activeRow,offset,false);
+      });
+      content.addEventListener('pointerup',()=>finishDrag());content.addEventListener('pointercancel',()=>finishDrag());
+    });
+    document.addEventListener('pointerdown',event=>{if(openRow&&!event.target.closest('.swipe-row'))closeRow(openRow)});
+    function finishDrag(){if(!activeRow)return;const row=activeRow,offset=Number(row.dataset.offset||0),wasDragging=dragging;row.querySelector('.row-content').classList.remove('dragging');if(offset<-42)openSwipe(row);else closeRow(row);activeRow=null;if(!wasDragging&&offset===0&&row.dataset.kind==='direct')openChat(row.dataset.name)}
+    function setOffset(row,offset,animate=true){const content=row.querySelector('.row-content');content.classList.toggle('dragging',!animate);content.style.transform=`translateX(${offset}px)`;row.dataset.offset=String(offset)}
+    function openSwipe(row){if(openRow&&openRow!==row)closeRow(openRow);setOffset(row,-Number(row.dataset.width));openRow=row}
+    function closeRow(row){if(!row)return;setOffset(row,0);if(openRow===row)openRow=null}
+    function requestAction(button,action){const row=button.closest('.swipe-row');pendingAction={row,action};const name=row.dataset.name,kind=row.dataset.kind;const title=document.getElementById('dialogTitle'),body=document.getElementById('dialogBody'),confirm=document.getElementById('confirmButton');confirm.className='confirm';
+      if(action==='clear'){title.textContent='清空聊天记录';body.textContent=kind==='room'?'仅清空你这边的房间记录，你仍然留在房间。':'仅清空你这边的记录，之后仍可继续聊天。';confirm.textContent='清空'}
+      if(action==='delete'){title.textContent='删除这段会话';body.textContent='会话将从消息列表移除。再次收到消息时会重新出现。';confirm.textContent='删除';confirm.classList.add('danger')}
+      if(action==='block'){title.textContent=`拉黑${name}`;body.textContent='拉黑后将无法互发消息，聊天记录会保留。';confirm.textContent='拉黑';confirm.classList.add('danger')}
+      if(action==='exit'){title.textContent=`退出${name}`;body.textContent='退出后记录将清空，并且无法再次加入。你发过的消息仍会保留在房间中。';confirm.textContent='退出房间';confirm.classList.add('danger')}
+      confirm.onclick=applyAction;document.getElementById('backdrop').classList.add('open');document.getElementById('dialog').classList.add('open');
+    }
+    function closeDialog(){document.getElementById('backdrop').classList.remove('open');document.getElementById('dialog').classList.remove('open');pendingAction=null}
+    function applyAction(){if(!pendingAction)return;const {row,action}=pendingAction,name=row.dataset.name;closeDialog();
+      if(action==='clear'){row.querySelector('.preview').textContent='暂无消息';row.querySelector('.unread')?.remove();closeRow(row);showToast('聊天记录已清空');return}
+      if(action==='block'){let line=row.querySelector('.thread-line');let tag=line.querySelector('.state-tag');if(!tag){tag=document.createElement('span');tag.className='state-tag blocked';line.appendChild(tag)}tag.textContent='已拉黑';row.querySelector('.preview').textContent='已拉黑，无法互发消息';closeRow(row);showToast('已拉黑');return}
+      row.classList.add('row-removing');setTimeout(()=>row.remove(),240);showToast(action==='exit'?`已退出「${name}」`:'会话已删除')
+    }
+    function openChat(name){closeRow(openRow);document.getElementById('chatName').textContent=name;document.getElementById('chatView').classList.add('open')}
+    function closeChat(){document.getElementById('chatView').classList.remove('open');document.getElementById('chatTools').classList.remove('open')}
+    function toggleChatTools(){document.getElementById('chatTools').classList.toggle('open')}
+    function showToast(text){const toast=document.getElementById('toast');toast.textContent=text;toast.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove('show'),1600)}
+  </script>
+</body>
+</html>

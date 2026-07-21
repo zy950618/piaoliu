@@ -3,7 +3,7 @@ dist
 docs
 output
 reports
-
+scripts
 dist-admin
 unpackage
 .hbuilderx

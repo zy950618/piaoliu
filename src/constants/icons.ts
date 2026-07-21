@@ -14,7 +14,7 @@ export type AppIconName =
 
 export const appIconText: Record<AppIconName, string> = {
   bottle: '瓶',
-  treehole: '树',
+  treehole: '留',
   plaza: '广',
   nearby: '近',
   wallet: '金',

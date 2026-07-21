@@ -1,0 +1,237 @@
+- main [ref=f7e2]:
+  - generic [ref=f7e3]:
+    - generic [ref=f7e4]: 21:18
+    - generic [ref=f7e10]:
+      - heading "消息" [level=2] [ref=f7e12]
+      - generic [ref=f7e14]:
+        - button "互动通知 3" [ref=f7e15] [cursor=pointer]:
+          - generic [ref=f7e20]: 互动通知
+          - generic [ref=f7e21]: "3"
+        - button "邀请与申请 1" [ref=f7e22] [cursor=pointer]:
+          - generic [ref=f7e27]: 邀请与申请
+          - generic [ref=f7e28]: "1"
+        - button "系统通知" [ref=f7e29] [cursor=pointer]
+      - generic [ref=f7e34]:
+        - strong [ref=f7e35]: 最近会话
+        - generic [ref=f7e36]: 向左拖动查看操作
+      - generic [ref=f7e37]:
+        - article [ref=f7e38]:
+          - generic [ref=f7e39]:
+            - button "清空" [ref=f7e40] [cursor=pointer]
+            - button "删除" [ref=f7e44] [cursor=pointer]
+            - button "拉黑" [ref=f7e48] [cursor=pointer]
+          - generic [ref=f7e53]:
+            - generic [ref=f7e55]:
+              - generic [ref=f7e56]: 小雨
+              - generic [ref=f7e58]: 刚刚那句话，我认真看了很久
+            - generic [ref=f7e59]: 21:16
+        - article [ref=f7e62]:
+          - generic [ref=f7e63]:
+            - button "清空" [ref=f7e64] [cursor=pointer]
+            - button "退出房间" [ref=f7e68] [cursor=pointer]
+          - generic [ref=f7e72]:
+            - generic [ref=f7e76]:
+              - generic [ref=f7e77]:
+                - generic [ref=f7e78]: 深夜故事
+                - generic [ref=f7e79]: 私密 · 6人
+              - generic [ref=f7e80]: 阿澈：今晚还有人醒着吗
+            - generic [ref=f7e81]:
+              - generic [ref=f7e82]: 21:09
+              - generic [ref=f7e83]: "5"
+        - article [ref=f7e84]:
+          - generic [ref=f7e85]:
+            - button "清空" [ref=f7e86] [cursor=pointer]
+            - button "删除" [ref=f7e90] [cursor=pointer]
+            - button "拉黑" [ref=f7e94] [cursor=pointer]
+          - generic [ref=f7e99]:
+            - generic [ref=f7e101]:
+              - generic [ref=f7e102]: 阿澈
+              - generic [ref=f7e104]: "[图片] 海边刚拍到的月亮"
+            - generic [ref=f7e105]: 20:42
+        - article [ref=f7e107]:
+          - generic [ref=f7e108]:
+            - button "清空" [ref=f7e109] [cursor=pointer]
+            - button "退出房间" [ref=f7e113] [cursor=pointer]
+          - generic [ref=f7e117]:
+            - generic [ref=f7e121]:
+              - generic [ref=f7e122]:
+                - generic [ref=f7e123]: 海风夜谈
+                - generic [ref=f7e124]: 公开 · 12人
+              - generic [ref=f7e125]: 新加入了 2 位成员
+            - generic [ref=f7e126]: 19:58
+        - article [ref=f7e128]:
+          - generic [ref=f7e129]:
+            - button "清空" [ref=f7e130] [cursor=pointer]
+            - button "删除" [ref=f7e134] [cursor=pointer]
+            - button "拉黑" [ref=f7e138] [cursor=pointer]
+          - generic [ref=f7e143]:
+            - generic [ref=f7e145]:
+              - generic [ref=f7e146]: 林一
+              - generic [ref=f7e148]: 周末也许可以再聊一会儿
+            - generic [ref=f7e149]: 昨天
+    - region "个人聊天" [ref=f7e168]:
+      - generic [ref=f7e169]: 21:18
+      - generic [ref=f7e175]:
+        - button "返回" [ref=f7e176] [cursor=pointer]: ‹
+        - heading "小雨" [level=2] [ref=f7e178]
+        - button "聊天设置" [active] [ref=f7e179] [cursor=pointer]: ···
+      - generic [ref=f7e180]:
+        - generic [ref=f7e181]: 今天
+        - generic [ref=f7e182]:
+          - generic [ref=f7e183]: 雨
+          - generic [ref=f7e184]: 刚刚那句话，我认真看了很久。
+        - generic [ref=f7e185]: 没关系，慢慢说就好。
+      - generic:
+        - generic: 媒体
+        - button "图片"
+        - button "闪照"
+        - button "视频"
+        - button "摇骰子"
+        - generic: 互动
+        - button "真心话"
+        - button "大冒险"
+        - button "房间"
+        - button "更多玩法"
+      - generic [ref=f7e187]:
+        - button "语音" [ref=f7e188] [cursor=pointer]
+        - textbox "消息内容" [ref=f7e192]:
+          - /placeholder: 说点什么…
+        - button "发送" [ref=f7e193] [cursor=pointer]
+        - button "更多功能" [ref=f7e194] [cursor=pointer]
+    - region "聊天设置" [ref=f7e198]:
+      - generic [ref=f7e199]: 21:18
+      - generic [ref=f7e205]:
+        - button "返回聊天" [ref=f7e206] [cursor=pointer]: ‹
+        - heading "聊天设置" [level=2] [ref=f7e207]
+      - generic [ref=f7e209]:
+        - button "消息免打扰" [ref=f7e210] [cursor=pointer]
+        - button "清空聊天记录 ›" [ref=f7e213] [cursor=pointer]:
+          - generic [ref=f7e214]: 清空聊天记录
+          - emphasis [ref=f7e215]: ›
+        - button "删除会话 ›" [ref=f7e216] [cursor=pointer]:
+          - generic [ref=f7e217]: 删除会话
+          - emphasis [ref=f7e218]: ›
+        - button "举报用户 ›" [ref=f7e219] [cursor=pointer]:
+          - generic [ref=f7e220]: 举报用户
+          - emphasis [ref=f7e221]: ›
+        - button "拉黑用户 ›" [ref=f7e222] [cursor=pointer]:
+          - generic [ref=f7e223]: 拉黑用户
+          - emphasis [ref=f7e224]: ›
+    - region "举报用户":
+      - generic: 21:18
+      - generic:
+        - button "返回聊天设置": ‹
+        - heading "举报用户" [level=2]
+      - generic:
+        - paragraph: 选择你遇到的问题，我们会保护你的隐私。
+        - generic:
+          - button "骚扰或辱骂 ›":
+            - text: 骚扰或辱骂
+            - emphasis: ›
+          - button "色情或不当内容 ›":
+            - text: 色情或不当内容
+            - emphasis: ›
+          - button "诈骗或虚假信息 ›":
+            - text: 诈骗或虚假信息
+            - emphasis: ›
+          - button "其他问题 ›":
+            - text: 其他问题
+            - emphasis: ›
+    - region "创建私密房":
+      - generic:
+        - heading "创建私密房" [level=3]
+        - button "关闭": ×
+      - paragraph: 先创建属于你们的空间，再邀请想聊的人。
+      - generic:
+        - button "一对一"
+        - button "多人"
+      - generic:
+        - generic: 房间名称
+        - textbox "房间名称":
+          - /placeholder: 给房间起个名字
+          - text: 深夜小岛
+      - generic:
+        - generic: 创建后可邀请
+        - generic:
+          - generic: 雨
+          - generic:
+            - strong: 小雨
+            - generic: 当前聊天好友
+          - emphasis: 建议邀请
+      - button "创建房间"
+    - region "私密房间":
+      - generic: 21:18
+      - generic:
+        - button "返回": ‹
+        - generic:
+          - strong: 深夜小岛
+          - generic: 私密 · 一对一
+        - button "更多": ···
+      - generic:
+        - generic:
+          - generic: 我
+          - generic: ＋
+        - heading "房间已创建" [level=3]
+        - paragraph: 现在邀请小雨加入。对方同意后，才会看到这个房间。
+        - generic: 仅你一人
+        - button "邀请小雨"
+      - generic:
+        - textbox "房间消息" [disabled]:
+          - /placeholder: 等待成员加入后开始聊天
+    - region "通知列表":
+      - generic: 21:18
+      - generic:
+        - button "返回": ‹
+        - heading "互动通知" [level=2]
+    - region "漂流瓶回复详情":
+      - generic: 21:18
+      - generic:
+        - button "返回互动通知": ‹
+        - heading "漂流瓶回复" [level=2]
+      - generic:
+        - article:
+          - generic: 我投出的瓶子 · 昨晚 23:46
+          - paragraph: 有时候不是睡不着，只是还在等一句真正想听的话。
+        - generic:
+          - generic: 收到的回应
+          - generic: "4"
+        - generic:
+          - article:
+            - generic: 澈
+            - generic:
+              - strong: 阿澈
+              - time: 00:03
+              - paragraph: 也许那句话正在路上，只是海风走得慢了一点。
+          - article:
+            - generic: 晚
+            - generic:
+              - strong: 晚舟
+              - time: 00:18
+              - paragraph: 我也会在深夜等一个不敷衍的回答。
+          - article:
+            - generic: 雨
+            - generic:
+              - strong: 小雨
+              - time: 00:27
+              - paragraph: 我也有过这样的晚上。不是想找谁，只是不想让情绪沉下去。
+          - article:
+            - generic: 林
+            - generic:
+              - strong: 林一
+              - time: 00:41
+              - paragraph: 如果你愿意，下一次可以把没说完的话继续留在这里。
+    - region "操作弹窗":
+      - heading [level=3]
+      - paragraph
+    - navigation [ref=f7e151]:
+      - button "遇见" [ref=f7e152] [cursor=pointer]
+      - button "广场" [ref=f7e155] [cursor=pointer]
+      - button "玩法" [ref=f7e158] [cursor=pointer]
+      - button "消息" [ref=f7e161] [cursor=pointer]
+      - button "我的" [ref=f7e164] [cursor=pointer]
+    - generic:
+      - heading [level=3]
+      - paragraph
+      - generic:
+        - button "取消"
+        - button "确认"

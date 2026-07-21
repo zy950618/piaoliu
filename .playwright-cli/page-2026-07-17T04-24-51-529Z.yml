@@ -1,0 +1,166 @@
+- main [ref=f2e2]:
+  - generic [ref=f2e3]:
+    - generic [ref=f2e4]: 21:18
+    - generic [ref=f2e10]:
+      - heading "消息" [level=2] [ref=f2e12]
+      - generic [ref=f2e14]:
+        - button "互动通知 3" [ref=f2e15] [cursor=pointer]:
+          - generic [ref=f2e20]: 互动通知
+          - generic [ref=f2e21]: "3"
+        - button "邀请与申请 1" [ref=f2e22] [cursor=pointer]:
+          - generic [ref=f2e27]: 邀请与申请
+          - generic [ref=f2e28]: "1"
+        - button "系统通知" [ref=f2e29] [cursor=pointer]
+      - generic [ref=f2e34]:
+        - strong [ref=f2e35]: 最近会话
+        - generic [ref=f2e36]: 向左拖动查看操作
+      - generic [ref=f2e37]:
+        - article [ref=f2e38]:
+          - generic [ref=f2e39]:
+            - button "清空" [ref=f2e40] [cursor=pointer]
+            - button "删除" [ref=f2e44] [cursor=pointer]
+            - button "拉黑" [ref=f2e48] [cursor=pointer]
+          - generic [ref=f2e53]:
+            - generic [ref=f2e55]:
+              - generic [ref=f2e56]: 小雨
+              - generic [ref=f2e58]: 刚刚那句话，我认真看了很久
+            - generic [ref=f2e59]:
+              - generic [ref=f2e60]: 21:16
+              - generic [ref=f2e61]: "2"
+        - article [ref=f2e62]:
+          - generic [ref=f2e63]:
+            - button "清空" [ref=f2e64] [cursor=pointer]
+            - button "退出房间" [ref=f2e68] [cursor=pointer]
+          - generic [ref=f2e72]:
+            - generic [ref=f2e76]:
+              - generic [ref=f2e77]:
+                - generic [ref=f2e78]: 深夜故事
+                - generic [ref=f2e79]: 私密 · 6人
+              - generic [ref=f2e80]: 阿澈：今晚还有人醒着吗
+            - generic [ref=f2e81]:
+              - generic [ref=f2e82]: 21:09
+              - generic [ref=f2e83]: "5"
+        - article [ref=f2e84]:
+          - generic [ref=f2e85]:
+            - button "清空" [ref=f2e86] [cursor=pointer]
+            - button "删除" [ref=f2e90] [cursor=pointer]
+            - button "拉黑" [ref=f2e210] [cursor=pointer]
+          - generic [ref=f2e99]:
+            - generic [ref=f2e101]:
+              - generic [ref=f2e102]: 阿澈
+              - generic [ref=f2e104]: "[图片] 海边刚拍到的月亮"
+            - generic [ref=f2e105]: 20:42
+        - article [ref=f2e107]:
+          - generic [ref=f2e108]:
+            - button "清空" [ref=f2e109] [cursor=pointer]
+            - button "退出房间" [ref=f2e113] [cursor=pointer]
+          - generic [ref=f2e117]:
+            - generic [ref=f2e121]:
+              - generic [ref=f2e122]:
+                - generic [ref=f2e123]: 海风夜谈
+                - generic [ref=f2e124]: 公开 · 12人
+              - generic [ref=f2e125]: 新加入了 2 位成员
+            - generic [ref=f2e126]: 19:58
+        - article [ref=f2e128]:
+          - generic [ref=f2e129]:
+            - button "清空" [ref=f2e130] [cursor=pointer]
+            - button "删除" [ref=f2e134] [cursor=pointer]
+            - button "拉黑" [ref=f2e138] [cursor=pointer]
+          - generic [ref=f2e143]:
+            - generic [ref=f2e145]:
+              - generic [ref=f2e146]: 林一
+              - generic [ref=f2e148]: 周末也许可以再聊一会儿
+            - generic [ref=f2e149]: 昨天
+    - region "个人聊天":
+      - generic: 21:18
+      - generic:
+        - button "返回": ‹
+        - generic:
+          - heading "阿澈" [level=2]
+          - generic: 已拉黑
+        - button "更多": ···
+      - generic:
+        - generic: 今天
+        - generic:
+          - generic: 澈
+          - generic: 海边刚拍到的月亮。
+        - generic: 很安静，像是只留给今晚。
+      - generic:
+        - generic: 媒体
+        - button "图片"
+        - button "闪照"
+        - button "视频"
+        - button "摇骰子"
+        - generic: 互动
+        - button "真心话"
+        - button "大冒险"
+        - button "房间"
+        - button "更多玩法"
+      - generic:
+        - button "语音"
+        - textbox "消息内容":
+          - /placeholder: 说点什么…
+        - button "发送"
+        - button "更多功能"
+    - region "创建私密房":
+      - generic:
+        - heading "创建私密房" [level=3]
+        - button "关闭": ×
+      - paragraph: 先创建属于你们的空间，再邀请想聊的人。
+      - generic:
+        - button "一对一"
+        - button "多人"
+      - generic:
+        - generic: 房间名称
+        - textbox "房间名称":
+          - /placeholder: 给房间起个名字
+          - text: 深夜小岛
+      - generic:
+        - generic: 创建后可邀请
+        - generic:
+          - generic: 雨
+          - generic:
+            - strong: 小雨
+            - generic: 当前聊天好友
+          - emphasis: 建议邀请
+      - button "创建房间"
+    - region "私密房间":
+      - generic: 21:18
+      - generic:
+        - button "返回": ‹
+        - generic:
+          - strong: 深夜小岛
+          - generic: 私密 · 一对一
+        - button "更多": ···
+      - generic:
+        - generic:
+          - generic: 我
+          - generic: ＋
+        - heading "房间已创建" [level=3]
+        - paragraph: 现在邀请小雨加入。对方同意后，才会看到这个房间。
+        - generic: 仅你一人
+        - button "邀请小雨"
+      - generic:
+        - textbox "房间消息" [disabled]:
+          - /placeholder: 等待成员加入后开始聊天
+    - region "通知列表":
+      - generic: 21:18
+      - generic:
+        - button "返回": ‹
+        - heading "互动通知" [level=2]
+    - region "操作弹窗":
+      - heading [level=3]
+      - paragraph
+    - navigation [ref=f2e151]:
+      - button "遇见" [ref=f2e152] [cursor=pointer]
+      - button "广场" [ref=f2e155] [cursor=pointer]
+      - button "玩法" [ref=f2e158] [cursor=pointer]
+      - button "消息" [ref=f2e161] [cursor=pointer]
+      - button "我的" [ref=f2e164] [cursor=pointer]
+    - generic:
+      - heading "解除对「阿澈」的拉黑？" [level=3]
+      - paragraph: 解除后将恢复原有聊天权限。
+      - generic:
+        - button "取消"
+        - button "解除拉黑" [active]
+    - generic: 已解除拉黑
